@@ -1,0 +1,220 @@
+﻿//-----------------------------------------------------------------------
+// <copyright file="OpenAiService.cs" company="Midnight Mission Systems">
+//     Copyright (c) Midnight Mission Systems. All rights reserved.
+// </copyright>
+//-----------------------------------------------------------------------
+namespace AIFileProcessor.Services
+{
+    using System;
+    using System.ClientModel;
+    using System.ClientModel.Primitives;
+    using System.Collections.Concurrent;
+    using System.Collections.Generic;
+    using System.Net.Http;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using AIFileProcessor.Configuration;
+    using AIFileProcessor.Interfaces;
+    using AIFileProcessor.Models;
+    using Microsoft.Extensions.Logging;
+    using Microsoft.Extensions.Options;
+    using OpenAI;
+    using OpenAI.Chat;
+
+    /// <summary>
+    /// Service that executes requests against the OpenAI API using the official OpenAI SDK.
+    /// </summary>
+    public class OpenAiService : IAiService
+    {
+        private static readonly IReadOnlyList<AiModelInfo> SupportedModels =
+        [
+            new AiModelInfo("GPT-4.1", "gpt-4.1"),
+            new AiModelInfo("GPT-5 Mini", "gpt-5-mini"),
+            new AiModelInfo("GPT-5 Nano", "gpt-5-nano"),
+            new AiModelInfo("GPT-5", "gpt-5"),
+            new AiModelInfo("GPT-5.3 Codex", "gpt-5.3-codex"),
+            new AiModelInfo("GPT-5.4 Mini", "gpt-5.4-mini"),
+            new AiModelInfo("GPT-5.4 Nano", "gpt-5.4-nano"),
+            new AiModelInfo("GPT-5.4 Pro", "gpt-5.4-pro"),
+            new AiModelInfo("GPT-5.4", "gpt-5.4"),
+            new AiModelInfo("GPT-5.5 Pro", "gpt-5.5-pro"),
+            new AiModelInfo("GPT-5.5", "gpt-5.5"),
+        ];
+
+        private readonly ILogger _logger;
+        private readonly OpenAiSettings _defaultSettings;
+        private readonly HttpClient _httpClient;
+        private readonly ConcurrentDictionary<string, ChatClient> _clients = new();
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="OpenAiService"/> class.
+        /// </summary>
+        /// <param name="logger">The logger instance for logging information and errors.</param>
+        /// <param name="settings">The default OpenAI settings (from <c>IOptions&lt;T&gt;</c>).</param>
+        /// <param name="httpClient">The HTTP client for making requests, managed by IHttpClientFactory.</param>
+        public OpenAiService(ILogger<OpenAiService> logger, IOptions<OpenAiSettings> settings, HttpClient httpClient)
+        {
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _defaultSettings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
+            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        }
+
+        public IEnumerable<AiModelInfo> GetSupportedModels() => SupportedModels;
+
+        public bool SupportsModel(string modelNameOrId)
+        {
+            if (string.IsNullOrWhiteSpace(modelNameOrId))
+            {
+                return false;
+            }
+
+            string normalizedModel = modelNameOrId.Trim().ToLowerInvariant();
+            foreach (var model in SupportedModels)
+            {
+                if (model.ModelId.Equals(normalizedModel, StringComparison.OrdinalIgnoreCase)
+                    || model.ModelName.Trim().ToLowerInvariant() == normalizedModel)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Generates content using the default (constructor-injected) OpenAI settings.
+        /// </summary>
+        /// <param name="modelId">The model to use for processing.</param>
+        /// <param name="prompt">The user prompt to process.</param>
+        /// <param name="data">The string data for the AI model.</param>
+        /// <param name="ct">A token to cancel the request.</param>
+        /// <returns>The generated text response.</returns>
+        public Task<string> ProcessTextAsync(
+            string modelId,
+            string prompt,
+            string data,
+            CancellationToken ct = default)
+        {
+            return ProcessTextAsync(modelId, prompt, data, _defaultSettings, ct);
+        }
+
+        /// <summary>
+        /// Generates content using the provided per-call OpenAI settings.
+        /// </summary>
+        /// <param name="modelId">The model to use for processing.</param>
+        /// <param name="prompt">The user prompt to process.</param>
+        /// <param name="data">The string data for the AI model.</param>
+        /// <param name="settings">The per-call settings (must be an <see cref="OpenAiSettings"/>).</param>
+        /// <param name="ct">A token to cancel the request.</param>
+        /// <returns>The generated text response.</returns>
+        public Task<string> ProcessTextAsync(
+            string modelId,
+            string prompt,
+            string data,
+            object settings,
+            CancellationToken ct = default)
+        {
+            if (settings is not OpenAiSettings openAiSettings)
+            {
+                throw new ArgumentException($"Expected OpenAiSettings but received {settings?.GetType().Name ?? "null"}.", nameof(settings));
+            }
+
+            return ProcessTextAsync(modelId, prompt, data, openAiSettings, ct);
+        }
+
+        /// <summary>
+        /// Builds a fingerprint string for client caching, ensuring that users
+        /// with different API keys, endpoints, or models get separate cached
+        /// <see cref="ChatClient"/> instances.
+        /// </summary>
+        private static string GetClientFingerprint(string modelId, OpenAiSettings settings)
+        {
+            return $"{settings.ApiKey}:{settings.Endpoint}:{modelId}";
+        }
+
+        /// <summary>
+        /// Internal implementation that executes the OpenAI API call using the
+        /// specified settings, caching clients keyed by a settings fingerprint.
+        /// </summary>
+        private async Task<string> ProcessTextAsync(
+            string modelId,
+            string prompt,
+            string data,
+            OpenAiSettings settings,
+            CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(modelId))
+            {
+                throw new ArgumentException("Model ID is required.", nameof(modelId));
+            }
+
+            if (string.IsNullOrWhiteSpace(prompt))
+            {
+                throw new ArgumentException("Prompt is required.", nameof(prompt));
+            }
+
+            if (string.IsNullOrWhiteSpace(data))
+            {
+                throw new ArgumentException("Data is required.", nameof(data));
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.ApiKey))
+            {
+                throw new InvalidOperationException("OpenAI API key is not configured.");
+            }
+
+            string fingerprint = GetClientFingerprint(modelId, settings);
+            var client = _clients.GetOrAdd(fingerprint, _ =>
+            {
+                var clientOptions = new OpenAIClientOptions
+                {
+                    Transport = new HttpClientPipelineTransport(_httpClient),
+                };
+
+                if (!string.IsNullOrWhiteSpace(settings.Endpoint))
+                {
+                    clientOptions.Endpoint = new Uri(settings.Endpoint);
+                }
+
+                return new ChatClient(
+                    model: modelId,
+                    credential: new ApiKeyCredential(settings.ApiKey),
+                    options: clientOptions);
+            });
+
+            var chatOptions = new ChatCompletionOptions();
+
+            if (settings.MaxTokens.HasValue)
+            {
+                chatOptions.MaxOutputTokenCount = settings.MaxTokens.Value;
+            }
+
+            if (settings.Temperature.HasValue)
+            {
+                chatOptions.Temperature = (float)settings.Temperature.Value;
+            }
+
+            try
+            {
+                ClientResult<ChatCompletion> result = await client.CompleteChatAsync(
+                    [
+                        new SystemChatMessage(prompt),
+                        new UserChatMessage(data)
+                    ],
+                    chatOptions,
+                    ct);
+
+                ChatCompletion completion = result.Value;
+
+                return completion.Content.Count > 0
+                    ? completion.Content[0].Text ?? string.Empty
+                    : string.Empty;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "OpenAI API request failed for model {ModelId}.", modelId);
+                throw;
+            }
+        }
+    }
+}

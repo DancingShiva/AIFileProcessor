@@ -1,0 +1,316 @@
+﻿//-----------------------------------------------------------------------
+// <copyright file="GeminiService.cs" company="Midnight Mission Systems">
+//     Copyright (c) Midnight Mission Systems. All rights reserved.
+// </copyright>
+//-----------------------------------------------------------------------
+namespace AIFileProcessor.Services
+{
+    using System;
+    using System.Collections.Concurrent;
+    using System.Collections.Generic;
+    using System.IO;
+    using System.Net;
+    using System.Net.Http;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using AIFileProcessor.Configuration;
+    using AIFileProcessor.Interfaces;
+    using AIFileProcessor.Models;
+    using Google.GenAI.Types;
+    using Microsoft.Extensions.Logging;
+    using Microsoft.Extensions.Options;
+
+    /// <summary>
+    /// Service that executes requests against the Google Gemini API using the official Google.GenAI SDK.
+    /// </summary>
+    public class GeminiService : IAiService
+    {
+        private static readonly IReadOnlyList<AiModelInfo> SupportedModels =
+        [
+            new AiModelInfo("Gemini 2.5 Flash", "gemini-2.5-flash"),
+            new AiModelInfo("Gemini 2.5 Flash-Lite", "gemini-2.5-flash-lite"),
+            new AiModelInfo("Gemini 2.5 Pro", "gemini-2.5-pro"),
+            new AiModelInfo("Gemini 3 Flash", "gemini-3-flash"),
+            new AiModelInfo("Gemini 3.1 Pro", "gemini-3.1-pro-preview"),
+            new AiModelInfo("Gemini 3.5 Flash", "gemini-3.5-flash"),
+        ];
+
+        private readonly GeminiSettings _defaultSettings;
+        private readonly ILogger _logger;
+        private readonly HttpClient _httpClient;
+        private readonly ConcurrentDictionary<string, Google.GenAI.Client> _clients = new();
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="GeminiService"/> class.
+        /// </summary>
+        /// <param name="logger">The logger instance for logging information and errors.</param>
+        /// <param name="settings">The default Gemini settings (from <c>IOptions&lt;T&gt;</c>).</param>
+        /// <param name="httpClient">The HTTP client for making requests, managed by IHttpClientFactory.</param>
+        public GeminiService(ILogger<GeminiService> logger, IOptions<GeminiSettings> settings, HttpClient httpClient)
+        {
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _defaultSettings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
+            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        }
+
+        public IEnumerable<AiModelInfo> GetSupportedModels() => SupportedModels;
+
+        public bool SupportsModel(string modelNameOrId)
+        {
+            if (string.IsNullOrWhiteSpace(modelNameOrId))
+            {
+                return false;
+            }
+
+            string normalizedModel = modelNameOrId.Trim().ToLowerInvariant();
+            foreach (var model in SupportedModels)
+            {
+                if (model.ModelId.Equals(normalizedModel, StringComparison.OrdinalIgnoreCase)
+                    || model.ModelName.Trim().ToLowerInvariant() == normalizedModel)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Generates content using the default (constructor-injected) Gemini settings.
+        /// </summary>
+        /// <param name="modelId">The model to use for processing.</param>
+        /// <param name="prompt">The user prompt to process.</param>
+        /// <param name="data">The string data for the AI model.</param>
+        /// <param name="ct">A token to cancel the request.</param>
+        /// <returns>The generated text response.</returns>
+        public Task<string> ProcessTextAsync(string modelId, string prompt, string data, CancellationToken ct = default)
+        {
+            return ProcessTextAsync(modelId, prompt, data, _defaultSettings, ct);
+        }
+
+        /// <summary>
+        /// Generates content using the provided per-call Gemini settings.
+        /// </summary>
+        /// <param name="modelId">The model to use for processing.</param>
+        /// <param name="prompt">The user prompt to process.</param>
+        /// <param name="data">The string data for the AI model.</param>
+        /// <param name="settings">The per-call settings (must be a <see cref="GeminiSettings"/>).</param>
+        /// <param name="ct">A token to cancel the request.</param>
+        /// <returns>The generated text response.</returns>
+        public Task<string> ProcessTextAsync(string modelId, string prompt, string data, object settings, CancellationToken ct = default)
+        {
+            if (settings is not GeminiSettings geminiSettings)
+            {
+                throw new ArgumentException($"Expected GeminiSettings but received {settings?.GetType().Name ?? "null"}.", nameof(settings));
+            }
+
+            return ProcessTextAsync(modelId, prompt, data, geminiSettings, ct);
+        }
+
+        /// <summary>
+        /// Builds a fingerprint string for client caching, ensuring that users
+        /// with different API keys, endpoints, projects, or locations get separate
+        /// cached <see cref="Google.GenAI.Client"/> instances.
+        /// </summary>
+        private static string GetClientFingerprint(GeminiSettings settings)
+        {
+            return $"{settings.ApiKey}:{settings.Endpoint}:{settings.ProjectId}:{settings.Location}";
+        }
+
+        private static bool IsTransient(Exception ex)
+        {
+            if (ex is HttpRequestException hre)
+            {
+                return hre.StatusCode is null or HttpStatusCode.TooManyRequests or >= HttpStatusCode.InternalServerError;
+            }
+
+            // Google.GenAI.ClientError wraps HTTP errors; check for transient status codes.
+            if (ex is Google.GenAI.ClientError ce)
+            {
+                int code = ce.StatusCode;
+                return code == (int)HttpStatusCode.TooManyRequests || code >= (int)HttpStatusCode.InternalServerError;
+            }
+
+            // Timeout exceptions are transient.
+            if (ex is TimeoutException or TaskCanceledException)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static Schema BuildResponseSchema()
+        {
+            Schema sentenceSchema = new()
+            {
+                Type = Google.GenAI.Types.Type.Object,
+                Properties = new()
+                    {
+                        { "C", new() { Type = Google.GenAI.Types.Type.String } },
+                        { "P", new() { Type = Google.GenAI.Types.Type.String } },
+                        { "B", new() { Type = Google.GenAI.Types.Type.String } },
+                        { "R", new() { Type = Google.GenAI.Types.Type.String } },
+                        { "E", new() { Type = Google.GenAI.Types.Type.String } }
+                    },
+                Required = new System.Collections.Generic.List<string> { "C", "P", "B", "R", "E" }
+            };
+
+            return new()
+            {
+                Type = Google.GenAI.Types.Type.Object,
+                Properties = new()
+                {
+                    { "SP", new() { Type = Google.GenAI.Types.Type.String } },
+                    {
+                        "Corrections", new()
+                        {
+                            Type = Google.GenAI.Types.Type.Array,
+                            Items = new() { Type = Google.GenAI.Types.Type.String }
+                        }
+                    },
+                    {
+                        "Sentences", new()
+                        {
+                            Type = Google.GenAI.Types.Type.Array,
+                            Items = sentenceSchema
+                        }
+                    }
+                },
+                Required = new System.Collections.Generic.List<string> { "SP", "Sentences" }
+            };
+        }
+
+        /// <summary>
+        /// Internal implementation that executes the Gemini API call using the
+        /// specified settings, caching clients keyed by a settings fingerprint.
+        /// </summary>
+        private async Task<string> ProcessTextAsync(string modelId, string prompt, string data, GeminiSettings settings, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(modelId))
+            {
+                throw new ArgumentException("Model ID is required.", nameof(modelId));
+            }
+
+            if (string.IsNullOrWhiteSpace(prompt))
+            {
+                throw new ArgumentException("Prompt is required.", nameof(prompt));
+            }
+
+            if (string.IsNullOrWhiteSpace(data))
+            {
+                throw new ArgumentException("Data is required.", nameof(data));
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.ApiKey))
+            {
+                throw new InvalidOperationException("Gemini API key is not configured.");
+            }
+
+            string fingerprint = GetClientFingerprint(settings);
+            var client = _clients.GetOrAdd(fingerprint, _ =>
+            {
+                var options = new ClientOptions
+                {
+                    HttpClientFactory = () => _httpClient
+                };
+
+                return new Google.GenAI.Client(
+                    apiKey: settings.ApiKey,
+                    project: settings.ProjectId,
+                    location: settings.Location,
+                    clientOptions: options);
+            });
+
+            var schema = BuildResponseSchema();
+
+            var config = new GenerateContentConfig
+            {
+                SystemInstruction = new Content
+                {
+                    Parts = new List<Part> { new Part { Text = prompt } }
+                },
+                ResponseMimeType = "application/json",
+                ResponseSchema = schema,
+                Temperature = (float?)settings.Temperature,
+                TopP = (float?)settings.TopP,
+                MaxOutputTokens = settings.MaxTokens,
+            };
+
+            string targetModel = modelId;
+
+            if (settings.StreamingEnabled)
+            {
+                try
+                {
+                    var responseStream = client.Models.GenerateContentStreamAsync(
+                        model: targetModel,
+                        contents: data,
+                        config: config,
+                        cancellationToken: ct);
+
+                    using var writer = new StringWriter();
+                    await foreach (var chunk in responseStream)
+                    {
+                        if (chunk.Text != null)
+                        {
+                            await writer.WriteAsync(chunk.Text);
+
+                            if (settings.EnableLogging)
+                            {
+                                _logger.LogInformation("{Chunk}", chunk.Text);
+                            }
+                        }
+                    }
+
+                    return writer.ToString();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Gemini streaming API request failed for model {TargetModel}.", targetModel);
+                    throw;
+                }
+            }
+            else
+            {
+                int maxRetries = Math.Max(0, settings.MaxRetries);
+                int baseDelay = Math.Max(1, settings.BaseDelay);
+                int maxDelay = Math.Max(baseDelay, settings.MaxDelay);
+
+                for (int attempt = 0; ; attempt++)
+                {
+                    try
+                    {
+                        var response = await client.Models.GenerateContentAsync(
+                            model: targetModel,
+                            contents: data,
+                            config: config,
+                            cancellationToken: ct);
+
+                        if (settings.EnableLogging)
+                        {
+                            _logger.LogInformation("[Gemini Log] Model: {TargetModel}, Response Status: Success", targetModel);
+                        }
+
+                        return response.Text ?? string.Empty;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex) when (attempt < maxRetries && IsTransient(ex))
+                    {
+                        int delaySeconds = Math.Min(baseDelay * (int)Math.Pow(2, attempt), maxDelay);
+                        _logger.LogWarning(ex, "Gemini API transient failure on attempt {Attempt}/{MaxRetries} for model {TargetModel}. Retrying in {DelaySeconds}s.", attempt + 1, maxRetries, targetModel, delaySeconds);
+                        await Task.Delay(TimeSpan.FromSeconds(delaySeconds), ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Gemini API request failed for model {TargetModel}.", targetModel);
+                        throw;
+                    }
+                }
+            }
+        }
+    }
+}

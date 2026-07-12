@@ -1,0 +1,152 @@
+﻿//-----------------------------------------------------------------------
+// <copyright file="AiApiResponse.cs" company="Midnight Mission Systems">
+//     Copyright (c) Midnight Mission Systems. All rights reserved.
+// </copyright>
+//-----------------------------------------------------------------------
+namespace AIFileProcessor.Response
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Text.Json;
+    using System.Text.Json.Serialization;
+    using AIFileProcessor.Extensions;
+
+    /// <summary>
+    ///  BUGBUG This is currently tied to Gemini, but the structure is generic enough that it could be used for other LLM responses as well. The key is that the JSON structure of the response matches the properties of this class. If we were to switch to a different LLM, we would need to ensure that the response format is compatible or implement a mapping layer to convert the new format into this structure.
+    /// </summary>
+    public class AiApiResponse
+    {
+        private static readonly JsonSerializerOptions _options = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            AllowTrailingCommas = true,
+            ReadCommentHandling = JsonCommentHandling.Skip
+        };
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AiApiResponse"/> class.
+        /// Required for standard JSON deserialization frameworks.
+        /// </summary>
+        public AiApiResponse()
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AiApiResponse"/> class by parsing a JSON string.
+        /// </summary>
+        /// <param name="jsonString">The JSON payload containing the response data.</param>
+        /// <param name="options">Optional JSON serializer options to customize deserialization behavior.</param>
+        /// <exception cref="ArgumentException">Thrown when the input string is null or whitespace.</exception>
+        /// <exception cref="JsonException">Thrown if the JSON string is invalid or cannot be parsed.</exception>
+        public AiApiResponse(string jsonString, JsonSerializerOptions? options = null)
+        {
+            if (string.IsNullOrWhiteSpace(jsonString))
+            {
+                throw new ArgumentException("JSON string cannot be null or whitespace.", nameof(jsonString));
+            }
+
+            if (!FillFromJsonResponse(jsonString, options ?? _options))
+            {
+                throw new JsonException("Failed to parse the JSON string into the AiApiResponse instance.");
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the value of the scratch pad that Gemini keeps to track the pinyin sandhi rules. This is used to help Gemini keep track of the changes that it has made to the pinyin in order to apply the correct sandhi rules. It is not used by the application, but it is included in the response for debugging purposes.
+        /// </summary>
+        [JsonPropertyName("SP")]
+        public string Scratchpad { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or Sets the Corrections that the LLM has applied since the LLM is given the freedom to detect and correct common issues that may be caused by OCR errors or other inconsistencies in the input data. This property allows the LLM to return a list of any corrections it has made during processing. These corrections can be used for debugging, auditing, or even to provide feedback to users about potential issues in the original input. The application does not rely on this property for its core functionality, but it can be valuable for understanding how the LLM is interpreting and modifying the data.
+        /// </summary>
+        [JsonPropertyName("Corrections")]
+        public List<string> Corrections { get; set; } = [];
+
+        /// <summary>
+        /// Gets or sets a list of processed sentence rows, each containing the original sentence and its corrected version.
+        /// </summary>
+        [JsonPropertyName("Sentences")]
+        public List<ProcessedSentenceRow> ProcessedSentenceRows { get; set; } = [];
+
+        /// <summary>
+        /// Populates the current instance properties from a JSON response string.
+        /// </summary>
+        /// <param name="response">The JSON string containing the model response.</param>
+        /// <param name="options">Optional JSON serializer options to customize deserialization behavior.</param>
+        /// <returns>True if deserialization succeeded and properties were populated; otherwise, false.</returns>
+        public bool FillFromJsonResponse(string response, JsonSerializerOptions? options = null)
+        {
+            if (string.IsNullOrWhiteSpace(response))
+            {
+                return false;
+            }
+
+            response = response.Trim();
+
+            // Extract the content specifically wrapped inside markdown code blocks
+            int jsonStartIndex = response.IndexOf("```json", StringComparison.OrdinalIgnoreCase);
+            if (jsonStartIndex != -1)
+            {
+                int contentStart = jsonStartIndex + 7;
+                int jsonEndIndex = response.IndexOf("```", contentStart, StringComparison.OrdinalIgnoreCase);
+                if (jsonEndIndex != -1)
+                {
+                    response = response.Substring(contentStart, jsonEndIndex - contentStart);
+                }
+            }
+            else
+            {
+                int generalCodeStartIndex = response.IndexOf("```", StringComparison.OrdinalIgnoreCase);
+                if (generalCodeStartIndex != -1)
+                {
+                    int contentStart = generalCodeStartIndex + 3;
+                    int generalCodeEndIndex = response.IndexOf("```", contentStart, StringComparison.OrdinalIgnoreCase);
+                    if (generalCodeEndIndex != -1)
+                    {
+                        response = response.Substring(contentStart, generalCodeEndIndex - contentStart);
+                    }
+                }
+            }
+
+            response = response.Trim();
+
+            // Suffix and prefix fallback: extract everything between outer curly braces
+            if (!response.StartsWith('{'))
+            {
+                int firstBrace = response.IndexOf('{');
+                int lastBrace = response.LastIndexOf('}');
+                if (firstBrace != -1 && lastBrace > firstBrace)
+                {
+                    response = response.Substring(firstBrace, lastBrace - firstBrace + 1);
+                }
+            }
+
+            try
+            {
+                // AI responses often have minor variations. Case-insensitivity and
+                // allowing trailing commas prevent unnecessary parse failures.
+                options ??= _options;
+
+                var responseObject = JsonSerializer.Deserialize<AiApiResponse>(response, options);
+                if (responseObject != null)
+                {
+                    this.Scratchpad = responseObject.Scratchpad;
+                    this.Corrections = responseObject.Corrections;
+                    this.ProcessedSentenceRows = responseObject.ProcessedSentenceRows;
+                    return true;
+                }
+            }
+            catch (JsonException ex)
+            {
+                // Issue #11: Removed Debug.Fail which showed a modal dialog in debug builds.
+                // Debug.WriteLine is sufficient for development diagnostics without
+                // interrupting the application with a modal dialog.
+                Debug.WriteLine($"JSON Deserialization failed: {ex.Message}. Response: {response}");
+            }
+
+            return false;
+        }
+    }
+}

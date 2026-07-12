@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/DotNetAnalyzers/StyleCopAnalyzers/master/StyleCop.Analyzers/StyleCop.Analyzers/Settings/stylecop.schema.json",
+  "settings": {
+    "documentationRules": {
+      "companyName": "Midnight Mission Systems",
+      "copyrightText": "Copyright (c) Midnight Mission Systems. All rights reserved."
+    }
+  }
+}

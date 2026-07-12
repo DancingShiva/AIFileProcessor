@@ -1,0 +1,20 @@
+# NOTE: Requires **VS2019 16.3** or later
+
+# New Rule Set
+# Description:  
+
+# Code files
+[*.{cs,vb}]
+dotnet_diagnostic.CA1873.severity = none    # CA1873: Avoid potentially expensive logging
+dotnet_diagnostic.IDE1006.severity = none   # IDE1006: Naming rule violation: These words must begin with upper case characters
+dotnet_diagnostic.SA1000.severity = none    # SA1000: Keywords must be spaced correctly
+dotnet_diagnostic.SA1010.severity = none    # SA1010: Opening square brackets must be spaced correctly
+dotnet_diagnostic.SA1101.severity = none    # SA1101: Prefix local calls with this
+dotnet_diagnostic.SA1300.severity = none    # SA1300: Element must begin with upper-case letter
+dotnet_diagnostic.SA1309.severity = none    # SA1309: Field names must not begin with an underscore
+dotnet_diagnostic.SA1413.severity = none    # SA1413: Use trailing comma in multi-line initializers
+dotnet_diagnostic.SA1501.severity = none    # SA1501: Statement must not be on a single line
+
+# temporary commenting out XML documentation rules until we can add documentation to all public members
+dotnet_diagnostic.SA1600.severity = none    # SA1600: Elements must be documented
+dotnet_diagnostic.CS1591.severity = none    # CS1591: Missing XML comment for publicly visible type or member

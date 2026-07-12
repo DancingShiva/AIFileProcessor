@@ -1,0 +1,48 @@
+# Build output
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio user-specific files
+.vs/
+*.user
+*.suo
+*.userprefs
+*.userosscache
+*.sln.docstates
+*.lnk
+
+# Visual Studio auto-generated files
+*.lnk
+
+# .NET user-specific files
+appsettings.Development.json
+appsettings.Local.json
+*.dotnet-settings.json
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+# Publish output
+publish/
+[Pp]ublish/
+
+# Logs
+*.log
+
+# AI / agent files
+.ai/
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# JetBrains Rider
+.idea/
