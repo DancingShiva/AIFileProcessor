@@ -8,12 +8,12 @@ namespace AIFileProcessor.Extensions
     using System.Text.RegularExpressions;
 
     /// <summary>
-    /// This is a partial classs since the RegEx is generated at runtime.
+    /// This is a partial class since the RegEx is generated at runtime.
     /// </summary>
     public static partial class StringExtensions
     {
         /// <summary>
-        /// This makes sure that there are no extraneous spaces around the Chinese punctuation. The half-width Chinese characters are converted to full-width characters as part of the intial cleanup by the prompt.
+        /// This makes sure that there are no extraneous spaces around the Chinese punctuation. The half-width Chinese characters are converted to full-width characters as part of the initial cleanup by the prompt.
         /// </summary>
         /// <param name="input">The input string to clean.</param>
         /// <returns>The cleaned string.</returns>

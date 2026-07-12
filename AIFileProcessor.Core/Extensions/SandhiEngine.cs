@@ -8,7 +8,6 @@ namespace AIFileProcessor.Extensions
     using System;
     using System.Collections.Generic;
     using System.Text;
-    using AIFileProcessor.Extensions;
 
     /// <summary>
     /// Engine responsible for processing sandhi rules on a stream of syllables.

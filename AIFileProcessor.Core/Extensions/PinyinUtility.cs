@@ -173,7 +173,7 @@ namespace AIFileProcessor.Extensions
         }
 
         /// <summary>
-        /// SHifts the given vowel character to its accented form based on the specified tone number.
+        /// Shifts the given vowel character to its accented form based on the specified tone number.
         /// </summary>
         /// <param name="vowel">The vowel character to be accented.</param>
         /// <param name="tone">The tone number (1-4) to apply.</param>

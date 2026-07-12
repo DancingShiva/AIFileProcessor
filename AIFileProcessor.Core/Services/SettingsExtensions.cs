@@ -220,6 +220,11 @@ namespace AIFileProcessor.Services
                 target.Temperature = source.Temperature;
             }
 
+            if (source.ModelName != null)
+            {
+                target.ModelName = source.ModelName;
+            }
+
             if (source.EnableReasoning)
             {
                 target.EnableReasoning = source.EnableReasoning;

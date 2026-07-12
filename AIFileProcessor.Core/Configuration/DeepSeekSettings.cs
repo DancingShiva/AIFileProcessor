@@ -28,6 +28,9 @@ namespace AIFileProcessor.Configuration
         public double? Temperature { get; set; }
 
         /// <inheritdoc />
+        public string? ModelName { get; set; } = null;
+
+        /// <inheritdoc />
         public bool EnableReasoning { get; set; }
     }
 }

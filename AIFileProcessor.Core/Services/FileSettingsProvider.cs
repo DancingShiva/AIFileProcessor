@@ -7,6 +7,8 @@ namespace AIFileProcessor.Services
 {
     using System;
     using System.IO;
+    using System.Security.Cryptography;
+    using System.Text;
     using System.Text.Json;
     using System.Text.Json.Nodes;
     using System.Threading;
@@ -63,7 +65,16 @@ namespace AIFileProcessor.Services
             if (userOverrides != null && userOverrides["GeminiSettings"] is JsonObject geminiOverride)
             {
                 string json = geminiOverride.ToJsonString();
-                JsonSerializer.Deserialize<GeminiSettings>(json, ReadOptions)?.CopyOnto(settings);
+                var overrideSettings = JsonSerializer.Deserialize<GeminiSettings>(json, ReadOptions);
+                if (overrideSettings != null)
+                {
+                    if (!string.IsNullOrEmpty(overrideSettings.ApiKey))
+                    {
+                        overrideSettings.ApiKey = DecryptString(overrideSettings.ApiKey);
+                    }
+
+                    overrideSettings.CopyOnto(settings);
+                }
             }
 
             return Task.FromResult(settings);
@@ -81,7 +92,16 @@ namespace AIFileProcessor.Services
             if (userOverrides != null && userOverrides["OpenAiSettings"] is JsonObject openAiOverride)
             {
                 string json = openAiOverride.ToJsonString();
-                JsonSerializer.Deserialize<OpenAiSettings>(json, ReadOptions)?.CopyOnto(settings);
+                var overrideSettings = JsonSerializer.Deserialize<OpenAiSettings>(json, ReadOptions);
+                if (overrideSettings != null)
+                {
+                    if (!string.IsNullOrEmpty(overrideSettings.ApiKey))
+                    {
+                        overrideSettings.ApiKey = DecryptString(overrideSettings.ApiKey);
+                    }
+
+                    overrideSettings.CopyOnto(settings);
+                }
             }
 
             return Task.FromResult(settings);
@@ -99,7 +119,16 @@ namespace AIFileProcessor.Services
             if (userOverrides != null && userOverrides["DeepSeekSettings"] is JsonObject deepSeekOverride)
             {
                 string json = deepSeekOverride.ToJsonString();
-                JsonSerializer.Deserialize<DeepSeekSettings>(json, ReadOptions)?.CopyOnto(settings);
+                var overrideSettings = JsonSerializer.Deserialize<DeepSeekSettings>(json, ReadOptions);
+                if (overrideSettings != null)
+                {
+                    if (!string.IsNullOrEmpty(overrideSettings.ApiKey))
+                    {
+                        overrideSettings.ApiKey = DecryptString(overrideSettings.ApiKey);
+                    }
+
+                    overrideSettings.CopyOnto(settings);
+                }
             }
 
             return Task.FromResult(settings);
@@ -175,8 +204,8 @@ namespace AIFileProcessor.Services
         }
 
         /// <summary>
-        /// Saves a settings section to the per-user override file, stripping the
-        /// <c>ApiKey</c> field so that secrets are not persisted to disk.
+        /// Saves a settings section to the per-user override file, securely
+        /// encrypting the <c>ApiKey</c> field using DPAPI before saving.
         /// </summary>
         /// <typeparam name="T">The settings type to serialize.</typeparam>
         /// <param name="userId">The user identifier.</param>
@@ -204,18 +233,97 @@ namespace AIFileProcessor.Services
             rootNode ??= new JsonObject();
 
             string sectionJson = JsonSerializer.Serialize(settings, WriteOptions);
-            var sectionNode = JsonNode.Parse(sectionJson);
+            var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
 
-            // Strip ApiKey so secrets are not persisted to disk
-            if (sectionNode is JsonObject obj)
+            if (sectionNode != null)
             {
-                obj.Remove("apiKey");
-                obj.Remove("ApiKey");
+                // Find any apiKey or ApiKey property
+                string? plainKey = null;
+                string keyPropertyName = "apiKey";
+
+                if (sectionNode.TryGetPropertyValue("apiKey", out var node) && node != null)
+                {
+                    plainKey = node.GetValue<string>();
+                    keyPropertyName = "apiKey";
+                }
+                else if (sectionNode.TryGetPropertyValue("ApiKey", out node) && node != null)
+                {
+                    plainKey = node.GetValue<string>();
+                    keyPropertyName = "ApiKey";
+                }
+
+                if (!string.IsNullOrEmpty(plainKey))
+                {
+                    string encryptedKey = EncryptString(plainKey);
+                    sectionNode[keyPropertyName] = encryptedKey;
+                }
+                else
+                {
+                    // Ensure we remove it if it is empty so we don't save empty/null strings
+                    sectionNode.Remove("apiKey");
+                    sectionNode.Remove("ApiKey");
+                }
             }
 
             rootNode[sectionName] = sectionNode;
 
-            File.WriteAllText(filePath, rootNode.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(filePath, rootNode.ToJsonString(WriteOptions));
+        }
+
+        private static string EncryptString(string plainText)
+        {
+            if (string.IsNullOrEmpty(plainText))
+            {
+                return string.Empty;
+            }
+
+            if (!OperatingSystem.IsWindows())
+            {
+                // Fallback for non-Windows platforms (e.g., during tests run on macOS/Linux)
+                return plainText;
+            }
+
+            try
+            {
+                byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
+                byte[] encryptedBytes = ProtectedData.Protect(
+                    plainBytes,
+                    null,
+                    DataProtectionScope.CurrentUser);
+                return Convert.ToBase64String(encryptedBytes);
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
+        }
+
+        private static string DecryptString(string encryptedText)
+        {
+            if (string.IsNullOrEmpty(encryptedText))
+            {
+                return string.Empty;
+            }
+
+            if (!OperatingSystem.IsWindows())
+            {
+                // Fallback for non-Windows platforms
+                return encryptedText;
+            }
+
+            try
+            {
+                byte[] encryptedBytes = Convert.FromBase64String(encryptedText);
+                byte[] decryptedBytes = ProtectedData.Unprotect(
+                    encryptedBytes,
+                    null,
+                    DataProtectionScope.CurrentUser);
+                return Encoding.UTF8.GetString(decryptedBytes);
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
         }
     }
 }
