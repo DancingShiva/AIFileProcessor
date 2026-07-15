@@ -11,9 +11,9 @@ namespace AIFileProcessor.Interfaces
     public interface IOpenAiSettings
     {
         /// <summary>
-        /// Gets or sets the value of the API Key for Gemini. This is used to authenticate with the Gemini service and is required for making API calls.
+        /// Gets the API Key for Gemini. This is used to authenticate with the Gemini service and is required for making API calls.
         /// </summary>
-        public string ApiKey { get; set; }
+        public string ApiKey { get; init; }
 
         /// <summary>
         /// Gets or sets the endpoint for the OpenAI service.

@@ -11,7 +11,10 @@ namespace AIFileProcessor
     using AIFileProcessor.Services;
 
     /// <summary>
-    /// Serves as the configuration settings dialog, allowing users to modify and securely persist API settings for Gemini, OpenAI, and DeepSeek.
+    /// Serves as the configuration settings dialog, allowing users to modify
+    /// and persist non-secret preferences for Gemini, OpenAI, and DeepSeek.
+    /// API keys are configured via environment variables on the machine and
+    /// are not editable from this dialog.
     /// </summary>
     public partial class SettingsForm : Form
     {
@@ -42,7 +45,6 @@ namespace AIFileProcessor
             {
                 // Load Gemini Settings
                 var gemini = _geminiManager.ReadSettings();
-                txtGeminiApiKey.Text = gemini.ApiKey;
                 txtGeminiEndpoint.Text = gemini.Endpoint ?? string.Empty;
                 txtGeminiModel.Text = gemini.ModelName ?? string.Empty;
                 nudGeminiTimeout.Value = gemini.TimeoutSeconds;
@@ -67,7 +69,6 @@ namespace AIFileProcessor
 
                 // Load OpenAI Settings
                 var openAi = _openAiManager.ReadSettings();
-                txtOpenAiApiKey.Text = openAi.ApiKey;
                 txtOpenAiEndpoint.Text = openAi.Endpoint ?? string.Empty;
                 txtOpenAiModel.Text = openAi.ModelName ?? string.Empty;
                 nudOpenAiTimeout.Value = openAi.TimeoutSeconds;
@@ -79,7 +80,6 @@ namespace AIFileProcessor
 
                 // Load DeepSeek Settings
                 var deepSeek = _deepSeekManager.ReadSettings();
-                txtDeepSeekApiKey.Text = deepSeek.ApiKey;
                 txtDeepSeekEndpoint.Text = deepSeek.Endpoint ?? string.Empty;
                 nudDeepSeekTimeout.Value = deepSeek.TimeoutSeconds;
                 nudDeepSeekMaxTokens.Value = deepSeek.MaxTokens ?? 0;
@@ -98,10 +98,9 @@ namespace AIFileProcessor
         {
             try
             {
-                // Save Gemini Settings
+                // Save Gemini Settings (ApiKey is not included — it comes from environment variables)
                 var gemini = new GeminiSettings
                 {
-                    ApiKey = txtGeminiApiKey.Text,
                     Endpoint = string.IsNullOrWhiteSpace(txtGeminiEndpoint.Text) ? null : txtGeminiEndpoint.Text,
                     ModelName = string.IsNullOrWhiteSpace(txtGeminiModel.Text) ? null : txtGeminiModel.Text,
                     TimeoutSeconds = (int)nudGeminiTimeout.Value,
@@ -122,10 +121,9 @@ namespace AIFileProcessor
                 };
                 _geminiManager.SaveSettings(gemini);
 
-                // Save OpenAI Settings
+                // Save OpenAI Settings (ApiKey is not included — it comes from environment variables)
                 var openAi = new OpenAiSettings
                 {
-                    ApiKey = txtOpenAiApiKey.Text,
                     Endpoint = txtOpenAiEndpoint.Text,
                     ModelName = txtOpenAiModel.Text,
                     TimeoutSeconds = (int)nudOpenAiTimeout.Value,
@@ -135,10 +133,9 @@ namespace AIFileProcessor
                 };
                 _openAiManager.SaveSettings(openAi);
 
-                // Save DeepSeek Settings
+                // Save DeepSeek Settings (ApiKey is not included — it comes from environment variables)
                 var deepSeek = new DeepSeekSettings
                 {
-                    ApiKey = txtDeepSeekApiKey.Text,
                     Endpoint = txtDeepSeekEndpoint.Text,
                     TimeoutSeconds = (int)nudDeepSeekTimeout.Value,
                     MaxTokens = chkDeepSeekMaxTokensNull.Checked ? null : (int)nudDeepSeekMaxTokens.Value,

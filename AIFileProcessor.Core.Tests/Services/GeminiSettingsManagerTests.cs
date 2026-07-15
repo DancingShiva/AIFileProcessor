@@ -13,7 +13,7 @@ public class GeminiSettingsManagerTests
 {
     private readonly Mock<ISettingsProvider> _settingsProviderMock = new();
     private readonly Mock<IUserContext> _userContextMock = new();
-    private readonly GeminiSettings _testSettings = new() { ApiKey = "test-key" };
+    private readonly GeminiSettings _testSettings = new() { ModelName = "test-model" };
 
     // ─── Constructor ──────────────────────────────────────────────────
 

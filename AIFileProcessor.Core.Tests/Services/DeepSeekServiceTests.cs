@@ -19,7 +19,7 @@
         private readonly Mock<ILogger<DeepSeekService>> _loggerMock = new();
         private readonly Mock<IOptions<DeepSeekSettings>> _optionsMock = new();
         private readonly HttpClient _httpClient = new();
-        private readonly DeepSeekSettings _settings = new() { ApiKey = "test-key" };
+        private readonly DeepSeekSettings _settings = new() { ApiKey = "test-key", ModelName = "deepseek-v4-flash" };
 
         public DeepSeekServiceTests()
         {
@@ -87,8 +87,7 @@
             IEnumerable<AiModelInfo> models = service.GetSupportedModels();
             var modelIds = models.Select(m => m.ModelId).ToList();
 
-            Assert.Contains("deepseek-chat", modelIds);
-            Assert.Contains("deepseek-reasoner", modelIds);
+            // Deprecated model IDs were removed; verify only current IDs are present
             Assert.Contains("deepseek-v4-flash", modelIds);
             Assert.Contains("deepseek-v4-pro", modelIds);
         }
@@ -101,8 +100,7 @@
             IEnumerable<AiModelInfo> models = service.GetSupportedModels();
             var modelNames = models.Select(m => m.ModelName).ToList();
 
-            Assert.Contains("DeepSeek Chat", modelNames);
-            Assert.Contains("DeepSeek Reasoner", modelNames);
+            // Deprecated human-friendly names were removed; verify only current names are present
             Assert.Contains("DeepSeek-V4-Flash", modelNames);
             Assert.Contains("DeepSeek-V4-Pro", modelNames);
         }
@@ -144,7 +142,7 @@
         {
             var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("deepseek-chat");
+            bool result = service.SupportsModel("deepseek-v4-flash");
 
             Assert.True(result);
         }
@@ -154,7 +152,7 @@
         {
             var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("DeepSeek Chat");
+            bool result = service.SupportsModel("DeepSeek-V4-Flash");
 
             Assert.True(result);
         }
@@ -164,7 +162,7 @@
         {
             var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("DEEPSEEK-CHAT");
+            bool result = service.SupportsModel("DEEPSEEK-V4-FLASH");
 
             Assert.True(result);
         }
@@ -174,7 +172,7 @@
         {
             var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("  DeepSeek Chat  ");
+            bool result = service.SupportsModel("  DeepSeek-V4-Flash  ");
 
             Assert.True(result);
         }
@@ -194,7 +192,7 @@
         {
             var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("deepseek reasoner");
+            bool result = service.SupportsModel("deepseek-v4-pro");
 
             Assert.True(result);
         }
@@ -230,7 +228,7 @@
             var service = new DeepSeekService(_loggerMock.Object, emptyOptionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => service.ProcessTextAsync("deepseek-chat", "prompt", "data", CancellationToken.None));
+                () => service.ProcessTextAsync("deepseek-v4-flash", "prompt", "data", CancellationToken.None));
         }
 
         [Fact]
@@ -248,7 +246,7 @@
             var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("deepseek-chat", string.Empty, "data", CancellationToken.None));
+                () => service.ProcessTextAsync("deepseek-v4-flash", string.Empty, "data", CancellationToken.None));
         }
 
         [Fact]
@@ -257,7 +255,7 @@
             var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("deepseek-chat", "prompt", string.Empty, CancellationToken.None));
+                () => service.ProcessTextAsync("deepseek-v4-flash", "prompt", string.Empty, CancellationToken.None));
         }
 
         // ─── ProcessTextAsync (5-param overload with object settings) ─────
@@ -268,7 +266,7 @@
             var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("deepseek-chat", "prompt", "data", null!, CancellationToken.None));
+                () => service.ProcessTextAsync("deepseek-v4-flash", "prompt", "data", null!, CancellationToken.None));
         }
 
         [Fact]
@@ -277,7 +275,7 @@
             var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("deepseek-chat", "prompt", "data", "not-settings", CancellationToken.None));
+                () => service.ProcessTextAsync("deepseek-v4-flash", "prompt", "data", "not-settings", CancellationToken.None));
         }
 
         [Fact]
@@ -287,7 +285,7 @@
             var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => service.ProcessTextAsync("deepseek-chat", "prompt", "data", emptyKeySettings, CancellationToken.None));
+                () => service.ProcessTextAsync("deepseek-v4-flash", "prompt", "data", emptyKeySettings, CancellationToken.None));
         }
 
         [Fact]
@@ -305,7 +303,7 @@
             var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("deepseek-chat", string.Empty, "data", _settings, CancellationToken.None));
+                () => service.ProcessTextAsync("deepseek-v4-flash", string.Empty, "data", _settings, CancellationToken.None));
         }
 
         [Fact]
@@ -314,7 +312,7 @@
             var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("deepseek-chat", "prompt", string.Empty, _settings, CancellationToken.None));
+                () => service.ProcessTextAsync("deepseek-v4-flash", "prompt", string.Empty, _settings, CancellationToken.None));
         }
     }
 }

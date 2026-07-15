@@ -14,9 +14,9 @@ namespace AIFileProcessor.Interfaces
     public interface IGeminiSettings
     {
         /// <summary>
-        /// Gets or Sets API key or credential used to authenticate with the Gemini service.
+        /// Gets the API key or credential used to authenticate with the Gemini service.
         /// </summary>
-        string ApiKey { get; set; }
+        string ApiKey { get; init; }
 
         /// <summary>
         /// Gets or sets the Base URL or endpoint for the Gemini service. Leave empty to use the provider default.

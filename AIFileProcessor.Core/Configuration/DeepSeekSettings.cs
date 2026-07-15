@@ -5,6 +5,7 @@
 //-----------------------------------------------------------------------
 namespace AIFileProcessor.Configuration
 {
+    using System.Text.Json.Serialization;
     using AIFileProcessor.Interfaces;
 
     /// <summary>
@@ -13,7 +14,8 @@ namespace AIFileProcessor.Configuration
     public class DeepSeekSettings : IDeepSeekSettings
     {
         /// <inheritdoc />
-        public string ApiKey { get; set; } = string.Empty;
+        [JsonIgnore]
+        public string ApiKey { get; init; } = string.Empty;
 
         /// <inheritdoc />
         public string Endpoint { get; set; } = string.Empty;

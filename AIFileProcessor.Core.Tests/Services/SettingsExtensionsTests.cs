@@ -41,7 +41,6 @@ public class SettingsExtensionsTests
     {
         var source = new GeminiSettings
         {
-            ApiKey = "override-key",
             Endpoint = "https://override.example.com",
             ModelName = "override-model",
             TimeoutSeconds = 60,
@@ -62,11 +61,12 @@ public class SettingsExtensionsTests
             UseManagedIdentity = true,
             CredentialType = "Default",
         };
-        var target = new GeminiSettings();
+        var target = new GeminiSettings { ApiKey = "machine-level-key" };
 
         source.CopyOnto(target);
 
-        Assert.Equal("override-key", target.ApiKey);
+        // ApiKey is never overlaid from per-user settings
+        Assert.Equal("machine-level-key", target.ApiKey);
         Assert.Equal("https://override.example.com", target.Endpoint);
         Assert.Equal("override-model", target.ModelName);
         Assert.Equal(60, target.TimeoutSeconds);
@@ -94,7 +94,7 @@ public class SettingsExtensionsTests
         var source = new GeminiSettings(); // all defaults
         var target = new GeminiSettings
         {
-            ApiKey = "target-key",
+            ApiKey = "machine-level-key",
             Endpoint = "https://target.example.com",
             ModelName = "target-model",
             TimeoutSeconds = 45,
@@ -118,10 +118,8 @@ public class SettingsExtensionsTests
 
         source.CopyOnto(target);
 
-        // Properties with non-default source values DO overwrite (TimeoutSeconds=30,
-        // MaxRetries=3, BaseDelay=1, MaxDelay=60, non-null RequestHeaders/AdditionalParameters).
-        // Properties with default/null/empty/zero/false source values are NOT copied.
-        Assert.Equal("target-key", target.ApiKey);
+        // ApiKey is never overlaid.
+        Assert.Equal("machine-level-key", target.ApiKey);
         Assert.Equal("https://target.example.com", target.Endpoint);
         Assert.Equal("target-model", target.ModelName);
         Assert.Equal(30, target.TimeoutSeconds);
@@ -168,7 +166,6 @@ public class SettingsExtensionsTests
     {
         var source = new OpenAiSettings
         {
-            ApiKey = "override-key",
             Endpoint = "https://override.example.com",
             ModelName = "override-model",
             TimeoutSeconds = 60,
@@ -176,11 +173,12 @@ public class SettingsExtensionsTests
             MaxTokens = 4096,
             Temperature = 0.7,
         };
-        var target = new OpenAiSettings();
+        var target = new OpenAiSettings { ApiKey = "machine-level-key" };
 
         source.CopyOnto(target);
 
-        Assert.Equal("override-key", target.ApiKey);
+        // ApiKey is never overlaid from per-user settings
+        Assert.Equal("machine-level-key", target.ApiKey);
         Assert.Equal("https://override.example.com", target.Endpoint);
         Assert.Equal("override-model", target.ModelName);
         Assert.Equal(60, target.TimeoutSeconds);
@@ -195,7 +193,7 @@ public class SettingsExtensionsTests
         var source = new OpenAiSettings();
         var target = new OpenAiSettings
         {
-            ApiKey = "target-key",
+            ApiKey = "machine-level-key",
             Endpoint = "https://target.example.com",
             ModelName = "target-model",
             TimeoutSeconds = 45,
@@ -207,7 +205,8 @@ public class SettingsExtensionsTests
         source.CopyOnto(target);
 
         // TimeoutSeconds=30 is non-default, so it overwrites. Others stay.
-        Assert.Equal("target-key", target.ApiKey);
+        // ApiKey is never overlaid.
+        Assert.Equal("machine-level-key", target.ApiKey);
         Assert.Equal("https://target.example.com", target.Endpoint);
         Assert.Equal("target-model", target.ModelName);
         Assert.Equal(30, target.TimeoutSeconds);
@@ -216,7 +215,7 @@ public class SettingsExtensionsTests
         Assert.Equal(0.5, target.Temperature);
     }
 
-    // ─── DeepSeekSettings.CopyOnto ────────────────────────────────────
+    // ─── DeepSeekSettings.CopyOnto ────
 
     [Fact]
     public void CopyOnto_DeepSeek_NullSource_ReturnsWithoutThrowing()
@@ -241,7 +240,6 @@ public class SettingsExtensionsTests
     {
         var source = new DeepSeekSettings
         {
-            ApiKey = "override-key",
             Endpoint = "https://override.example.com",
             TimeoutSeconds = 60,
             MaxTokens = 4096,
@@ -249,11 +247,12 @@ public class SettingsExtensionsTests
             ModelName = "override-model",
             EnableReasoning = true,
         };
-        var target = new DeepSeekSettings();
+        var target = new DeepSeekSettings { ApiKey = "machine-level-key" };
 
         source.CopyOnto(target);
 
-        Assert.Equal("override-key", target.ApiKey);
+        // ApiKey is never overlaid from per-user settings
+        Assert.Equal("machine-level-key", target.ApiKey);
         Assert.Equal("https://override.example.com", target.Endpoint);
         Assert.Equal(60, target.TimeoutSeconds);
         Assert.Equal(4096, target.MaxTokens);
@@ -268,7 +267,7 @@ public class SettingsExtensionsTests
         var source = new DeepSeekSettings();
         var target = new DeepSeekSettings
         {
-            ApiKey = "target-key",
+            ApiKey = "machine-level-key",
             Endpoint = "https://target.example.com",
             TimeoutSeconds = 45,
             MaxTokens = 2048,
@@ -280,7 +279,8 @@ public class SettingsExtensionsTests
         source.CopyOnto(target);
 
         // TimeoutSeconds=30 is non-default, so it overwrites. Others stay.
-        Assert.Equal("target-key", target.ApiKey);
+        // ApiKey is never overlaid.
+        Assert.Equal("machine-level-key", target.ApiKey);
         Assert.Equal("https://target.example.com", target.Endpoint);
         Assert.Equal(30, target.TimeoutSeconds);
         Assert.Equal(2048, target.MaxTokens);

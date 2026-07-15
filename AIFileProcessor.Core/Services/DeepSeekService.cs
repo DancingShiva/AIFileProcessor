@@ -28,8 +28,6 @@ namespace AIFileProcessor.Services
     {
         private static readonly IReadOnlyList<AiModelInfo> SupportedModels =
         [
-            new AiModelInfo("DeepSeek Chat", "deepseek-chat"),
-            new AiModelInfo("DeepSeek Reasoner", "deepseek-reasoner"),
             new AiModelInfo("DeepSeek-V4-Flash", "deepseek-v4-flash"),
             new AiModelInfo("DeepSeek-V4-Pro", "deepseek-v4-pro"),
         ];

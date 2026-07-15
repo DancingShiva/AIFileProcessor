@@ -11,9 +11,9 @@ namespace AIFileProcessor.Interfaces
     public interface IDeepSeekSettings
     {
         /// <summary>
-        /// Gets or sets the value of the API Key for DeepSeek. This is used to authenticate with the DeepSeek service and is required for making API calls.
+        /// Gets the API Key for DeepSeek. This is used to authenticate with the DeepSeek service and is required for making API calls.
         /// </summary>
-        public string ApiKey { get; set; }
+        public string ApiKey { get; init; }
 
         /// <summary>
         /// Gets or sets the endpoint for the DeepSeek service.

@@ -36,7 +36,6 @@ namespace AIFileProcessor
 
             // Gemini tab controls
             this.flpGemini = new System.Windows.Forms.FlowLayoutPanel();
-            this.txtGeminiApiKey = new System.Windows.Forms.TextBox();
             this.txtGeminiEndpoint = new System.Windows.Forms.TextBox();
             this.txtGeminiModel = new System.Windows.Forms.TextBox();
             this.nudGeminiTimeout = new System.Windows.Forms.NumericUpDown();
@@ -61,7 +60,6 @@ namespace AIFileProcessor
 
             // OpenAI tab controls
             this.flpOpenAi = new System.Windows.Forms.FlowLayoutPanel();
-            this.txtOpenAiApiKey = new System.Windows.Forms.TextBox();
             this.txtOpenAiEndpoint = new System.Windows.Forms.TextBox();
             this.txtOpenAiModel = new System.Windows.Forms.TextBox();
             this.nudOpenAiTimeout = new System.Windows.Forms.NumericUpDown();
@@ -73,7 +71,6 @@ namespace AIFileProcessor
 
             // DeepSeek tab controls
             this.flpDeepSeek = new System.Windows.Forms.FlowLayoutPanel();
-            this.txtDeepSeekApiKey = new System.Windows.Forms.TextBox();
             this.txtDeepSeekEndpoint = new System.Windows.Forms.TextBox();
             this.nudDeepSeekTimeout = new System.Windows.Forms.NumericUpDown();
             this.nudDeepSeekMaxTokens = new System.Windows.Forms.NumericUpDown();
@@ -160,7 +157,6 @@ namespace AIFileProcessor
             this.flpDeepSeek.AutoScroll = true;
 
             // Setup controls helper layout
-            BuildLabelledTextBox(this.flpGemini, "API Key:", this.txtGeminiApiKey, true);
             BuildLabelledTextBox(this.flpGemini, "Endpoint:", this.txtGeminiEndpoint, false);
             BuildLabelledTextBox(this.flpGemini, "Model Name:", this.txtGeminiModel, false);
             BuildLabelledNumeric(this.flpGemini, "Timeout (Seconds):", this.nudGeminiTimeout, 1, 3600);
@@ -183,7 +179,6 @@ namespace AIFileProcessor
             BuildCheckbox(this.flpGemini, "Use Managed Identity Authentication", this.chkGeminiUseManagedIdentity);
             BuildLabelledTextBox(this.flpGemini, "Credential Type (Optional):", this.txtGeminiCredentialType, false);
 
-            BuildLabelledTextBox(this.flpOpenAi, "API Key:", this.txtOpenAiApiKey, true);
             BuildLabelledTextBox(this.flpOpenAi, "Endpoint:", this.txtOpenAiEndpoint, false);
             BuildLabelledTextBox(this.flpOpenAi, "Model Name:", this.txtOpenAiModel, false);
             BuildLabelledNumeric(this.flpOpenAi, "Timeout (Seconds):", this.nudOpenAiTimeout, 1, 3600);
@@ -193,7 +188,6 @@ namespace AIFileProcessor
             BuildLabelledDecimalWithNull(this.flpOpenAi, "Temperature (0.0 - 2.0):", this.nudOpenAiTemp, this.chkOpenAiTempNull, 0.0m, 2.0m);
             this.chkOpenAiTempNull.CheckedChanged += new System.EventHandler(this.ChkOpenAiTempNull_CheckedChanged);
 
-            BuildLabelledTextBox(this.flpDeepSeek, "API Key:", this.txtDeepSeekApiKey, true);
             BuildLabelledTextBox(this.flpDeepSeek, "Endpoint:", this.txtDeepSeekEndpoint, false);
             BuildLabelledNumeric(this.flpDeepSeek, "Timeout (Seconds):", this.nudDeepSeekTimeout, 1, 3600);
             BuildLabelledNumericWithNull(this.flpDeepSeek, "Max Tokens:", this.nudDeepSeekMaxTokens, this.chkDeepSeekMaxTokensNull, 0, 1000000);
@@ -355,7 +349,6 @@ namespace AIFileProcessor
         private System.Windows.Forms.Button btnCancel;
 
         private System.Windows.Forms.FlowLayoutPanel flpGemini;
-        private System.Windows.Forms.TextBox txtGeminiApiKey;
         private System.Windows.Forms.TextBox txtGeminiEndpoint;
         private System.Windows.Forms.TextBox txtGeminiModel;
         private System.Windows.Forms.NumericUpDown nudGeminiTimeout;
@@ -379,7 +372,6 @@ namespace AIFileProcessor
         private System.Windows.Forms.TextBox txtGeminiCredentialType;
 
         private System.Windows.Forms.FlowLayoutPanel flpOpenAi;
-        private System.Windows.Forms.TextBox txtOpenAiApiKey;
         private System.Windows.Forms.TextBox txtOpenAiEndpoint;
         private System.Windows.Forms.TextBox txtOpenAiModel;
         private System.Windows.Forms.NumericUpDown nudOpenAiTimeout;
@@ -390,7 +382,6 @@ namespace AIFileProcessor
         private System.Windows.Forms.CheckBox chkOpenAiTempNull;
 
         private System.Windows.Forms.FlowLayoutPanel flpDeepSeek;
-        private System.Windows.Forms.TextBox txtDeepSeekApiKey;
         private System.Windows.Forms.TextBox txtDeepSeekEndpoint;
         private System.Windows.Forms.NumericUpDown nudDeepSeekTimeout;
         private System.Windows.Forms.NumericUpDown nudDeepSeekMaxTokens;

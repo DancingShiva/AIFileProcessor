@@ -7,6 +7,7 @@ namespace AIFileProcessor.Configuration
 {
     using System;
     using System.Collections.Generic;
+    using System.Text.Json.Serialization;
     using AIFileProcessor.Interfaces;
 
     /// <summary>
@@ -14,7 +15,8 @@ namespace AIFileProcessor.Configuration
     /// </summary>
     public class GeminiSettings : IGeminiSettings
     {
-        public string ApiKey { get; set; } = string.Empty;
+        [JsonIgnore]
+        public string ApiKey { get; init; } = string.Empty;
 
         public string? Endpoint { get; set; } = null;
 

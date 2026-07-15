@@ -16,9 +16,10 @@ namespace AIFileProcessor.Web.Configuration
 
     /// <summary>
     /// Web-specific implementation of <see cref="ISettingsProvider"/> that
-    /// reconstructs per-user settings from the HTTP request. API keys are
-    /// supplied per-request via headers (never stored server-side), and
-    /// non-secret preferences are supplied via the request body.
+    /// resolves per-user settings from the HTTP request. API keys are sourced
+    /// from server-side <see cref="IConfiguration"/> (environment variables)
+    /// and are never received from the client. Non-secret preferences are
+    /// supplied via the request body.
     /// Defaults are read from <see cref="IConfiguration"/> (appsettings.json).
     /// </summary>
     public class WebSettingsProvider : ISettingsProvider
@@ -87,20 +88,10 @@ namespace AIFileProcessor.Web.Configuration
             return Task.CompletedTask;
         }
 
-        private static string? GetApiKeyFromHeader(HttpContext ctx, string headerName)
-        {
-            if (ctx.Request.Headers.TryGetValue(headerName, out var value))
-            {
-                string key = value.ToString();
-                return string.IsNullOrWhiteSpace(key) ? null : key;
-            }
-
-            return null;
-        }
-
         /// <summary>
-        /// Overrides settings with values from the current HTTP request:
-        /// API keys from headers, preferences from the request items collection.
+        /// Overrides settings with non-secret preferences from the current HTTP request.
+        /// API keys are never read from the request — they come from server-side
+        /// <see cref="IConfiguration"/> (environment variables).
         /// </summary>
         private void ApplyRequestOverrides(GeminiSettings settings)
         {
@@ -110,14 +101,8 @@ namespace AIFileProcessor.Web.Configuration
                 return;
             }
 
-            // API key from header
-            string? apiKey = GetApiKeyFromHeader(ctx, "X-Gemini-Api-Key");
-            if (!string.IsNullOrWhiteSpace(apiKey))
-            {
-                settings.ApiKey = apiKey;
-            }
-
-            // Non-secret preferences from request items (set by controller from request body)
+            // Non-secret preferences from request items (set by controller from request body).
+            // CopyOnto skips ApiKey, so the server-side env-var-provided key is preserved.
             if (ctx.Items.TryGetValue("GeminiPreferences", out var prefsObj) && prefsObj is GeminiSettings prefs)
             {
                 prefs.CopyOnto(settings);
@@ -125,7 +110,7 @@ namespace AIFileProcessor.Web.Configuration
         }
 
         /// <summary>
-        /// Overrides settings with values from the current HTTP request.
+        /// Overrides settings with non-secret preferences from the current HTTP request.
         /// </summary>
         private void ApplyRequestOverrides(OpenAiSettings settings)
         {
@@ -135,12 +120,6 @@ namespace AIFileProcessor.Web.Configuration
                 return;
             }
 
-            string? apiKey = GetApiKeyFromHeader(ctx, "X-OpenAi-Api-Key");
-            if (!string.IsNullOrWhiteSpace(apiKey))
-            {
-                settings.ApiKey = apiKey;
-            }
-
             if (ctx.Items.TryGetValue("OpenAiPreferences", out var prefsObj) && prefsObj is OpenAiSettings prefs)
             {
                 prefs.CopyOnto(settings);
@@ -148,7 +127,7 @@ namespace AIFileProcessor.Web.Configuration
         }
 
         /// <summary>
-        /// Overrides settings with values from the current HTTP request.
+        /// Overrides settings with non-secret preferences from the current HTTP request.
         /// </summary>
         private void ApplyRequestOverrides(DeepSeekSettings settings)
         {
@@ -156,12 +135,6 @@ namespace AIFileProcessor.Web.Configuration
             if (ctx == null)
             {
                 return;
-            }
-
-            string? apiKey = GetApiKeyFromHeader(ctx, "X-DeepSeek-Api-Key");
-            if (!string.IsNullOrWhiteSpace(apiKey))
-            {
-                settings.ApiKey = apiKey;
             }
 
             if (ctx.Items.TryGetValue("DeepSeekPreferences", out var prefsObj) && prefsObj is DeepSeekSettings prefs)

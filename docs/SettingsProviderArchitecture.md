@@ -42,27 +42,37 @@ The key insight is that **settings should not be a static DI singleton** — the
 	└──────────────────────────┘    └─────────────────────────┘
 ```
 
+### API Key Model
+
+API keys are **always** sourced from machine-level `IConfiguration` (environment variables or `appsettings.json`). They are never stored in per-user files, never sent by web clients, and never encrypted. This simplifies the architecture:
+
+- **No DPAPI encryption code** — per-user files contain only non-secret preferences
+- **No API key UI in SettingsForm** — users cannot set keys; they are machine-configured
+- **No API key headers in web requests** — clients never handle keys; the server reads them from env vars
+- **Terminal Server** — all users on a machine share the same API keys via environment variables; each user has their own preferences file
+
 ### How It Works for Each Deployment Mode
 
 **1. Dedicated WinForms (single user)**
 
 - `userId` defaults to a fixed string (e.g., `"default"` or the Windows identity name)
 - `FileSettingsProvider` reads from `appsettings.json` as it does today, but also checks for a per-user override file in `%APPDATA%\AIFileProcessor\{userId}\settings.json`
-- The `SettingsForm` saves to the per-user file instead of the shared `appsettings.json`
-- API key stored in-memory via `IConfiguration` (as today) or in a DPAPI-encrypted per-user file
+- The `SettingsForm` saves non-secret preferences to the per-user file; API keys come from environment variables
+- Per-user files are plain JSON — no encryption, no secrets
 
 **2. Windows Terminal Server (multiple users, shared machine)**
 
 - `userId` = the Windows identity (`Environment.UserName` or `Thread.CurrentPrincipal.Identity.Name`)
-- Each user gets their own `%APPDATA%\AIFileProcessor\{userId}\settings.json`
+- Each user gets their own `%APPDATA%\AIFileProcessor\{userId}\settings.json` (preferences only)
 - No contention — each user reads/writes only their own file
-- API keys can be DPAPI-encrypted per-user (Windows Data Protection API), so one user can't read another's keys
+- API keys are shared from machine-level environment variables — all users use the same keys
 
 **3. Web application (many users)**
 
 - `userId` = authenticated user ID (from JWT, Entra ID, etc.)
-- `WebSettingsProvider` reconstructs settings from the HTTP request: API key comes from the request header/body, non-secret preferences come from client-side `localStorage`
-- Server is stateless — no per-user files on the server
+- `WebSettingsProvider` resolves non-secret preferences from the HTTP request body; API keys come from server-side environment variables
+- Server is stateless — no per-user files on the server; preferences are client-side in `localStorage`
+- Clients never send API keys to the server
 
 ### What Needs to Change in the Core
 
@@ -117,8 +127,8 @@ Each AI service gets a per-call `settings` object instead of relying on the cons
 
 | Setting | WinForms (single) | Terminal Server | Web |
 |---|---|---|---|
-| **API keys** | DPAPI-encrypted per-user file in `%APPDATA%` | DPAPI-encrypted per-user file (user-scoped, can't be read by other users) | Per-request from user, never stored server-side |
-| **Non-secret prefs** | Per-user JSON file in `%APPDATA%` | Same | Client-side `localStorage` |
+| **API keys** | Machine-level environment variables | Machine-level environment variables | Server-side environment variables |
+| **Non-secret prefs** | Per-user JSON file in `%APPDATA%` (plain, no encryption) | Same | Client-side `localStorage` |
 | **Defaults** | `appsettings.json` | `appsettings.json` | `appsettings.json` (server-side defaults) |
 
 ### Why Not Just Use `IOptionsMonitor<T>`?
@@ -129,8 +139,8 @@ Each AI service gets a per-call `settings` object instead of relying on the cons
 
 The single change that unlocks all three deployment modes is **replacing the static `IOptions<T>` singleton with a per-call, per-user `ISettingsProvider`**. Everything else flows from that:
 
-- `FileSettingsProvider` covers WinForms + Terminal Server (per-user files in `%APPDATA%`)
-- `WebSettingsProvider` covers web (per-request settings from the client)
-- API keys stay ephemeral (web) or DPAPI-encrypted (desktop)
-- Non-secret preferences are per-user files (desktop) or `localStorage` (web)
+- `FileSettingsProvider` covers WinForms + Terminal Server (per-user preference files in `%APPDATA%`, API keys from env vars)
+- `WebSettingsProvider` covers web (per-request preferences from client, API keys from server env vars)
+- API keys are always machine-level — never in per-user files, never from web clients
+- Non-secret preferences are per-user files (desktop) or `localStorage` (web), stored as plain JSON without encryption
 - `appsettings.json` remains as the shared defaults baseline

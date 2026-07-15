@@ -7,8 +7,6 @@ namespace AIFileProcessor.Services
 {
     using System;
     using System.IO;
-    using System.Security.Cryptography;
-    using System.Text;
     using System.Text.Json;
     using System.Text.Json.Nodes;
     using System.Threading;
@@ -22,6 +20,9 @@ namespace AIFileProcessor.Services
     /// default settings from <see cref="IConfiguration"/> (appsettings.json) and
     /// merges per-user overrides from
     /// <c>%APPDATA%\AIFileProcessor\{userId}\settings.json</c>.
+    /// API keys are always sourced from machine-level <see cref="IConfiguration"/>
+    /// (environment variables or appsettings.json) and are never stored in or
+    /// read from per-user files. Per-user files contain only non-secret preferences.
     /// Suitable for WinForms single-user and Terminal Server multi-user deployments.
     /// </summary>
     public class FileSettingsProvider : ISettingsProvider
@@ -68,11 +69,8 @@ namespace AIFileProcessor.Services
                 var overrideSettings = JsonSerializer.Deserialize<GeminiSettings>(json, ReadOptions);
                 if (overrideSettings != null)
                 {
-                    if (!string.IsNullOrEmpty(overrideSettings.ApiKey))
-                    {
-                        overrideSettings.ApiKey = DecryptString(overrideSettings.ApiKey);
-                    }
-
+                    // ApiKey is always from IConfiguration (machine-level); never from per-user file.
+                    // CopyOnto skips ApiKey, so the env-var-provided key is preserved.
                     overrideSettings.CopyOnto(settings);
                 }
             }
@@ -95,11 +93,8 @@ namespace AIFileProcessor.Services
                 var overrideSettings = JsonSerializer.Deserialize<OpenAiSettings>(json, ReadOptions);
                 if (overrideSettings != null)
                 {
-                    if (!string.IsNullOrEmpty(overrideSettings.ApiKey))
-                    {
-                        overrideSettings.ApiKey = DecryptString(overrideSettings.ApiKey);
-                    }
-
+                    // ApiKey is always from IConfiguration (machine-level); never from per-user file.
+                    // CopyOnto skips ApiKey, so the env-var-provided key is preserved.
                     overrideSettings.CopyOnto(settings);
                 }
             }
@@ -122,11 +117,8 @@ namespace AIFileProcessor.Services
                 var overrideSettings = JsonSerializer.Deserialize<DeepSeekSettings>(json, ReadOptions);
                 if (overrideSettings != null)
                 {
-                    if (!string.IsNullOrEmpty(overrideSettings.ApiKey))
-                    {
-                        overrideSettings.ApiKey = DecryptString(overrideSettings.ApiKey);
-                    }
-
+                    // ApiKey is always from IConfiguration (machine-level); never from per-user file.
+                    // CopyOnto skips ApiKey, so the env-var-provided key is preserved.
                     overrideSettings.CopyOnto(settings);
                 }
             }
@@ -204,8 +196,10 @@ namespace AIFileProcessor.Services
         }
 
         /// <summary>
-        /// Saves a settings section to the per-user override file, securely
-        /// encrypting the <c>ApiKey</c> field using DPAPI before saving.
+        /// Saves a settings section to the per-user override file. The
+        /// <c>ApiKey</c> field is always stripped before saving — per-user
+        /// files contain only non-secret preferences. API keys are sourced
+        /// from machine-level <see cref="IConfiguration"/> at read time.
         /// </summary>
         /// <typeparam name="T">The settings type to serialize.</typeparam>
         /// <param name="userId">The user identifier.</param>
@@ -235,95 +229,11 @@ namespace AIFileProcessor.Services
             string sectionJson = JsonSerializer.Serialize(settings, WriteOptions);
             var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
 
-            if (sectionNode != null)
-            {
-                // Find any apiKey or ApiKey property
-                string? plainKey = null;
-                string keyPropertyName = "apiKey";
-
-                if (sectionNode.TryGetPropertyValue("apiKey", out var node) && node != null)
-                {
-                    plainKey = node.GetValue<string>();
-                    keyPropertyName = "apiKey";
-                }
-                else if (sectionNode.TryGetPropertyValue("ApiKey", out node) && node != null)
-                {
-                    plainKey = node.GetValue<string>();
-                    keyPropertyName = "ApiKey";
-                }
-
-                if (!string.IsNullOrEmpty(plainKey))
-                {
-                    string encryptedKey = EncryptString(plainKey);
-                    sectionNode[keyPropertyName] = encryptedKey;
-                }
-                else
-                {
-                    // Ensure we remove it if it is empty so we don't save empty/null strings
-                    sectionNode.Remove("apiKey");
-                    sectionNode.Remove("ApiKey");
-                }
-            }
-
+            // ApiKey is [JsonIgnore] on the settings models, so it is never
+            // present in the serialized JSON — no manual stripping needed.
             rootNode[sectionName] = sectionNode;
 
             File.WriteAllText(filePath, rootNode.ToJsonString(WriteOptions));
-        }
-
-        private static string EncryptString(string plainText)
-        {
-            if (string.IsNullOrEmpty(plainText))
-            {
-                return string.Empty;
-            }
-
-            if (!OperatingSystem.IsWindows())
-            {
-                // Fallback for non-Windows platforms (e.g., during tests run on macOS/Linux)
-                return plainText;
-            }
-
-            try
-            {
-                byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
-                byte[] encryptedBytes = ProtectedData.Protect(
-                    plainBytes,
-                    null,
-                    DataProtectionScope.CurrentUser);
-                return Convert.ToBase64String(encryptedBytes);
-            }
-            catch (Exception)
-            {
-                return string.Empty;
-            }
-        }
-
-        private static string DecryptString(string encryptedText)
-        {
-            if (string.IsNullOrEmpty(encryptedText))
-            {
-                return string.Empty;
-            }
-
-            if (!OperatingSystem.IsWindows())
-            {
-                // Fallback for non-Windows platforms
-                return encryptedText;
-            }
-
-            try
-            {
-                byte[] encryptedBytes = Convert.FromBase64String(encryptedText);
-                byte[] decryptedBytes = ProtectedData.Unprotect(
-                    encryptedBytes,
-                    null,
-                    DataProtectionScope.CurrentUser);
-                return Encoding.UTF8.GetString(decryptedBytes);
-            }
-            catch (Exception)
-            {
-                return string.Empty;
-            }
         }
     }
 }

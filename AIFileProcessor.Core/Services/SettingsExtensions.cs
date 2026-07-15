@@ -17,7 +17,8 @@ namespace AIFileProcessor.Services
         /// <summary>
         /// Copies non-null/non-default property values from <paramref name="source"/>
         /// onto <paramref name="target"/>, effectively overlaying user overrides
-        /// on top of defaults.
+        /// on top of defaults. ApiKey is never overlaid — it is always sourced
+        /// from machine-level IConfiguration.
         /// </summary>
         /// <param name="source">The override settings (from per-user file).</param>
         /// <param name="target">The target settings (from defaults) to update in place.</param>
@@ -28,14 +29,11 @@ namespace AIFileProcessor.Services
                 return;
             }
 
+            // ApiKey is always from machine-level IConfiguration; never overlaid from per-user files.
+
             // Only overwrite when the override has a meaningful (non-default) value.
             // Nullable types: overwrite if the override has a value.
             // Non-nullable types: overwrite if the override differs from the default.
-            if (!string.IsNullOrEmpty(source.ApiKey))
-            {
-                target.ApiKey = source.ApiKey;
-            }
-
             if (source.Endpoint != null)
             {
                 target.Endpoint = source.Endpoint;
@@ -135,7 +133,8 @@ namespace AIFileProcessor.Services
 
         /// <summary>
         /// Copies non-null/non-default property values from <paramref name="source"/>
-        /// onto <paramref name="target"/>.
+        /// onto <paramref name="target"/>. ApiKey is never overlaid — it is always
+        /// sourced from machine-level IConfiguration.
         /// </summary>
         /// <param name="source">The override settings (from per-user file).</param>
         /// <param name="target">The target settings (from defaults) to update in place.</param>
@@ -146,11 +145,7 @@ namespace AIFileProcessor.Services
                 return;
             }
 
-            if (!string.IsNullOrEmpty(source.ApiKey))
-            {
-                target.ApiKey = source.ApiKey;
-            }
-
+            // ApiKey is always from machine-level IConfiguration; never overlaid from per-user files.
             if (!string.IsNullOrEmpty(source.Endpoint))
             {
                 target.Endpoint = source.Endpoint;
@@ -184,7 +179,8 @@ namespace AIFileProcessor.Services
 
         /// <summary>
         /// Copies non-null/non-default property values from <paramref name="source"/>
-        /// onto <paramref name="target"/>.
+        /// onto <paramref name="target"/>. ApiKey is never overlaid — it is always
+        /// sourced from machine-level IConfiguration.
         /// </summary>
         /// <param name="source">The override settings (from per-user file).</param>
         /// <param name="target">The target settings (from defaults) to update in place.</param>
@@ -195,11 +191,7 @@ namespace AIFileProcessor.Services
                 return;
             }
 
-            if (!string.IsNullOrEmpty(source.ApiKey))
-            {
-                target.ApiKey = source.ApiKey;
-            }
-
+            // ApiKey is always from machine-level IConfiguration; never overlaid from per-user files.
             if (!string.IsNullOrEmpty(source.Endpoint))
             {
                 target.Endpoint = source.Endpoint;

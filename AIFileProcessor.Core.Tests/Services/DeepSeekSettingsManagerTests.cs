@@ -58,7 +58,7 @@
                 TimeoutSeconds = 30,
                 MaxTokens = 4096,
                 Temperature = 0.7,
-                ModelName = "deepseek-chat",
+                ModelName = "deepseek-v4-flash",
                 EnableReasoning = true,
             };
 

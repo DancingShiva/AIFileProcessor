@@ -15,9 +15,9 @@ namespace AIFileProcessor.Web.Controllers
 
     /// <summary>
     /// API controller for retrieving and saving per-user AI provider settings.
-    /// In web mode, saves are no-ops on the server side — non-secret preferences
-    /// are stored client-side in localStorage. This controller returns defaults
-    /// so the client can pre-populate its settings UI.
+    /// API keys are sourced from server-side environment variables and are never
+    /// received from or sent to the client. Non-secret preferences are stored
+    /// client-side in localStorage and sent with each processing request.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
@@ -48,7 +48,7 @@ namespace AIFileProcessor.Web.Controllers
         /// stripped from the response for security.
         /// </summary>
         /// <param name="ct">A token to cancel the operation.</param>
-        /// <returns>A <see cref="ProviderSettingsResponse"/> with current settings (keys stripped).</returns>
+        /// <returns>A <see cref="ProviderSettingsResponse"/> with current settings (keys stripped via [JsonIgnore]).</returns>
         [HttpGet]
         public async Task<ActionResult<ProviderSettingsResponse>> GetSettings(CancellationToken ct)
         {
@@ -56,11 +56,8 @@ namespace AIFileProcessor.Web.Controllers
             var openAi = await _settingsProvider.GetOpenAiSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
             var deepSeek = await _settingsProvider.GetDeepSeekSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
 
-            // Strip API keys before returning
-            gemini.ApiKey = string.Empty;
-            openAi.ApiKey = string.Empty;
-            deepSeek.ApiKey = string.Empty;
-
+            // ApiKey is [JsonIgnore] on the settings models, so it is automatically
+            // excluded from the JSON response — no manual stripping needed.
             return Ok(new ProviderSettingsResponse
             {
                 GeminiSettings = gemini,
@@ -72,7 +69,7 @@ namespace AIFileProcessor.Web.Controllers
         /// <summary>
         /// Saves settings for all three AI providers. In web mode, this is a
         /// no-op on the server — preferences should be persisted client-side.
-        /// API keys are never stored server-side in web mode.
+        /// API keys are configured via server-side environment variables.
         /// </summary>
         /// <param name="request">The settings to save.</param>
         /// <param name="ct">A token to cancel the operation.</param>
@@ -85,10 +82,11 @@ namespace AIFileProcessor.Web.Controllers
             // In web mode, settings persistence is client-side (localStorage).
             // This endpoint exists for API symmetry with the desktop SettingsForm.
             // The client should store non-secret preferences in localStorage and
-            // send them with each processing request.
+            // send them with each processing request. API keys are configured via
+            // server-side environment variables, not by the client.
             _logger.LogInformation("Settings save requested for user {UserId} (no-op in web mode).", _userContext.UserId);
 
-            return Ok(new { message = "In web mode, store preferences client-side in localStorage. API keys should be sent per-request via headers." });
+            return Ok(new { message = "In web mode, store preferences client-side in localStorage. API keys are configured via server-side environment variables." });
         }
     }
 }
