@@ -87,8 +87,8 @@
             IEnumerable<AiModelInfo> models = service.GetSupportedModels();
             var modelIds = models.Select(m => m.ModelId).ToList();
 
-            Assert.Contains("gpt-5", modelIds);
-            Assert.Contains("gpt-4.1", modelIds);
+            Assert.Contains("gpt-5.5", modelIds);
+            Assert.Contains("gpt-5.4", modelIds);
         }
 
         // ─── SupportsModel ────────────────────────────────────────────────
@@ -128,7 +128,7 @@
         {
             var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("gpt-5");
+            bool result = service.SupportsModel("gpt-5.5");
 
             Assert.True(result);
         }
@@ -138,7 +138,7 @@
         {
             var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("GPT-5");
+            bool result = service.SupportsModel("GPT-5.5");
 
             Assert.True(result);
         }
@@ -148,7 +148,7 @@
         {
             var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("GPT-5-MINI");
+            bool result = service.SupportsModel("GPT-5.4-MINI");
 
             Assert.True(result);
         }
@@ -158,7 +158,7 @@
         {
             var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("  GPT-5  ");
+            bool result = service.SupportsModel("  GPT-5.5  ");
 
             Assert.True(result);
         }
@@ -178,7 +178,7 @@
         {
             var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("gpt-5 nano");
+            bool result = service.SupportsModel("gpt-5.4 nano");
 
             Assert.True(result);
         }
@@ -194,7 +194,7 @@
             var service = new OpenAiService(_loggerMock.Object, emptyOptionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => service.ProcessTextAsync("gpt-5", "prompt", "data", CancellationToken.None));
+                () => service.ProcessTextAsync("gpt-5.5", "prompt", "data", CancellationToken.None));
         }
 
         [Fact]
@@ -212,7 +212,7 @@
             var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gpt-5", string.Empty, "data", CancellationToken.None));
+                () => service.ProcessTextAsync("gpt-5.5", string.Empty, "data", CancellationToken.None));
         }
 
         [Fact]
@@ -221,7 +221,7 @@
             var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gpt-5", "prompt", string.Empty, CancellationToken.None));
+                () => service.ProcessTextAsync("gpt-5.5", "prompt", string.Empty, CancellationToken.None));
         }
 
         // ─── ProcessTextAsync (5-param overload with object settings) ─────
@@ -232,7 +232,7 @@
             var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gpt-5", "prompt", "data", null!, CancellationToken.None));
+                () => service.ProcessTextAsync("gpt-5.5", "prompt", "data", null!, CancellationToken.None));
         }
 
         [Fact]
@@ -241,7 +241,7 @@
             var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gpt-5", "prompt", "data", "not-settings", CancellationToken.None));
+                () => service.ProcessTextAsync("gpt-5.5", "prompt", "data", "not-settings", CancellationToken.None));
         }
 
         [Fact]
@@ -251,7 +251,7 @@
             var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => service.ProcessTextAsync("gpt-5", "prompt", "data", emptyKeySettings, CancellationToken.None));
+                () => service.ProcessTextAsync("gpt-5.5", "prompt", "data", emptyKeySettings, CancellationToken.None));
         }
 
         [Fact]
@@ -269,7 +269,7 @@
             var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gpt-5", string.Empty, "data", _settings, CancellationToken.None));
+                () => service.ProcessTextAsync("gpt-5.5", string.Empty, "data", _settings, CancellationToken.None));
         }
 
         [Fact]
@@ -278,7 +278,7 @@
             var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gpt-5", "prompt", string.Empty, _settings, CancellationToken.None));
+                () => service.ProcessTextAsync("gpt-5.5", "prompt", string.Empty, _settings, CancellationToken.None));
         }
     }
 }

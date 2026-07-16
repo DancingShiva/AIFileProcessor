@@ -8,6 +8,7 @@ namespace AIFileProcessor.Interfaces
     using System.Threading;
     using System.Threading.Tasks;
     using AIFileProcessor.Configuration;
+    using AIFileProcessor.Models;
 
     /// <summary>
     /// Resolves per-user AI service settings on demand, supporting multiple
@@ -68,5 +69,22 @@ namespace AIFileProcessor.Interfaces
         /// <param name="ct">A token to cancel the operation.</param>
         /// <returns>A task representing the asynchronous save operation.</returns>
         Task SaveDeepSeekSettingsAsync(string userId, DeepSeekSettings settings, CancellationToken ct = default);
+
+        /// <summary>
+        /// Gets the last-used processing options for the specified user.
+        /// </summary>
+        /// <param name="userId">The user identifier whose processing options to retrieve.</param>
+        /// <param name="ct">A token to cancel the operation.</param>
+        /// <returns>The persisted <see cref="ProcessingOptions"/>, or a default instance if none exists.</returns>
+        Task<ProcessingOptions> GetProcessingOptionsAsync(string userId, CancellationToken ct = default);
+
+        /// <summary>
+        /// Persists the specified processing options as per-user preferences.
+        /// </summary>
+        /// <param name="userId">The user identifier whose processing options to save.</param>
+        /// <param name="options">The processing options to persist.</param>
+        /// <param name="ct">A token to cancel the operation.</param>
+        /// <returns>A task representing the asynchronous save operation.</returns>
+        Task SaveProcessingOptionsAsync(string userId, ProcessingOptions options, CancellationToken ct = default);
     }
 }

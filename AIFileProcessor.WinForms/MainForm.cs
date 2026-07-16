@@ -62,6 +62,8 @@ namespace AIFileProcessor
         private readonly Func<SettingsForm> _settingsFormFactory;
         private readonly IEnumerable<IAiService> _aiServices;
         private readonly ProcessingOrchestrator _processingOrchestrator;
+        private readonly ISettingsProvider _settingsProvider;
+        private readonly IUserContext _userContext;
 
         private readonly ProcessingOptions _options = new();
 
@@ -76,18 +78,24 @@ namespace AIFileProcessor
         /// <param name="settingsFormFactory">Factory delegate to create transient <see cref="SettingsForm"/> instances.</param>
         /// <param name="aiServices">The collection of registered AI services used to populate the model dropdown.</param>
         /// <param name="processingOrchestrator">The processing orchestrator that executes the Chinese text processing pipeline.</param>
+        /// <param name="settingsProvider">The settings provider for persisting per-user processing options.</param>
+        /// <param name="userContext">The user context for resolving the current user's settings.</param>
         public MainForm(
             ILogger<MainForm> logger,
             IFileOps fileOps,
             Func<SettingsForm> settingsFormFactory,
             IEnumerable<IAiService> aiServices,
-            ProcessingOrchestrator processingOrchestrator)
+            ProcessingOrchestrator processingOrchestrator,
+            ISettingsProvider settingsProvider,
+            IUserContext userContext)
         {
             ArgumentNullException.ThrowIfNull(logger);
             ArgumentNullException.ThrowIfNull(fileOps);
             ArgumentNullException.ThrowIfNull(settingsFormFactory);
             ArgumentNullException.ThrowIfNull(aiServices);
             ArgumentNullException.ThrowIfNull(processingOrchestrator);
+            ArgumentNullException.ThrowIfNull(settingsProvider);
+            ArgumentNullException.ThrowIfNull(userContext);
 
             InitializeComponent();
 
@@ -96,8 +104,11 @@ namespace AIFileProcessor
             _settingsFormFactory = settingsFormFactory;
             _aiServices = aiServices;
             _processingOrchestrator = processingOrchestrator;
+            _settingsProvider = settingsProvider;
+            _userContext = userContext;
 
             FillModelListBox();
+            LoadLastProcessingOptions();
         }
 
         /// <summary>
@@ -235,6 +246,8 @@ namespace AIFileProcessor
                 {
                     return;
                 }
+
+                SaveProcessingOptions();
 
                 _processingCts?.Dispose();
                 _processingCts = new CancellationTokenSource();
@@ -432,6 +445,51 @@ namespace AIFileProcessor
                 {
                     ddlModel.Items.Add(model);
                 }
+            }
+        }
+
+        private void LoadLastProcessingOptions()
+        {
+            try
+            {
+                var saved = _settingsProvider.GetProcessingOptionsAsync(_userContext.UserId).GetAwaiter().GetResult();
+
+                if (!string.IsNullOrWhiteSpace(saved.ModelId))
+                {
+                    for (int i = 0; i < ddlModel.Items.Count; i++)
+                    {
+                        if (ddlModel.Items[i] is AiModelInfo model && model.ModelId == saved.ModelId)
+                        {
+                            ddlModel.SelectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(saved.IdPrefix))
+                {
+                    txtPrefix.Text = saved.IdPrefix;
+                }
+
+                nudIdStart.Value = Math.Clamp(saved.IdStart, nudIdStart.Minimum, nudIdStart.Maximum);
+                nudIdPad.Value = Math.Clamp(saved.IdPad, nudIdPad.Minimum, nudIdPad.Maximum);
+                nudLengthPad.Value = Math.Clamp(saved.LengthPad, nudLengthPad.Minimum, nudLengthPad.Maximum);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load last processing options; using defaults.");
+            }
+        }
+
+        private void SaveProcessingOptions()
+        {
+            try
+            {
+                _settingsProvider.SaveProcessingOptionsAsync(_userContext.UserId, _options).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to save processing options.");
             }
         }
 

@@ -74,7 +74,7 @@ namespace AIFileProcessor.Core.Tests
 
             var settings = new OpenAiSettings
             {
-                ModelName = "gpt-4o",
+                ModelName = "gpt-5.6-terra",
                 TimeoutSeconds = 120
             };
 
@@ -102,7 +102,7 @@ namespace AIFileProcessor.Core.Tests
                 // Assert: preferences are loaded; ApiKey is empty (no env var in test)
                 Assert.NotNull(loadedSettings);
                 Assert.Equal(string.Empty, loadedSettings.ApiKey);
-                Assert.Equal("gpt-4o", loadedSettings.ModelName);
+                Assert.Equal("gpt-5.6-terra", loadedSettings.ModelName);
                 Assert.Equal(120, loadedSettings.TimeoutSeconds);
             }
             finally

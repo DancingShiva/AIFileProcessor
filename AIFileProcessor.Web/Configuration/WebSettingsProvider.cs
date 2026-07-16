@@ -10,6 +10,7 @@ namespace AIFileProcessor.Web.Configuration
     using System.Threading.Tasks;
     using AIFileProcessor.Configuration;
     using AIFileProcessor.Interfaces;
+    using AIFileProcessor.Models;
     using AIFileProcessor.Services;
     using Microsoft.AspNetCore.Http;
     using Microsoft.Extensions.Configuration;
@@ -84,6 +85,18 @@ namespace AIFileProcessor.Web.Configuration
 
         /// <inheritdoc/>
         public Task SaveDeepSeekSettingsAsync(string userId, DeepSeekSettings settings, CancellationToken ct = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public Task<ProcessingOptions> GetProcessingOptionsAsync(string userId, CancellationToken ct = default)
+        {
+            return Task.FromResult(new ProcessingOptions());
+        }
+
+        /// <inheritdoc/>
+        public Task SaveProcessingOptionsAsync(string userId, ProcessingOptions options, CancellationToken ct = default)
         {
             return Task.CompletedTask;
         }

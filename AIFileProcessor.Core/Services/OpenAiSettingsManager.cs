@@ -18,16 +18,18 @@ namespace AIFileProcessor.Services
     {
         private readonly ISettingsProvider _settingsProvider;
         private readonly IUserContext _userContext;
+        private readonly Microsoft.Extensions.Logging.ILogger<OpenAiSettingsManager>? _logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="OpenAiSettingsManager"/> class.
         /// </summary>
         /// <param name="settingsProvider">The settings provider for per-user settings storage.</param>
         /// <param name="userContext">The current user context.</param>
-        public OpenAiSettingsManager(ISettingsProvider settingsProvider, IUserContext userContext)
+        public OpenAiSettingsManager(ISettingsProvider settingsProvider, IUserContext userContext, Microsoft.Extensions.Logging.ILogger<OpenAiSettingsManager>? logger = null)
         {
             _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
             _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
+            _logger = logger;
         }
 
         /// <summary>
@@ -36,8 +38,16 @@ namespace AIFileProcessor.Services
         /// <returns>The populated <see cref="OpenAiSettings"/>.</returns>
         public OpenAiSettings ReadSettings()
         {
-            return _settingsProvider.GetOpenAiSettingsAsync(_userContext.UserId, CancellationToken.None)
+            var settings = _settingsProvider.GetOpenAiSettingsAsync(_userContext.UserId, CancellationToken.None)
                 .GetAwaiter().GetResult();
+
+            var (clamped, wasClamped) = TokenUtils.ClampRequestedMaxTokens(settings.MaxTokens, "OpenAi", settings.ModelName, _logger);
+            if (wasClamped)
+            {
+                settings.MaxTokens = clamped;
+            }
+
+            return settings;
         }
 
         /// <summary>
@@ -47,6 +57,13 @@ namespace AIFileProcessor.Services
         public void SaveSettings(OpenAiSettings settings)
         {
             ArgumentNullException.ThrowIfNull(settings);
+
+            var (clamped, wasClamped) = TokenUtils.ClampRequestedMaxTokens(settings.MaxTokens, "OpenAi", settings.ModelName, _logger);
+            if (wasClamped)
+            {
+                settings.MaxTokens = clamped;
+            }
+
             _settingsProvider.SaveOpenAiSettingsAsync(_userContext.UserId, settings, CancellationToken.None)
                 .GetAwaiter().GetResult();
         }

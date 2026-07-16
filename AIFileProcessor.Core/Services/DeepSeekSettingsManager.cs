@@ -18,16 +18,18 @@ namespace AIFileProcessor.Services
     {
         private readonly ISettingsProvider _settingsProvider;
         private readonly IUserContext _userContext;
+        private readonly Microsoft.Extensions.Logging.ILogger<DeepSeekSettingsManager>? _logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DeepSeekSettingsManager"/> class.
         /// </summary>
         /// <param name="settingsProvider">The settings provider for per-user settings storage.</param>
         /// <param name="userContext">The current user context.</param>
-        public DeepSeekSettingsManager(ISettingsProvider settingsProvider, IUserContext userContext)
+        public DeepSeekSettingsManager(ISettingsProvider settingsProvider, IUserContext userContext, Microsoft.Extensions.Logging.ILogger<DeepSeekSettingsManager>? logger = null)
         {
             _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
             _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
+            _logger = logger;
         }
 
         /// <summary>
@@ -36,8 +38,16 @@ namespace AIFileProcessor.Services
         /// <returns>The populated <see cref="DeepSeekSettings"/>.</returns>
         public DeepSeekSettings ReadSettings()
         {
-            return _settingsProvider.GetDeepSeekSettingsAsync(_userContext.UserId, CancellationToken.None)
+            var settings = _settingsProvider.GetDeepSeekSettingsAsync(_userContext.UserId, CancellationToken.None)
                 .GetAwaiter().GetResult();
+
+            var (clamped, wasClamped) = TokenUtils.ClampRequestedMaxTokens(settings.MaxTokens, "DeepSeek", settings.ModelName, _logger);
+            if (wasClamped)
+            {
+                settings.MaxTokens = clamped;
+            }
+
+            return settings;
         }
 
         /// <summary>
@@ -47,6 +57,13 @@ namespace AIFileProcessor.Services
         public void SaveSettings(DeepSeekSettings settings)
         {
             ArgumentNullException.ThrowIfNull(settings);
+
+            var (clamped, wasClamped) = TokenUtils.ClampRequestedMaxTokens(settings.MaxTokens, "DeepSeek", settings.ModelName, _logger);
+            if (wasClamped)
+            {
+                settings.MaxTokens = clamped;
+            }
+
             _settingsProvider.SaveDeepSeekSettingsAsync(_userContext.UserId, settings, CancellationToken.None)
                 .GetAwaiter().GetResult();
         }

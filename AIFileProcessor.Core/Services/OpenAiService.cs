@@ -28,17 +28,15 @@ namespace AIFileProcessor.Services
     {
         private static readonly IReadOnlyList<AiModelInfo> SupportedModels =
         [
-            new AiModelInfo("GPT-4.1", "gpt-4.1"),
-            new AiModelInfo("GPT-5 Mini", "gpt-5-mini"),
-            new AiModelInfo("GPT-5 Nano", "gpt-5-nano"),
-            new AiModelInfo("GPT-5", "gpt-5"),
-            new AiModelInfo("GPT-5.3 Codex", "gpt-5.3-codex"),
+            new AiModelInfo("GPT-5.6 Sol", "gpt-5.6-sol"),
+            new AiModelInfo("GPT-5.6 Terra", "gpt-5.6-terra"),
+            new AiModelInfo("GPT-5.6 Luna", "gpt-5.6-luna"),
+            new AiModelInfo("GPT-5.5", "gpt-5.5"),
+            new AiModelInfo("GPT-5.5 Pro", "gpt-5.5-pro"),
+            new AiModelInfo("GPT-5.4", "gpt-5.4"),
+            new AiModelInfo("GPT-5.4 Pro", "gpt-5.4-pro"),
             new AiModelInfo("GPT-5.4 Mini", "gpt-5.4-mini"),
             new AiModelInfo("GPT-5.4 Nano", "gpt-5.4-nano"),
-            new AiModelInfo("GPT-5.4 Pro", "gpt-5.4-pro"),
-            new AiModelInfo("GPT-5.4", "gpt-5.4"),
-            new AiModelInfo("GPT-5.5 Pro", "gpt-5.5-pro"),
-            new AiModelInfo("GPT-5.5", "gpt-5.5"),
         ];
 
         private readonly ILogger _logger;

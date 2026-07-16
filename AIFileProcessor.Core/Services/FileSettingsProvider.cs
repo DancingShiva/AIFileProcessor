@@ -13,6 +13,7 @@ namespace AIFileProcessor.Services
     using System.Threading.Tasks;
     using AIFileProcessor.Configuration;
     using AIFileProcessor.Interfaces;
+    using AIFileProcessor.Models;
     using Microsoft.Extensions.Configuration;
 
     /// <summary>
@@ -153,6 +154,35 @@ namespace AIFileProcessor.Services
             ArgumentNullException.ThrowIfNull(settings);
 
             SaveSection(userId, "DeepSeekSettings", settings);
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public Task<ProcessingOptions> GetProcessingOptionsAsync(string userId, CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+
+            JsonObject? userOverrides = ReadUserOverrides(userId);
+            if (userOverrides != null && userOverrides["ProcessingOptions"] is JsonObject optionsNode)
+            {
+                string json = optionsNode.ToJsonString();
+                var options = JsonSerializer.Deserialize<ProcessingOptions>(json, ReadOptions);
+                if (options != null)
+                {
+                    return Task.FromResult(options);
+                }
+            }
+
+            return Task.FromResult(new ProcessingOptions());
+        }
+
+        /// <inheritdoc/>
+        public Task SaveProcessingOptionsAsync(string userId, ProcessingOptions options, CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            ArgumentNullException.ThrowIfNull(options);
+
+            SaveSection(userId, "ProcessingOptions", options);
             return Task.CompletedTask;
         }
 

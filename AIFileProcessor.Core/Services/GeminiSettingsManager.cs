@@ -18,16 +18,18 @@ namespace AIFileProcessor.Services
     {
         private readonly ISettingsProvider _settingsProvider;
         private readonly IUserContext _userContext;
+        private readonly Microsoft.Extensions.Logging.ILogger<GeminiSettingsManager>? _logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GeminiSettingsManager"/> class.
         /// </summary>
         /// <param name="settingsProvider">The settings provider for per-user settings storage.</param>
         /// <param name="userContext">The current user context.</param>
-        public GeminiSettingsManager(ISettingsProvider settingsProvider, IUserContext userContext)
+        public GeminiSettingsManager(ISettingsProvider settingsProvider, IUserContext userContext, Microsoft.Extensions.Logging.ILogger<GeminiSettingsManager>? logger = null)
         {
             _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
             _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
+            _logger = logger;
         }
 
         /// <summary>
@@ -36,8 +38,16 @@ namespace AIFileProcessor.Services
         /// <returns>The populated <see cref="GeminiSettings"/>.</returns>
         public GeminiSettings ReadSettings()
         {
-            return _settingsProvider.GetGeminiSettingsAsync(_userContext.UserId, CancellationToken.None)
+            var settings = _settingsProvider.GetGeminiSettingsAsync(_userContext.UserId, CancellationToken.None)
                 .GetAwaiter().GetResult();
+
+            var (clamped, wasClamped) = TokenUtils.ClampRequestedMaxTokens(settings.MaxTokens, "Gemini", settings.ModelName, _logger);
+            if (wasClamped)
+            {
+                settings.MaxTokens = clamped;
+            }
+
+            return settings;
         }
 
         /// <summary>
@@ -47,6 +57,14 @@ namespace AIFileProcessor.Services
         public void SaveSettings(GeminiSettings settings)
         {
             ArgumentNullException.ThrowIfNull(settings);
+
+            // Clamp MaxTokens before persisting
+            var (clamped, wasClamped) = TokenUtils.ClampRequestedMaxTokens(settings.MaxTokens, "Gemini", settings.ModelName, _logger);
+            if (wasClamped)
+            {
+                settings.MaxTokens = clamped;
+            }
+
             _settingsProvider.SaveGeminiSettingsAsync(_userContext.UserId, settings, CancellationToken.None)
                 .GetAwaiter().GetResult();
         }
