@@ -35,7 +35,7 @@ public class FileOpsTests
         // Arrange
         string tempFile = Path.GetTempFileName();
         string expectedContent = "Hello, World!";
-        await File.WriteAllTextAsync(tempFile, expectedContent);
+        await File.WriteAllTextAsync(tempFile, expectedContent, TestContext.Current.CancellationToken);
 
         try
         {
@@ -110,7 +110,7 @@ public class FileOpsTests
             // Assert
             Assert.True(result);
             Assert.True(File.Exists(tempFile));
-            string writtenContent = await File.ReadAllTextAsync(tempFile);
+            string writtenContent = await File.ReadAllTextAsync(tempFile, TestContext.Current.CancellationToken);
             Assert.Equal(data, writtenContent);
         }
         finally
@@ -170,7 +170,7 @@ public class FileOpsTests
             Assert.True(result);
             Assert.True(File.Exists(filePath));
             Assert.True(Directory.Exists(tempDir));
-            string writtenContent = await File.ReadAllTextAsync(filePath);
+            string writtenContent = await File.ReadAllTextAsync(filePath, TestContext.Current.CancellationToken);
             Assert.Equal(data, writtenContent);
         }
         finally

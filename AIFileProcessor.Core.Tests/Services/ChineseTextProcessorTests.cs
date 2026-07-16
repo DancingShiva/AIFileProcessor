@@ -64,7 +64,7 @@
             var processor = CreateProcessor();
             var data = "你好世界";
 
-            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, CancellationToken.None);
+            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, TestContext.Current.CancellationToken);
 
             Assert.NotNull(result);
             _aiServiceMock.Verify(
@@ -76,12 +76,12 @@
         }
 
         [Fact]
-        public async Task ProcessChineseTextAsync_WithoutSettings_DefaultCancellationToken_Works()
+        public async Task ProcessChineseTextAsync_WithoutSettings_WithExplicitCancellationToken_Works()
         {
             var processor = CreateProcessor();
             var data = "你好";
 
-            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data);
+            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, TestContext.Current.CancellationToken);
 
             Assert.NotNull(result);
         }
@@ -150,7 +150,7 @@
             var providerSettings = new Dictionary<string, object>();
             var data = "你好";
 
-            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, providerSettings);
+            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, providerSettings, TestContext.Current.CancellationToken);
 
             Assert.NotNull(result);
         }

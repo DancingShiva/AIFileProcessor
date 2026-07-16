@@ -28,7 +28,7 @@ namespace AIFileProcessor.Core.Tests
             try
             {
                 // Act
-                await provider.SaveGeminiSettingsAsync(userId, settings);
+                await provider.SaveGeminiSettingsAsync(userId, settings, TestContext.Current.CancellationToken);
 
                 // Assert: Verify settings file was created
                 string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -36,7 +36,7 @@ namespace AIFileProcessor.Core.Tests
                 Assert.True(File.Exists(settingsFilePath));
 
                 // Assert: per-user file must NOT contain an apiKey field
-                string fileContent = await File.ReadAllTextAsync(settingsFilePath);
+                string fileContent = await File.ReadAllTextAsync(settingsFilePath, TestContext.Current.CancellationToken);
                 using var doc = JsonDocument.Parse(fileContent);
                 var root = doc.RootElement;
                 Assert.True(root.TryGetProperty("GeminiSettings", out var geminiSection));
@@ -44,7 +44,7 @@ namespace AIFileProcessor.Core.Tests
                 Assert.False(geminiSection.TryGetProperty("ApiKey", out _));
 
                 // Act: Retrieve settings back
-                GeminiSettings loadedSettings = await provider.GetGeminiSettingsAsync(userId);
+                GeminiSettings loadedSettings = await provider.GetGeminiSettingsAsync(userId, TestContext.Current.CancellationToken);
 
                 // Assert: preferences are loaded; ApiKey is empty (no env var in test)
                 Assert.NotNull(loadedSettings);
@@ -81,7 +81,7 @@ namespace AIFileProcessor.Core.Tests
             try
             {
                 // Act
-                await provider.SaveOpenAiSettingsAsync(userId, settings);
+                await provider.SaveOpenAiSettingsAsync(userId, settings, TestContext.Current.CancellationToken);
 
                 // Assert
                 string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -89,7 +89,7 @@ namespace AIFileProcessor.Core.Tests
                 Assert.True(File.Exists(settingsFilePath));
 
                 // Assert: per-user file must NOT contain an apiKey field
-                string fileContent = await File.ReadAllTextAsync(settingsFilePath);
+                string fileContent = await File.ReadAllTextAsync(settingsFilePath, TestContext.Current.CancellationToken);
                 using var doc = JsonDocument.Parse(fileContent);
                 var root = doc.RootElement;
                 Assert.True(root.TryGetProperty("OpenAiSettings", out var openaiSection));
@@ -97,7 +97,7 @@ namespace AIFileProcessor.Core.Tests
                 Assert.False(openaiSection.TryGetProperty("ApiKey", out _));
 
                 // Act
-                OpenAiSettings loadedSettings = await provider.GetOpenAiSettingsAsync(userId);
+                OpenAiSettings loadedSettings = await provider.GetOpenAiSettingsAsync(userId, TestContext.Current.CancellationToken);
 
                 // Assert: preferences are loaded; ApiKey is empty (no env var in test)
                 Assert.NotNull(loadedSettings);
@@ -135,7 +135,7 @@ namespace AIFileProcessor.Core.Tests
             try
             {
                 // Act
-                await provider.SaveDeepSeekSettingsAsync(userId, settings);
+                await provider.SaveDeepSeekSettingsAsync(userId, settings, TestContext.Current.CancellationToken);
 
                 // Assert
                 string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -143,7 +143,7 @@ namespace AIFileProcessor.Core.Tests
                 Assert.True(File.Exists(settingsFilePath));
 
                 // Assert: per-user file must NOT contain an apiKey field
-                string fileContent = await File.ReadAllTextAsync(settingsFilePath);
+                string fileContent = await File.ReadAllTextAsync(settingsFilePath, TestContext.Current.CancellationToken);
                 using var doc = JsonDocument.Parse(fileContent);
                 var root = doc.RootElement;
                 Assert.True(root.TryGetProperty("DeepSeekSettings", out var deepseekSection));
@@ -151,7 +151,7 @@ namespace AIFileProcessor.Core.Tests
                 Assert.False(deepseekSection.TryGetProperty("ApiKey", out _));
 
                 // Act
-                DeepSeekSettings loadedSettings = await provider.GetDeepSeekSettingsAsync(userId);
+                DeepSeekSettings loadedSettings = await provider.GetDeepSeekSettingsAsync(userId, TestContext.Current.CancellationToken);
 
                 // Assert: preferences are loaded; ApiKey is empty (no env var in test)
                 Assert.NotNull(loadedSettings);

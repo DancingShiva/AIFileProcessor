@@ -87,9 +87,6 @@
             IEnumerable<AiModelInfo> models = service.GetSupportedModels();
             var modelIds = models.Select(m => m.ModelId).ToList();
 
-            Assert.Contains("gemini-2.5-flash", modelIds);
-            Assert.Contains("gemini-2.5-flash-lite", modelIds);
-            Assert.Contains("gemini-2.5-pro", modelIds);
             Assert.Contains("gemini-3-flash", modelIds);
             Assert.Contains("gemini-3.1-pro-preview", modelIds);
             Assert.Contains("gemini-3.5-flash", modelIds);
@@ -103,9 +100,6 @@
             IEnumerable<AiModelInfo> models = service.GetSupportedModels();
             var modelNames = models.Select(m => m.ModelName).ToList();
 
-            Assert.Contains("Gemini 2.5 Flash", modelNames);
-            Assert.Contains("Gemini 2.5 Flash-Lite", modelNames);
-            Assert.Contains("Gemini 2.5 Pro", modelNames);
             Assert.Contains("Gemini 3 Flash", modelNames);
             Assert.Contains("Gemini 3.1 Pro", modelNames);
             Assert.Contains("Gemini 3.5 Flash", modelNames);
@@ -148,7 +142,7 @@
         {
             var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("gemini-2.5-flash");
+            bool result = service.SupportsModel("gemini-3-flash");
 
             Assert.True(result);
         }
@@ -158,7 +152,7 @@
         {
             var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("Gemini 2.5 Flash");
+            bool result = service.SupportsModel("Gemini 3 Flash");
 
             Assert.True(result);
         }
@@ -168,7 +162,7 @@
         {
             var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("GEMINI-2.5-FLASH");
+            bool result = service.SupportsModel("GEMINI-3-FLASH");
 
             Assert.True(result);
         }
@@ -178,7 +172,7 @@
         {
             var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
-            bool result = service.SupportsModel("  Gemini 2.5 Flash  ");
+            bool result = service.SupportsModel("  Gemini 3 Flash  ");
 
             Assert.True(result);
         }
@@ -204,16 +198,6 @@
         }
 
         [Fact]
-        public void SupportsModel_FlashLiteModelId_ReturnsTrue()
-        {
-            var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
-
-            bool result = service.SupportsModel("gemini-2.5-flash-lite");
-
-            Assert.True(result);
-        }
-
-        [Fact]
         public void SupportsModel_ProPreviewModelName_ReturnsTrue()
         {
             var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
@@ -234,7 +218,7 @@
             var service = new GeminiService(_loggerMock.Object, emptyOptionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => service.ProcessTextAsync("gemini-2.5-flash", "prompt", "data", CancellationToken.None));
+                () => service.ProcessTextAsync("gemini-3-flash", "prompt", "data", CancellationToken.None));
         }
 
         [Fact]
@@ -252,7 +236,7 @@
             var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gemini-2.5-flash", string.Empty, "data", CancellationToken.None));
+                () => service.ProcessTextAsync("gemini-3-flash", string.Empty, "data", CancellationToken.None));
         }
 
         [Fact]
@@ -261,7 +245,7 @@
             var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gemini-2.5-flash", "prompt", string.Empty, CancellationToken.None));
+                () => service.ProcessTextAsync("gemini-3-flash", "prompt", string.Empty, CancellationToken.None));
         }
 
         // ─── ProcessTextAsync (5-param overload with object settings) ─────
@@ -272,7 +256,7 @@
             var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gemini-2.5-flash", "prompt", "data", null!, CancellationToken.None));
+                () => service.ProcessTextAsync("gemini-3-flash", "prompt", "data", null!, CancellationToken.None));
         }
 
         [Fact]
@@ -281,7 +265,7 @@
             var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gemini-2.5-flash", "prompt", "data", "not-settings", CancellationToken.None));
+                () => service.ProcessTextAsync("gemini-3-flash", "prompt", "data", "not-settings", CancellationToken.None));
         }
 
         [Fact]
@@ -291,7 +275,7 @@
             var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => service.ProcessTextAsync("gemini-2.5-flash", "prompt", "data", emptyKeySettings, CancellationToken.None));
+                () => service.ProcessTextAsync("gemini-3-flash", "prompt", "data", emptyKeySettings, CancellationToken.None));
         }
 
         [Fact]
@@ -309,7 +293,7 @@
             var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gemini-2.5-flash", string.Empty, "data", _settings, CancellationToken.None));
+                () => service.ProcessTextAsync("gemini-3-flash", string.Empty, "data", _settings, CancellationToken.None));
         }
 
         [Fact]
@@ -318,7 +302,7 @@
             var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gemini-2.5-flash", "prompt", string.Empty, _settings, CancellationToken.None));
+                () => service.ProcessTextAsync("gemini-3-flash", "prompt", string.Empty, _settings, CancellationToken.None));
         }
     }
 }

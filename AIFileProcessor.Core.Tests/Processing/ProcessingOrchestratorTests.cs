@@ -35,14 +35,14 @@
                 new()
                 {
                     Chinese = "你好",
-                    Pinyin = "nǐ hǎo",
+                    Pinyin = "ni hao",
                     English = "hello",
                     Breakdown = new List<BreakdownEntry>
                     {
                         new()
                         {
                             Chinese = "你",
-                            Pinyin = "nǐ",
+                            Pinyin = "ni",
                             Gloss = "you",
                             PartOfSpeech = "pron",
                             HskLevel = "1",
@@ -131,7 +131,7 @@
             var orchestrator = new ProcessingOrchestrator(factory, settings.Object, userCtx.Object);
 
             await Assert.ThrowsAsync<ArgumentNullException>(() =>
-                orchestrator.ProcessAsync(null!));
+                orchestrator.ProcessAsync(null!, TestContext.Current.CancellationToken));
         }
 
         [Fact]
@@ -141,7 +141,7 @@
             var orchestrator = new ProcessingOrchestrator(factory, settings.Object, userCtx.Object);
             var options = CreateValidOptions();
 
-            ProcessingResult result = await orchestrator.ProcessAsync(options);
+            ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             Assert.NotNull(result);
             Assert.NotEmpty(result.RawResponse);
@@ -158,7 +158,7 @@
             var orchestrator = new ProcessingOrchestrator(factory, settings.Object, userCtx.Object);
             var options = CreateValidOptions();
 
-            await orchestrator.ProcessAsync(options);
+            await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             settings.Verify(s => s.GetGeminiSettingsAsync("test-user", It.IsAny<CancellationToken>()), Times.Once);
             settings.Verify(s => s.GetOpenAiSettingsAsync("test-user", It.IsAny<CancellationToken>()), Times.Once);
@@ -172,7 +172,7 @@
             var orchestrator = new ProcessingOrchestrator(factory, settings.Object, userCtx.Object);
             var options = CreateValidOptions();
 
-            await orchestrator.ProcessAsync(options);
+            await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             processor.Verify(p => p.ProcessChineseTextAsync(
                 "test-model", "test prompt", "test data",
@@ -195,7 +195,7 @@
                     (_, _, _, dict, _) => capturedSettings = dict)
                 .ReturnsAsync(CreateApiResponse());
 
-            await orchestrator.ProcessAsync(options);
+            await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             Assert.NotNull(capturedSettings);
             Assert.True(capturedSettings!.ContainsKey("Gemini"));
@@ -220,8 +220,8 @@
             {
                 ProcessedSentenceRows = new List<ProcessedSentenceRow>
                 {
-                    new() { Chinese = "一", Pinyin = "yī", English = "one", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
-                    new() { Chinese = "二", Pinyin = "èr", English = "two", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
+                    new() { Chinese = "?", Pinyin = "yi", English = "one", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
+                    new() { Chinese = "?", Pinyin = "�r", English = "two", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
                 },
             };
 
@@ -230,7 +230,7 @@
                     It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
 
-            ProcessingResult result = await orchestrator.ProcessAsync(options);
+            ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             Assert.Equal("S0005", result.ProcessedSentenceRows[0].Id);
             Assert.Equal("S0006", result.ProcessedSentenceRows[1].Id);
@@ -252,7 +252,7 @@
                     It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
 
-            ProcessingResult result = await orchestrator.ProcessAsync(options);
+            ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             Assert.Equal("004Chars", result.ProcessedSentenceRows[0].Length);
         }
@@ -267,14 +267,14 @@
             options.IdStart = 1;
             options.IdPad = 3;
 
-            ProcessingResult result = await orchestrator.ProcessAsync(options);
+            ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             string[] lines = result.RawResponse.Split(Environment.NewLine);
             Assert.Single(lines);
             string[] fields = lines[0].Split('\t');
             Assert.Equal("T001", fields[0]);
-            Assert.Equal("你好", fields[1]);
-            Assert.Equal("nǐ hǎo", fields[2]);
+            Assert.Equal("??", fields[1]);
+            Assert.Equal("ni hao", fields[2]);
             Assert.Equal("hello", fields[5]);
         }
 
@@ -293,7 +293,7 @@
                     It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
 
-            ProcessingResult result = await orchestrator.ProcessAsync(options);
+            ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             string[] lines = result.RawResponse.Split(Environment.NewLine);
             string[] fields = lines[0].Split('\t');
@@ -318,7 +318,7 @@
                     It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
 
-            ProcessingResult result = await orchestrator.ProcessAsync(options);
+            ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             string[] lines = result.RawResponse.Split(Environment.NewLine);
             string[] fields = lines[0].Split('\t');
@@ -335,12 +335,12 @@
             var orchestrator = new ProcessingOrchestrator(factory, settings.Object, userCtx.Object);
             var options = CreateValidOptions();
 
-            ProcessingResult result = await orchestrator.ProcessAsync(options);
+            ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             string[] lines = result.RawResponse.Split(Environment.NewLine);
             string[] fields = lines[0].Split('\t');
             string audioReorderStr = fields[4];
-            Assert.Contains("你好|0,1", audioReorderStr);
+            Assert.Contains("??|0,1", audioReorderStr);
         }
 
         [Fact]
@@ -357,8 +357,8 @@
             {
                 ProcessedSentenceRows = new List<ProcessedSentenceRow>
                 {
-                    new() { Chinese = "一", Pinyin = "yī", English = "one", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
-                    new() { Chinese = "二", Pinyin = "èr", English = "two", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
+                    new() { Chinese = "?", Pinyin = "yi", English = "one", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
+                    new() { Chinese = "?", Pinyin = "�r", English = "two", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
                 },
             };
 
@@ -367,7 +367,7 @@
                     It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
 
-            ProcessingResult result = await orchestrator.ProcessAsync(options);
+            ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             Assert.Equal("R010", result.ProcessedSentenceRows[0].Id);
             Assert.Equal("R011", result.ProcessedSentenceRows[1].Id);
@@ -391,7 +391,7 @@
                     It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
 
-            ProcessingResult result = await orchestrator.ProcessAsync(options);
+            ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             Assert.Equal(string.Empty, result.RawResponse);
             Assert.Empty(result.ProcessedSentenceRows);

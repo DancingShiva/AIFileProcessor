@@ -39,6 +39,7 @@ namespace AIFileProcessor
             _deepSeekManager = deepSeekManager ?? throw new ArgumentNullException(nameof(deepSeekManager));
 
             PopulateModelDropdowns(aiServices);
+
             // Update numeric control maximums when the selected model changes so the UI reflects
             // provider/model hard-limits. Handlers update the corresponding NumericUpDown.Maximum.
             this.ddlGeminiModel.SelectedIndexChanged += (s, e) => UpdateGeminiMaxTokensLimit();
@@ -111,10 +112,15 @@ namespace AIFileProcessor
                 nudGeminiTimeout.Value = gemini.TimeoutSeconds;
                 txtGeminiProjectId.Text = gemini.ProjectId ?? string.Empty;
                 txtGeminiLocation.Text = gemini.Location ?? string.Empty;
+
                 // Ensure UI control maximum matches provider/model hard-limit before assigning value.
                 nudGeminiMaxTokens.Maximum = ModelTokenLimits.GetHardMax("Gemini", gemini.ModelName);
                 var geminiValue = gemini.MaxTokens ?? 0;
-                if (geminiValue > (int)nudGeminiMaxTokens.Maximum) geminiValue = (int)nudGeminiMaxTokens.Maximum;
+                if (geminiValue > (int)nudGeminiMaxTokens.Maximum)
+                {
+                    geminiValue = (int)nudGeminiMaxTokens.Maximum;
+                }
+
                 nudGeminiMaxTokens.Value = geminiValue;
                 chkGeminiMaxTokensNull.Checked = !gemini.MaxTokens.HasValue;
                 nudGeminiTemp.Value = (decimal)(gemini.Temperature ?? 0.0);
@@ -140,7 +146,11 @@ namespace AIFileProcessor
                 txtOpenAiOrgId.Text = openAi.OrganizationId ?? string.Empty;
                 nudOpenAiMaxTokens.Maximum = ModelTokenLimits.GetHardMax("OpenAi", openAi.ModelName);
                 var openAiValue = openAi.MaxTokens ?? 0;
-                if (openAiValue > (int)nudOpenAiMaxTokens.Maximum) openAiValue = (int)nudOpenAiMaxTokens.Maximum;
+                if (openAiValue > (int)nudOpenAiMaxTokens.Maximum)
+                {
+                    openAiValue = (int)nudOpenAiMaxTokens.Maximum;
+                }
+
                 nudOpenAiMaxTokens.Value = openAiValue;
                 chkOpenAiMaxTokensNull.Checked = !openAi.MaxTokens.HasValue;
                 nudOpenAiTemp.Value = (decimal)(openAi.Temperature ?? 0.0);
@@ -153,7 +163,11 @@ namespace AIFileProcessor
                 nudDeepSeekTimeout.Value = deepSeek.TimeoutSeconds;
                 nudDeepSeekMaxTokens.Maximum = ModelTokenLimits.GetHardMax("DeepSeek", deepSeek.ModelName);
                 var deepSeekValue = deepSeek.MaxTokens ?? 0;
-                if (deepSeekValue > (int)nudDeepSeekMaxTokens.Maximum) deepSeekValue = (int)nudDeepSeekMaxTokens.Maximum;
+                if (deepSeekValue > (int)nudDeepSeekMaxTokens.Maximum)
+                {
+                    deepSeekValue = (int)nudDeepSeekMaxTokens.Maximum;
+                }
+
                 nudDeepSeekMaxTokens.Value = deepSeekValue;
                 chkDeepSeekMaxTokensNull.Checked = !deepSeek.MaxTokens.HasValue;
                 nudDeepSeekTemp.Value = (decimal)(deepSeek.Temperature ?? 0.0);
@@ -277,21 +291,30 @@ namespace AIFileProcessor
         {
             var modelId = ddlGeminiModel.SelectedItem is AiModelInfo model ? model.ModelId : null;
             nudGeminiMaxTokens.Maximum = ModelTokenLimits.GetHardMax("Gemini", modelId);
-            if (nudGeminiMaxTokens.Value > nudGeminiMaxTokens.Maximum) nudGeminiMaxTokens.Value = nudGeminiMaxTokens.Maximum;
+            if (nudGeminiMaxTokens.Value > nudGeminiMaxTokens.Maximum)
+            {
+                nudGeminiMaxTokens.Value = nudGeminiMaxTokens.Maximum;
+            }
         }
 
         private void UpdateOpenAiMaxTokensLimit()
         {
             var modelId = ddlOpenAiModel.SelectedItem is AiModelInfo model ? model.ModelId : null;
             nudOpenAiMaxTokens.Maximum = ModelTokenLimits.GetHardMax("OpenAi", modelId);
-            if (nudOpenAiMaxTokens.Value > nudOpenAiMaxTokens.Maximum) nudOpenAiMaxTokens.Value = nudOpenAiMaxTokens.Maximum;
+            if (nudOpenAiMaxTokens.Value > nudOpenAiMaxTokens.Maximum)
+            {
+                nudOpenAiMaxTokens.Value = nudOpenAiMaxTokens.Maximum;
+            }
         }
 
         private void UpdateDeepSeekMaxTokensLimit()
         {
             var modelId = ddlDeepSeekModel.SelectedItem is AiModelInfo model ? model.ModelId : null;
             nudDeepSeekMaxTokens.Maximum = ModelTokenLimits.GetHardMax("DeepSeek", modelId);
-            if (nudDeepSeekMaxTokens.Value > nudDeepSeekMaxTokens.Maximum) nudDeepSeekMaxTokens.Value = nudDeepSeekMaxTokens.Maximum;
+            if (nudDeepSeekMaxTokens.Value > nudDeepSeekMaxTokens.Maximum)
+            {
+                nudDeepSeekMaxTokens.Value = nudDeepSeekMaxTokens.Maximum;
+            }
         }
     }
 }

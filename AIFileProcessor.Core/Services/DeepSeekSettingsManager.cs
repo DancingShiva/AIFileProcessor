@@ -25,6 +25,7 @@ namespace AIFileProcessor.Services
         /// </summary>
         /// <param name="settingsProvider">The settings provider for per-user settings storage.</param>
         /// <param name="userContext">The current user context.</param>
+        /// <param name="logger">An optional logger for diagnostic messages.</param>
         public DeepSeekSettingsManager(ISettingsProvider settingsProvider, IUserContext userContext, Microsoft.Extensions.Logging.ILogger<DeepSeekSettingsManager>? logger = null)
         {
             _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));

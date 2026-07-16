@@ -27,9 +27,6 @@ namespace AIFileProcessor.Services
     {
         private static readonly IReadOnlyList<AiModelInfo> SupportedModels =
         [
-            new AiModelInfo("Gemini 2.5 Flash", "gemini-2.5-flash"),
-            new AiModelInfo("Gemini 2.5 Flash-Lite", "gemini-2.5-flash-lite"),
-            new AiModelInfo("Gemini 2.5 Pro", "gemini-2.5-pro"),
             new AiModelInfo("Gemini 3 Flash", "gemini-3-flash"),
             new AiModelInfo("Gemini 3.1 Pro", "gemini-3.1-pro-preview"),
             new AiModelInfo("Gemini 3.5 Flash", "gemini-3.5-flash"),

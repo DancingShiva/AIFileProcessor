@@ -25,6 +25,7 @@ namespace AIFileProcessor.Services
         /// </summary>
         /// <param name="settingsProvider">The settings provider for per-user settings storage.</param>
         /// <param name="userContext">The current user context.</param>
+        /// <param name="logger">An optional logger for diagnostic messages.</param>
         public GeminiSettingsManager(ISettingsProvider settingsProvider, IUserContext userContext, Microsoft.Extensions.Logging.ILogger<GeminiSettingsManager>? logger = null)
         {
             _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
