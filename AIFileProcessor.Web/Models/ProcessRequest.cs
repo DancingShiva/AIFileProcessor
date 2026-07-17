@@ -6,6 +6,7 @@
 namespace AIFileProcessor.Web.Models
 {
     using AIFileProcessor.Configuration;
+    using AIFileProcessor.Models;
 
     /// <summary>
     /// Request DTO for the text processing endpoint. Contains the processing
@@ -63,5 +64,11 @@ namespace AIFileProcessor.Web.Models
         /// Gets or sets non-secret DeepSeek preferences to override defaults.
         /// </summary>
         public DeepSeekSettings? DeepSeekPreferences { get; set; }
+
+        /// <summary>
+        /// Gets or sets the reasoning level to use for this processing request.
+        /// When set, this overrides the provider-level default.
+        /// </summary>
+        public ReasoningLevel? ReasoningLevel { get; set; }
     }
 }

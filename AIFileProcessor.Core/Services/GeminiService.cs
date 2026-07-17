@@ -27,9 +27,18 @@ namespace AIFileProcessor.Services
     {
         private static readonly IReadOnlyList<AiModelInfo> SupportedModels =
         [
-            new AiModelInfo("Gemini 3 Flash", "gemini-3-flash"),
-            new AiModelInfo("Gemini 3.1 Pro", "gemini-3.1-pro-preview"),
-            new AiModelInfo("Gemini 3.5 Flash", "gemini-3.5-flash"),
+            new AiModelInfo(
+                "Gemini 3 Flash",
+                "gemini-3-flash",
+                [ReasoningLevel.Minimal, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High]),
+            new AiModelInfo(
+                "Gemini 3.1 Pro",
+                "gemini-3.1-pro-preview",
+                [ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High]),
+            new AiModelInfo(
+                "Gemini 3.5 Flash",
+                "gemini-3.5-flash",
+                [ReasoningLevel.Minimal, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High]),
         ];
 
         private readonly GeminiSettings _defaultSettings;
@@ -70,6 +79,19 @@ namespace AIFileProcessor.Services
             }
 
             return false;
+        }
+
+        public IReadOnlyList<ReasoningLevel> GetSupportedReasoningLevels(string modelId)
+        {
+            foreach (var model in SupportedModels)
+            {
+                if (model.ModelId.Equals(modelId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return model.SupportedReasoningLevels;
+                }
+            }
+
+            return [];
         }
 
         /// <summary>
@@ -233,6 +255,21 @@ namespace AIFileProcessor.Services
                 TopP = (float?)settings.TopP,
                 MaxOutputTokens = settings.MaxTokens,
             };
+
+            if (settings.ReasoningLevel.HasValue)
+            {
+                config.ThinkingConfig = new ThinkingConfig
+                {
+                    ThinkingLevel = settings.ReasoningLevel.Value switch
+                    {
+                        Models.ReasoningLevel.Minimal => Google.GenAI.Types.ThinkingLevel.Minimal,
+                        Models.ReasoningLevel.Low => Google.GenAI.Types.ThinkingLevel.Low,
+                        Models.ReasoningLevel.Medium => Google.GenAI.Types.ThinkingLevel.Medium,
+                        Models.ReasoningLevel.High => Google.GenAI.Types.ThinkingLevel.High,
+                        _ => Google.GenAI.Types.ThinkingLevel.ThinkingLevelUnspecified,
+                    },
+                };
+            }
 
             string targetModel = modelId;
 

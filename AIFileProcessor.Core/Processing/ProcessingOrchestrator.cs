@@ -65,6 +65,16 @@ namespace AIFileProcessor.Processing
             var openAiSettings = await _settingsProvider.GetOpenAiSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
             var deepSeekSettings = await _settingsProvider.GetDeepSeekSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
 
+            // Apply the per-model reasoning level from processing options onto the matching provider settings.
+            // ModelReasoningLevels is the single source of truth — updated by both MainForm and SettingsForm.
+            if (!string.IsNullOrWhiteSpace(options.ModelId)
+                && options.ModelReasoningLevels.TryGetValue(options.ModelId, out var reasoningLevel))
+            {
+                geminiSettings.ReasoningLevel = reasoningLevel;
+                openAiSettings.ReasoningLevel = reasoningLevel;
+                deepSeekSettings.ReasoningLevel = reasoningLevel;
+            }
+
             var providerSettings = new Dictionary<string, object>
             {
                 ["Gemini"] = geminiSettings,

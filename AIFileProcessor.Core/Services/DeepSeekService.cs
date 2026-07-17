@@ -28,8 +28,14 @@ namespace AIFileProcessor.Services
     {
         private static readonly IReadOnlyList<AiModelInfo> SupportedModels =
         [
-            new AiModelInfo("DeepSeek-V4-Flash", "deepseek-v4-flash"),
-            new AiModelInfo("DeepSeek-V4-Pro", "deepseek-v4-pro"),
+            new AiModelInfo(
+                "DeepSeek-V4-Flash",
+                "deepseek-v4-flash",
+                [ReasoningLevel.High, ReasoningLevel.Max]),
+            new AiModelInfo(
+                "DeepSeek-V4-Pro",
+                "deepseek-v4-pro",
+                [ReasoningLevel.High, ReasoningLevel.Max]),
         ];
 
         private readonly ILogger _logger;
@@ -70,6 +76,19 @@ namespace AIFileProcessor.Services
             }
 
             return false;
+        }
+
+        public IReadOnlyList<ReasoningLevel> GetSupportedReasoningLevels(string modelId)
+        {
+            foreach (var model in SupportedModels)
+            {
+                if (model.ModelId.Equals(modelId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return model.SupportedReasoningLevels;
+                }
+            }
+
+            return [];
         }
 
         /// <summary>
@@ -182,6 +201,26 @@ namespace AIFileProcessor.Services
             if (settings.Temperature.HasValue)
             {
                 chatOptions.Temperature = (float)settings.Temperature.Value;
+            }
+
+            if (settings.ReasoningLevel.HasValue)
+            {
+#pragma warning disable OPENAI001
+                // DeepSeek supports "high" and "max" for reasoning_effort.
+                // "low" and "medium" are mapped to "high" for compatibility;
+                // "xhigh" is mapped to "max". "none" disables thinking.
+                chatOptions.ReasoningEffortLevel = settings.ReasoningLevel.Value switch
+                {
+                    Models.ReasoningLevel.None => null, // disabled via not setting effort
+                    Models.ReasoningLevel.Low => ChatReasoningEffortLevel.High,
+                    Models.ReasoningLevel.Minimal => ChatReasoningEffortLevel.High,
+                    Models.ReasoningLevel.Medium => ChatReasoningEffortLevel.High,
+                    Models.ReasoningLevel.High => ChatReasoningEffortLevel.High,
+                    Models.ReasoningLevel.XHigh => new ChatReasoningEffortLevel("max"),
+                    Models.ReasoningLevel.Max => new ChatReasoningEffortLevel("max"),
+                    _ => null,
+                };
+#pragma warning restore OPENAI001
             }
 
             try

@@ -25,26 +25,47 @@ namespace AIFileProcessor
         private readonly GeminiSettingsManager _geminiManager;
         private readonly OpenAiSettingsManager _openAiManager;
         private readonly DeepSeekSettingsManager _deepSeekManager;
+        private readonly IEnumerable<IAiService> _aiServices;
+        private readonly ISettingsProvider _settingsProvider;
+        private readonly IUserContext _userContext;
+        private Dictionary<string, ReasoningLevel> _modelReasoningLevels = new();
 
         public SettingsForm(
             GeminiSettingsManager geminiManager,
             OpenAiSettingsManager openAiManager,
             DeepSeekSettingsManager deepSeekManager,
-            IEnumerable<IAiService> aiServices)
+            IEnumerable<IAiService> aiServices,
+            ISettingsProvider settingsProvider,
+            IUserContext userContext)
         {
             InitializeComponent();
 
             _geminiManager = geminiManager ?? throw new ArgumentNullException(nameof(geminiManager));
             _openAiManager = openAiManager ?? throw new ArgumentNullException(nameof(openAiManager));
             _deepSeekManager = deepSeekManager ?? throw new ArgumentNullException(nameof(deepSeekManager));
+            _aiServices = aiServices ?? throw new ArgumentNullException(nameof(aiServices));
+            _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
+            _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
 
             PopulateModelDropdowns(aiServices);
 
             // Update numeric control maximums when the selected model changes so the UI reflects
             // provider/model hard-limits. Handlers update the corresponding NumericUpDown.Maximum.
-            this.ddlGeminiModel.SelectedIndexChanged += (s, e) => UpdateGeminiMaxTokensLimit();
-            this.ddlOpenAiModel.SelectedIndexChanged += (s, e) => UpdateOpenAiMaxTokensLimit();
-            this.ddlDeepSeekModel.SelectedIndexChanged += (s, e) => UpdateDeepSeekMaxTokensLimit();
+            this.ddlGeminiModel.SelectedIndexChanged += (s, e) =>
+            {
+                UpdateGeminiMaxTokensLimit();
+                UpdateGeminiReasoningLevels();
+            };
+            this.ddlOpenAiModel.SelectedIndexChanged += (s, e) =>
+            {
+                UpdateOpenAiMaxTokensLimit();
+                UpdateOpenAiReasoningLevels();
+            };
+            this.ddlDeepSeekModel.SelectedIndexChanged += (s, e) =>
+            {
+                UpdateDeepSeekMaxTokensLimit();
+                UpdateDeepSeekReasoningLevels();
+            };
         }
 
         private static void FillComboBox(ComboBox comboBox, List<AiModelInfo> models)
@@ -68,6 +89,63 @@ namespace AIFileProcessor
                     comboBox.SelectedIndex = i;
                     return;
                 }
+            }
+        }
+
+        private static void PopulateReasoningDropdown(ComboBox comboBox, string? modelId, IEnumerable<IAiService> aiServices)
+        {
+            comboBox.Items.Clear();
+            if (string.IsNullOrWhiteSpace(modelId))
+            {
+                return;
+            }
+
+            foreach (var service in aiServices)
+            {
+                if (service.SupportsModel(modelId))
+                {
+                    foreach (var level in service.GetSupportedReasoningLevels(modelId))
+                    {
+                        comboBox.Items.Add(level);
+                    }
+
+                    if (comboBox.Items.Count > 0)
+                    {
+                        comboBox.SelectedIndex = 0;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        private static string? GetModelId(ComboBox comboBox)
+        {
+            return comboBox.SelectedItem is AiModelInfo model ? model.ModelId : null;
+        }
+
+        private void SelectReasoningLevelForModel(ComboBox comboBox, string? modelId)
+        {
+            if (string.IsNullOrWhiteSpace(modelId) || !_modelReasoningLevels.TryGetValue(modelId, out var level))
+            {
+                return;
+            }
+
+            for (int i = 0; i < comboBox.Items.Count; i++)
+            {
+                if (comboBox.Items[i] is ReasoningLevel item && item == level)
+                {
+                    comboBox.SelectedIndex = i;
+                    return;
+                }
+            }
+        }
+
+        private void SaveReasoningLevelForModel(ComboBox comboBox, string? modelId)
+        {
+            if (!string.IsNullOrWhiteSpace(modelId) && comboBox.SelectedItem is ReasoningLevel level)
+            {
+                _modelReasoningLevels[modelId] = level;
             }
         }
 
@@ -96,6 +174,24 @@ namespace AIFileProcessor
             }
         }
 
+        private void UpdateGeminiReasoningLevels()
+        {
+            var modelId = ddlGeminiModel.SelectedItem is AiModelInfo model ? model.ModelId : null;
+            PopulateReasoningDropdown(ddlGeminiReasoning, modelId, _aiServices);
+        }
+
+        private void UpdateOpenAiReasoningLevels()
+        {
+            var modelId = ddlOpenAiModel.SelectedItem is AiModelInfo model ? model.ModelId : null;
+            PopulateReasoningDropdown(ddlOpenAiReasoning, modelId, _aiServices);
+        }
+
+        private void UpdateDeepSeekReasoningLevels()
+        {
+            var modelId = ddlDeepSeekModel.SelectedItem is AiModelInfo model ? model.ModelId : null;
+            PopulateReasoningDropdown(ddlDeepSeekReasoning, modelId, _aiServices);
+        }
+
         private void SettingsForm_Load(object sender, EventArgs e)
         {
             LoadSettings();
@@ -105,10 +201,19 @@ namespace AIFileProcessor
         {
             try
             {
+                // Load per-model reasoning levels from ProcessingOptions (single source of truth)
+                var processingOptions = _settingsProvider.GetProcessingOptionsAsync(_userContext.UserId).GetAwaiter().GetResult();
+                if (processingOptions.ModelReasoningLevels != null)
+                {
+                    _modelReasoningLevels = processingOptions.ModelReasoningLevels;
+                }
+
                 // Load Gemini Settings
                 var gemini = _geminiManager.ReadSettings();
                 txtGeminiEndpoint.Text = gemini.Endpoint ?? string.Empty;
                 SelectModelByModelId(ddlGeminiModel, gemini.ModelName);
+                UpdateGeminiReasoningLevels();
+                SelectReasoningLevelForModel(ddlGeminiReasoning, GetModelId(ddlGeminiModel));
                 nudGeminiTimeout.Value = gemini.TimeoutSeconds;
                 txtGeminiProjectId.Text = gemini.ProjectId ?? string.Empty;
                 txtGeminiLocation.Text = gemini.Location ?? string.Empty;
@@ -142,6 +247,8 @@ namespace AIFileProcessor
                 var openAi = _openAiManager.ReadSettings();
                 txtOpenAiEndpoint.Text = openAi.Endpoint ?? string.Empty;
                 SelectModelByModelId(ddlOpenAiModel, openAi.ModelName);
+                UpdateOpenAiReasoningLevels();
+                SelectReasoningLevelForModel(ddlOpenAiReasoning, GetModelId(ddlOpenAiModel));
                 nudOpenAiTimeout.Value = openAi.TimeoutSeconds;
                 txtOpenAiOrgId.Text = openAi.OrganizationId ?? string.Empty;
                 nudOpenAiMaxTokens.Maximum = ModelTokenLimits.GetHardMax("OpenAi", openAi.ModelName);
@@ -159,6 +266,8 @@ namespace AIFileProcessor
                 // Load DeepSeek Settings
                 var deepSeek = _deepSeekManager.ReadSettings();
                 SelectModelByModelId(ddlDeepSeekModel, deepSeek.ModelName);
+                UpdateDeepSeekReasoningLevels();
+                SelectReasoningLevelForModel(ddlDeepSeekReasoning, GetModelId(ddlDeepSeekModel));
                 txtDeepSeekEndpoint.Text = deepSeek.Endpoint ?? string.Empty;
                 nudDeepSeekTimeout.Value = deepSeek.TimeoutSeconds;
                 nudDeepSeekMaxTokens.Maximum = ModelTokenLimits.GetHardMax("DeepSeek", deepSeek.ModelName);
@@ -180,7 +289,7 @@ namespace AIFileProcessor
             }
         }
 
-        private void BtnSave_Click(object sender, EventArgs e)
+        private void btnSave_Click(object sender, EventArgs e)
         {
             try
             {
@@ -230,6 +339,15 @@ namespace AIFileProcessor
                     EnableReasoning = chkDeepSeekReasoning.Checked
                 };
                 _deepSeekManager.SaveSettings(deepSeek);
+
+                // Save per-model reasoning levels to ProcessingOptions (single source of truth)
+                SaveReasoningLevelForModel(ddlGeminiReasoning, GetModelId(ddlGeminiModel));
+                SaveReasoningLevelForModel(ddlOpenAiReasoning, GetModelId(ddlOpenAiModel));
+                SaveReasoningLevelForModel(ddlDeepSeekReasoning, GetModelId(ddlDeepSeekModel));
+
+                var options = _settingsProvider.GetProcessingOptionsAsync(_userContext.UserId).GetAwaiter().GetResult();
+                options.ModelReasoningLevels = _modelReasoningLevels;
+                _settingsProvider.SaveProcessingOptionsAsync(_userContext.UserId, options).GetAwaiter().GetResult();
 
                 MessageBox.Show("Settings saved successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 DialogResult = DialogResult.OK;

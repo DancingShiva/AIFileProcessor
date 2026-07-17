@@ -103,6 +103,12 @@ namespace AIFileProcessor.Web.Controllers
                 LengthPad = request.LengthPad,
             };
 
+            // Apply reasoning level from the request to the per-model dictionary
+            if (request.ReasoningLevel.HasValue)
+            {
+                options.ModelReasoningLevels[request.ModelId] = request.ReasoningLevel.Value;
+            }
+
             try
             {
                 _logger.LogInformation("Processing request for model {ModelId}.", request.ModelId);

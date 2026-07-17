@@ -9,6 +9,7 @@ namespace AIFileProcessor.Configuration
     using System.Collections.Generic;
     using System.Text.Json.Serialization;
     using AIFileProcessor.Interfaces;
+    using AIFileProcessor.Models;
 
     /// <summary>
     /// Concrete implementation of <see cref="IGeminiSettings"/> used for binding from configuration.
@@ -55,5 +56,7 @@ namespace AIFileProcessor.Configuration
         public bool UseManagedIdentity { get; set; } = false;
 
         public string? CredentialType { get; set; } = null;
+
+        public ReasoningLevel? ReasoningLevel { get; set; } = null;
     }
 }

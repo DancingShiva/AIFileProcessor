@@ -5,6 +5,8 @@
 //-----------------------------------------------------------------------
 namespace AIFileProcessor.Interfaces
 {
+    using AIFileProcessor.Models;
+
     /// <summary>
     /// Interface for OpenAI configuration settings.
     /// </summary>
@@ -44,5 +46,10 @@ namespace AIFileProcessor.Interfaces
         /// Gets or sets the temperature for OpenAI API calls. This controls the randomness of the generated text.
         /// </summary>
         public double? Temperature { get; set; }
+
+        /// <summary>
+        /// Gets or sets the reasoning effort level for OpenAI API calls. Null if not configured.
+        /// </summary>
+        public ReasoningLevel? ReasoningLevel { get; set; }
     }
 }

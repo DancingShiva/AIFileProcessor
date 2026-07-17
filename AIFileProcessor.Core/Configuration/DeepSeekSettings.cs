@@ -7,6 +7,7 @@ namespace AIFileProcessor.Configuration
 {
     using System.Text.Json.Serialization;
     using AIFileProcessor.Interfaces;
+    using AIFileProcessor.Models;
 
     /// <summary>
     /// Concrete implementation of DeepSeek configuration settings.
@@ -34,5 +35,8 @@ namespace AIFileProcessor.Configuration
 
         /// <inheritdoc />
         public bool EnableReasoning { get; set; }
+
+        /// <inheritdoc />
+        public ReasoningLevel? ReasoningLevel { get; set; }
     }
 }

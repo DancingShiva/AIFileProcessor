@@ -273,7 +273,7 @@
             Assert.Single(lines);
             string[] fields = lines[0].Split('\t');
             Assert.Equal("T001", fields[0]);
-            Assert.Equal("??", fields[1]);
+            Assert.Equal("你好", fields[1]);
             Assert.Equal("ni hao", fields[2]);
             Assert.Equal("hello", fields[5]);
         }
@@ -340,7 +340,7 @@
             string[] lines = result.RawResponse.Split(Environment.NewLine);
             string[] fields = lines[0].Split('\t');
             string audioReorderStr = fields[4];
-            Assert.Contains("??|0,1", audioReorderStr);
+            Assert.Contains("你好|0,1", audioReorderStr);
         }
 
         [Fact]

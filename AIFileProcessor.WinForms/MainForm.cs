@@ -7,6 +7,7 @@ namespace AIFileProcessor
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using System.Windows.Forms;
@@ -14,6 +15,7 @@ namespace AIFileProcessor
     using AIFileProcessor.Models;
     using AIFileProcessor.Processing;
     using AIFileProcessor.Response;
+    using AIFileProcessor.Services;
     using Microsoft.Extensions.Logging;
 
     /// <summary>
@@ -109,6 +111,9 @@ namespace AIFileProcessor
 
             FillModelListBox();
             LoadLastProcessingOptions();
+
+            ddlModel.SelectedIndexChanged += (s, e) => OnModelSelectionChanged();
+            ddlReasoning.SelectedIndexChanged += (s, e) => OnReasoningSelectionChanged();
         }
 
         /// <summary>
@@ -420,7 +425,13 @@ namespace AIFileProcessor
             try
             {
                 var settingsForm = _settingsFormFactory();
-                settingsForm.ShowDialog(this);
+                if (settingsForm.ShowDialog(this) == DialogResult.OK)
+                {
+                    // Settings may have changed the per-model reasoning levels;
+                    // reload them and refresh the reasoning dropdown for the current model.
+                    ReloadModelReasoningLevels();
+                    OnModelSelectionChanged();
+                }
             }
             catch (Exception ex)
             {
@@ -448,11 +459,87 @@ namespace AIFileProcessor
             }
         }
 
+        private void OnModelSelectionChanged()
+        {
+            if (ddlModel.SelectedItem is not AiModelInfo selectedModel)
+            {
+                ddlReasoning.Items.Clear();
+                return;
+            }
+
+            // Find the service that supports this model and get its reasoning levels
+            var reasoningLevels = Array.Empty<ReasoningLevel>();
+            foreach (var service in _aiServices)
+            {
+                if (service.SupportsModel(selectedModel.ModelId))
+                {
+                    reasoningLevels = service.GetSupportedReasoningLevels(selectedModel.ModelId).ToArray();
+                    break;
+                }
+            }
+
+            ddlReasoning.Items.Clear();
+            foreach (var level in reasoningLevels)
+            {
+                ddlReasoning.Items.Add(level);
+            }
+
+            // Restore the user's last-selected reasoning level for this model
+            if (_options.ModelReasoningLevels.TryGetValue(selectedModel.ModelId, out var savedLevel))
+            {
+                for (int i = 0; i < ddlReasoning.Items.Count; i++)
+                {
+                    if (ddlReasoning.Items[i] is ReasoningLevel level && level == savedLevel)
+                    {
+                        ddlReasoning.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
+            else if (ddlReasoning.Items.Count > 0)
+            {
+                // Default to the first (lowest) reasoning level
+                ddlReasoning.SelectedIndex = 0;
+            }
+        }
+
+        private void OnReasoningSelectionChanged()
+        {
+            if (ddlModel.SelectedItem is AiModelInfo selectedModel
+                && ddlReasoning.SelectedItem is ReasoningLevel level)
+            {
+                _options.ModelReasoningLevels[selectedModel.ModelId] = level;
+                SaveProcessingOptions();
+            }
+        }
+
+        private void ReloadModelReasoningLevels()
+        {
+            try
+            {
+                var saved = _settingsProvider.GetProcessingOptionsAsync(_userContext.UserId).GetAwaiter().GetResult();
+                if (saved.ModelReasoningLevels != null)
+                {
+                    _options.ModelReasoningLevels = saved.ModelReasoningLevels;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to reload reasoning levels after settings change.");
+            }
+        }
+
         private void LoadLastProcessingOptions()
         {
             try
             {
                 var saved = _settingsProvider.GetProcessingOptionsAsync(_userContext.UserId).GetAwaiter().GetResult();
+
+                // Copy the saved per-model reasoning levels into the live options
+                if (saved.ModelReasoningLevels != null)
+                {
+                    _options.ModelReasoningLevels = saved.ModelReasoningLevels;
+                }
 
                 if (!string.IsNullOrWhiteSpace(saved.ModelId))
                 {
@@ -464,6 +551,16 @@ namespace AIFileProcessor
                             break;
                         }
                     }
+                }
+
+                // OnModelSelectionChanged (fired by SelectedIndexChanged) handles
+                // populating ddlReasoning and restoring the saved level from
+                // _options.ModelReasoningLevels. But if the model was set
+                // programmatically and the event already fired, ensure the
+                // reasoning dropdown is populated by calling it explicitly.
+                if (ddlReasoning.Items.Count == 0 && ddlModel.SelectedItem is AiModelInfo)
+                {
+                    OnModelSelectionChanged();
                 }
 
                 if (!string.IsNullOrWhiteSpace(saved.IdPrefix))
@@ -504,6 +601,11 @@ namespace AIFileProcessor
                 MessageBox.Show("Please select a model before processing.");
                 ddlModel.Focus();
                 return false;
+            }
+
+            if (ddlReasoning.SelectedItem is ReasoningLevel reasoningLevel)
+            {
+                _options.ModelReasoningLevels[_options.ModelId] = reasoningLevel;
             }
 
             if (!string.IsNullOrWhiteSpace(txtPrefix.Text))

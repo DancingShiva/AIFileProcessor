@@ -7,6 +7,7 @@ namespace AIFileProcessor.Interfaces
 {
     using System;
     using System.Collections.Generic;
+    using AIFileProcessor.Models;
 
     /// <summary>
     /// Configuration settings specific to the Google Gemini API.
@@ -113,5 +114,10 @@ namespace AIFileProcessor.Interfaces
         /// Gets or sets the optional credential type or hint for advanced auth flows (e.g., "OAuth", "ServiceAccount").
         /// </summary>
         string? CredentialType { get; set; }
+
+        /// <summary>
+        /// Gets or sets the reasoning/thinking level for the Gemini model. Null if not configured.
+        /// </summary>
+        ReasoningLevel? ReasoningLevel { get; set; }
     }
 }

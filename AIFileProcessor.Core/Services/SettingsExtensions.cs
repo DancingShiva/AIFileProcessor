@@ -7,6 +7,7 @@ namespace AIFileProcessor.Services
 {
     using System.Collections.Generic;
     using AIFileProcessor.Configuration;
+    using AIFileProcessor.Models;
 
     /// <summary>
     /// Provides extension methods for overlaying per-user settings overrides
@@ -129,6 +130,11 @@ namespace AIFileProcessor.Services
             {
                 target.CredentialType = source.CredentialType;
             }
+
+            if (source.ReasoningLevel.HasValue)
+            {
+                target.ReasoningLevel = source.ReasoningLevel;
+            }
         }
 
         /// <summary>
@@ -175,6 +181,11 @@ namespace AIFileProcessor.Services
             {
                 target.Temperature = source.Temperature;
             }
+
+            if (source.ReasoningLevel.HasValue)
+            {
+                target.ReasoningLevel = source.ReasoningLevel;
+            }
         }
 
         /// <summary>
@@ -220,6 +231,11 @@ namespace AIFileProcessor.Services
             if (source.EnableReasoning)
             {
                 target.EnableReasoning = source.EnableReasoning;
+            }
+
+            if (source.ReasoningLevel.HasValue)
+            {
+                target.ReasoningLevel = source.ReasoningLevel;
             }
         }
     }

@@ -31,6 +31,7 @@ namespace AIFileProcessor.Models
             IdStart = 1;
             IdPad = 3;
             LengthPad = 3;
+            ModelReasoningLevels = new Dictionary<string, ReasoningLevel>();
         }
 
         /// <summary>
@@ -105,5 +106,13 @@ namespace AIFileProcessor.Models
         /// Gets or sets the padding length for the length indicator of each sentence. After importing into Anki, this may be used to filter the complexity of the sentences based on their length, allowing the user to focus on simpler sentences for easier learning or more complex sentences for advanced practice.
         /// </summary>
         public int LengthPad { get; set; }
+
+        /// <summary>
+        /// Gets or sets a dictionary mapping model IDs to the user's last-selected
+        /// reasoning level for that model. This enables per-model persistence: when
+        /// the user switches between models, their previously selected reasoning
+        /// level is restored. Keys are model IDs (e.g., "gpt-5.6-sol").
+        /// </summary>
+        public Dictionary<string, ReasoningLevel> ModelReasoningLevels { get; set; }
     }
 }

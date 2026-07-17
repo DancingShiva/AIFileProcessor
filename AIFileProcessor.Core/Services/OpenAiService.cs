@@ -28,15 +28,42 @@ namespace AIFileProcessor.Services
     {
         private static readonly IReadOnlyList<AiModelInfo> SupportedModels =
         [
-            new AiModelInfo("GPT-5.6 Sol", "gpt-5.6-sol"),
-            new AiModelInfo("GPT-5.6 Terra", "gpt-5.6-terra"),
-            new AiModelInfo("GPT-5.6 Luna", "gpt-5.6-luna"),
-            new AiModelInfo("GPT-5.5", "gpt-5.5"),
-            new AiModelInfo("GPT-5.5 Pro", "gpt-5.5-pro"),
-            new AiModelInfo("GPT-5.4", "gpt-5.4"),
-            new AiModelInfo("GPT-5.4 Pro", "gpt-5.4-pro"),
-            new AiModelInfo("GPT-5.4 Mini", "gpt-5.4-mini"),
-            new AiModelInfo("GPT-5.4 Nano", "gpt-5.4-nano"),
+            new AiModelInfo(
+                "GPT-5.6 Sol",
+                "gpt-5.6-sol",
+                [ReasoningLevel.None, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High, ReasoningLevel.XHigh, ReasoningLevel.Max]),
+            new AiModelInfo(
+                "GPT-5.6 Terra",
+                "gpt-5.6-terra",
+                [ReasoningLevel.None, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High, ReasoningLevel.XHigh, ReasoningLevel.Max]),
+            new AiModelInfo(
+                "GPT-5.6 Luna",
+                "gpt-5.6-luna",
+                [ReasoningLevel.None, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High, ReasoningLevel.XHigh, ReasoningLevel.Max]),
+            new AiModelInfo(
+                "GPT-5.5",
+                "gpt-5.5",
+                [ReasoningLevel.None, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High, ReasoningLevel.XHigh]),
+            new AiModelInfo(
+                "GPT-5.5 Pro",
+                "gpt-5.5-pro",
+                [ReasoningLevel.Medium, ReasoningLevel.High, ReasoningLevel.XHigh]),
+            new AiModelInfo(
+                "GPT-5.4",
+                "gpt-5.4",
+                [ReasoningLevel.None, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High, ReasoningLevel.XHigh]),
+            new AiModelInfo(
+                "GPT-5.4 Pro",
+                "gpt-5.4-pro",
+                [ReasoningLevel.Medium, ReasoningLevel.High, ReasoningLevel.XHigh]),
+            new AiModelInfo(
+                "GPT-5.4 Mini",
+                "gpt-5.4-mini",
+                [ReasoningLevel.None, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High, ReasoningLevel.XHigh]),
+            new AiModelInfo(
+                "GPT-5.4 Nano",
+                "gpt-5.4-nano",
+                [ReasoningLevel.None, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High, ReasoningLevel.XHigh]),
         ];
 
         private readonly ILogger _logger;
@@ -77,6 +104,19 @@ namespace AIFileProcessor.Services
             }
 
             return false;
+        }
+
+        public IReadOnlyList<ReasoningLevel> GetSupportedReasoningLevels(string modelId)
+        {
+            foreach (var model in SupportedModels)
+            {
+                if (model.ModelId.Equals(modelId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return model.SupportedReasoningLevels;
+                }
+            }
+
+            return [];
         }
 
         /// <summary>
@@ -190,6 +230,22 @@ namespace AIFileProcessor.Services
             if (settings.Temperature.HasValue)
             {
                 chatOptions.Temperature = (float)settings.Temperature.Value;
+            }
+
+            if (settings.ReasoningLevel.HasValue)
+            {
+#pragma warning disable OPENAI001
+                chatOptions.ReasoningEffortLevel = settings.ReasoningLevel.Value switch
+                {
+                    Models.ReasoningLevel.None => new ChatReasoningEffortLevel("none"),
+                    Models.ReasoningLevel.Low => ChatReasoningEffortLevel.Low,
+                    Models.ReasoningLevel.Medium => ChatReasoningEffortLevel.Medium,
+                    Models.ReasoningLevel.High => ChatReasoningEffortLevel.High,
+                    Models.ReasoningLevel.XHigh => new ChatReasoningEffortLevel("xhigh"),
+                    Models.ReasoningLevel.Max => new ChatReasoningEffortLevel("max"),
+                    _ => null,
+                };
+#pragma warning restore OPENAI001
             }
 
             try

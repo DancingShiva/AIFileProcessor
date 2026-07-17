@@ -57,11 +57,13 @@ namespace AIFileProcessor
             this.txtGeminiProxyUrl = new System.Windows.Forms.TextBox();
             this.chkGeminiUseManagedIdentity = new System.Windows.Forms.CheckBox();
             this.txtGeminiCredentialType = new System.Windows.Forms.TextBox();
+            this.ddlGeminiReasoning = new System.Windows.Forms.ComboBox();
 
             // OpenAI tab controls
             this.flpOpenAi = new System.Windows.Forms.FlowLayoutPanel();
             this.txtOpenAiEndpoint = new System.Windows.Forms.TextBox();
             this.ddlOpenAiModel = new System.Windows.Forms.ComboBox();
+            this.ddlOpenAiReasoning = new System.Windows.Forms.ComboBox();
             this.nudOpenAiTimeout = new System.Windows.Forms.NumericUpDown();
             this.txtOpenAiOrgId = new System.Windows.Forms.TextBox();
             this.nudOpenAiMaxTokens = new System.Windows.Forms.NumericUpDown();
@@ -72,6 +74,7 @@ namespace AIFileProcessor
             // DeepSeek tab controls
             this.flpDeepSeek = new System.Windows.Forms.FlowLayoutPanel();
             this.ddlDeepSeekModel = new System.Windows.Forms.ComboBox();
+            this.ddlDeepSeekReasoning = new System.Windows.Forms.ComboBox();
             this.txtDeepSeekEndpoint = new System.Windows.Forms.TextBox();
             this.nudDeepSeekTimeout = new System.Windows.Forms.NumericUpDown();
             this.nudDeepSeekMaxTokens = new System.Windows.Forms.NumericUpDown();
@@ -159,6 +162,7 @@ namespace AIFileProcessor
 
             // Setup controls helper layout
             BuildLabelledComboBox(this.flpGemini, "Model Name:", this.ddlGeminiModel);
+            BuildLabelledComboBox(this.flpGemini, "Reasoning Level:", this.ddlGeminiReasoning);
             BuildLabelledTextBox(this.flpGemini, "Endpoint:", this.txtGeminiEndpoint, false);
             BuildLabelledNumeric(this.flpGemini, "Timeout (Seconds):", this.nudGeminiTimeout, 1, 3600);
             BuildLabelledTextBox(this.flpGemini, "Project ID (Optional):", this.txtGeminiProjectId, false);
@@ -181,6 +185,7 @@ namespace AIFileProcessor
             BuildLabelledTextBox(this.flpGemini, "Credential Type (Optional):", this.txtGeminiCredentialType, false);
 
             BuildLabelledComboBox(this.flpOpenAi, "Model Name:", this.ddlOpenAiModel);
+            BuildLabelledComboBox(this.flpOpenAi, "Reasoning Level:", this.ddlOpenAiReasoning);
             BuildLabelledTextBox(this.flpOpenAi, "Endpoint:", this.txtOpenAiEndpoint, false);
             BuildLabelledNumeric(this.flpOpenAi, "Timeout (Seconds):", this.nudOpenAiTimeout, 1, 3600);
             BuildLabelledTextBox(this.flpOpenAi, "Organization ID (Optional):", this.txtOpenAiOrgId, false);
@@ -190,6 +195,7 @@ namespace AIFileProcessor
             this.chkOpenAiTempNull.CheckedChanged += new System.EventHandler(this.ChkOpenAiTempNull_CheckedChanged);
 
             BuildLabelledComboBox(this.flpDeepSeek, "Model Name:", this.ddlDeepSeekModel);
+            BuildLabelledComboBox(this.flpDeepSeek, "Reasoning Level:", this.ddlDeepSeekReasoning);
             BuildLabelledTextBox(this.flpDeepSeek, "Endpoint:", this.txtDeepSeekEndpoint, false);
             BuildLabelledNumeric(this.flpDeepSeek, "Timeout (Seconds):", this.nudDeepSeekTimeout, 1, 3600);
             BuildLabelledNumericWithNull(this.flpDeepSeek, "Max Tokens:", this.nudDeepSeekMaxTokens, this.chkDeepSeekMaxTokensNull, 0, 1000000);
@@ -215,7 +221,7 @@ namespace AIFileProcessor
             this.btnSave.TabIndex = 0;
             this.btnSave.Text = "&Save";
             this.btnSave.UseVisualStyleBackColor = true;
-            this.btnSave.Click += new System.EventHandler(this.BtnSave_Click);
+            this.btnSave.Click += new System.EventHandler(this.btnSave_Click);
 
             // btnCancel
             this.btnCancel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
@@ -384,6 +390,7 @@ namespace AIFileProcessor
         private System.Windows.Forms.TextBox txtGeminiProxyUrl;
         private System.Windows.Forms.CheckBox chkGeminiUseManagedIdentity;
         private System.Windows.Forms.TextBox txtGeminiCredentialType;
+        private System.Windows.Forms.ComboBox ddlGeminiReasoning;
 
         private System.Windows.Forms.FlowLayoutPanel flpOpenAi;
         private System.Windows.Forms.TextBox txtOpenAiEndpoint;
@@ -394,6 +401,7 @@ namespace AIFileProcessor
         private System.Windows.Forms.CheckBox chkOpenAiMaxTokensNull;
         private System.Windows.Forms.NumericUpDown nudOpenAiTemp;
         private System.Windows.Forms.CheckBox chkOpenAiTempNull;
+        private System.Windows.Forms.ComboBox ddlOpenAiReasoning;
 
         private System.Windows.Forms.FlowLayoutPanel flpDeepSeek;
         private System.Windows.Forms.ComboBox ddlDeepSeekModel;
@@ -404,5 +412,6 @@ namespace AIFileProcessor
         private System.Windows.Forms.NumericUpDown nudDeepSeekTemp;
         private System.Windows.Forms.CheckBox chkDeepSeekTempNull;
         private System.Windows.Forms.CheckBox chkDeepSeekReasoning;
+        private System.Windows.Forms.ComboBox ddlDeepSeekReasoning;
     }
 }

@@ -30,6 +30,13 @@ namespace AIFileProcessor.Interfaces
         bool SupportsModel(string modelNameOrId);
 
         /// <summary>
+        /// Gets the list of reasoning levels supported by the specified model.
+        /// </summary>
+        /// <param name="modelId">The model identifier to look up.</param>
+        /// <returns>A read-only list of supported reasoning levels, or an empty list if the model is unknown.</returns>
+        IReadOnlyList<ReasoningLevel> GetSupportedReasoningLevels(string modelId);
+
+        /// <summary>
         /// Generates text content based on the provided prompt and configuration settings.
         /// Uses the settings injected via the constructor (from <c>IOptions&lt;T&gt;</c>).
         /// </summary>
