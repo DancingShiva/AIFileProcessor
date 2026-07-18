@@ -234,4 +234,273 @@ public class PinyinUtilityTests
     {
         Assert.Equal("ni hao", PinyinUtility.StripTone("nǐ hǎo"));
     }
+
+    // ---------- Additional GetTone tests ----------
+
+    [Fact]
+    public void GetTone_VOnly_ReturnsNeutral()
+    {
+        Assert.Equal(Tone.Neutral, PinyinUtility.GetTone("v".AsSpan()));
+    }
+
+    [Fact]
+    public void GetTone_UmlautUOnly_ReturnsNeutral()
+    {
+        Assert.Equal(Tone.Neutral, PinyinUtility.GetTone("ü".AsSpan()));
+    }
+
+    [Fact]
+    public void GetTone_MultipleToneMarks_ReturnsFirstEncountered()
+    {
+        // The first tone-marked vowel encountered determines the tone.
+        Assert.Equal(Tone.First, PinyinUtility.GetTone("āá".AsSpan()));
+    }
+
+    [Fact]
+    public void GetTone_ToneMarkAfterPlainVowel_ReturnsToneFromMarkedVowel()
+    {
+        // Plain vowel sets hasVowel=true, but tone-marked vowel returns early.
+        Assert.Equal(Tone.Third, PinyinUtility.GetTone("aǎ".AsSpan()));
+    }
+
+    [Fact]
+    public void GetTone_SpecialCharactersOnly_ReturnsUnknown()
+    {
+        Assert.Equal(Tone.Unknown, PinyinUtility.GetTone("123".AsSpan()));
+    }
+
+    // ---------- Additional ShiftTone tests ----------
+
+    [Fact]
+    public void ShiftTone_EVowel_AppliesToneMark()
+    {
+        string result = PinyinUtility.ShiftTone("he", Tone.Second);
+        Assert.Equal("hé", result);
+    }
+
+    [Fact]
+    public void ShiftTone_IVowel_AppliesToneMark()
+    {
+        string result = PinyinUtility.ShiftTone("li", Tone.Third);
+        Assert.Equal("lǐ", result);
+    }
+
+    [Fact]
+    public void ShiftTone_OVowel_AppliesToneMark()
+    {
+        string result = PinyinUtility.ShiftTone("mo", Tone.First);
+        Assert.Equal("mō", result);
+    }
+
+    [Fact]
+    public void ShiftTone_UVowel_AppliesToneMark()
+    {
+        string result = PinyinUtility.ShiftTone("hu", Tone.Fourth);
+        Assert.Equal("hù", result);
+    }
+
+    [Fact]
+    public void ShiftTone_UmlautUVowel_AppliesToneMark()
+    {
+        string result = PinyinUtility.ShiftTone("nü", Tone.Third);
+        Assert.Equal("nǚ", result);
+    }
+
+    [Fact]
+    public void ShiftTone_VCharacter_ReturnsBaseSyllable()
+    {
+        // 'v' is not recognized by FindToneVowelIndex, so no tone mark is applied.
+        string result = PinyinUtility.ShiftTone("nv", Tone.First);
+        Assert.Equal("nv", result);
+    }
+
+    [Fact]
+    public void ShiftTone_ShiftExistingToneOnEVowel()
+    {
+        string result = PinyinUtility.ShiftTone("hé", Tone.Fourth);
+        Assert.Equal("hè", result);
+    }
+
+    [Fact]
+    public void ShiftTone_ShiftExistingToneOnIVowel()
+    {
+        string result = PinyinUtility.ShiftTone("lǐ", Tone.First);
+        Assert.Equal("lī", result);
+    }
+
+    [Fact]
+    public void ShiftTone_ShiftExistingToneOnOVowel()
+    {
+        string result = PinyinUtility.ShiftTone("mō", Tone.Second);
+        Assert.Equal("mó", result);
+    }
+
+    [Fact]
+    public void ShiftTone_ShiftExistingToneOnUVowel()
+    {
+        string result = PinyinUtility.ShiftTone("hù", Tone.First);
+        Assert.Equal("hū", result);
+    }
+
+    [Fact]
+    public void ShiftTone_ShiftExistingToneOnUmlautUVowel()
+    {
+        string result = PinyinUtility.ShiftTone("nǚ", Tone.First);
+        Assert.Equal("nǖ", result);
+    }
+
+    [Fact]
+    public void ShiftTone_UnknownToneOnBase_ReturnsBase()
+    {
+        string result = PinyinUtility.ShiftTone("ma", Tone.Unknown);
+        Assert.Equal("ma", result);
+    }
+
+    [Fact]
+    public void ShiftTone_FirstToneOnUppercaseEVowel()
+    {
+        string result = PinyinUtility.ShiftTone("HE", Tone.First);
+        Assert.Equal("HĒ", result);
+    }
+
+    [Fact]
+    public void ShiftTone_FourthToneOnUppercaseIVowel()
+    {
+        string result = PinyinUtility.ShiftTone("LI", Tone.Fourth);
+        Assert.Equal("LÌ", result);
+    }
+
+    [Fact]
+    public void ShiftTone_SecondToneOnUppercaseOVowel()
+    {
+        string result = PinyinUtility.ShiftTone("MO", Tone.Second);
+        Assert.Equal("MÓ", result);
+    }
+
+    [Fact]
+    public void ShiftTone_ThirdToneOnUppercaseUVowel()
+    {
+        string result = PinyinUtility.ShiftTone("HU", Tone.Third);
+        Assert.Equal("HǓ", result);
+    }
+
+    [Fact]
+    public void ShiftTone_SecondToneOnUppercaseUmlautU()
+    {
+        string result = PinyinUtility.ShiftTone("NÜ", Tone.Second);
+        Assert.Equal("NǗ", result);
+    }
+
+    [Fact]
+    public void ShiftTone_SyllableWithBothIAndU_AccentsLatterVowel()
+    {
+        // When both i and u exist, the latter one is accented.
+        string result = PinyinUtility.ShiftTone("niou", Tone.First);
+        Assert.Equal("niōu", result);
+    }
+
+    [Fact]
+    public void ShiftTone_SyllableWithBothUAndI_AccentsLatterVowel()
+    {
+        // When both u and i exist and u comes after i, u is accented.
+        string result = PinyinUtility.ShiftTone("tuian", Tone.Second);
+        Assert.Equal("tuián", result);
+    }
+
+    [Fact]
+    public void ShiftTone_SyllableWithOnlyI_AccentsI()
+    {
+        string result = PinyinUtility.ShiftTone("shi", Tone.First);
+        Assert.Equal("shī", result);
+    }
+
+    [Fact]
+    public void ShiftTone_SyllableWithOnlyU_AccentsU()
+    {
+        string result = PinyinUtility.ShiftTone("shu", Tone.Second);
+        Assert.Equal("shú", result);
+    }
+
+    [Fact]
+    public void ShiftTone_AVowelTakesPriorityOverOthers()
+    {
+        // 'a' takes priority over e, i, o, u in FindToneVowelIndex.
+        string result = PinyinUtility.ShiftTone("xiao", Tone.First);
+        Assert.Equal("xiāo", result);
+    }
+
+    [Fact]
+    public void ShiftTone_OVowelTakesPriorityOverE()
+    {
+        // FindToneVowelIndex checks 'o' before 'e', so 'o' gets the tone mark.
+        string result = PinyinUtility.ShiftTone("yeo", Tone.First);
+        Assert.Equal("yeō", result);
+    }
+
+    // ---------- Additional StripTone tests ----------
+
+    [Fact]
+    public void StripTone_WhitespaceOnly_ReturnsWhitespace()
+    {
+        Assert.Equal("   ", PinyinUtility.StripTone("   "));
+    }
+
+    [Fact]
+    public void StripTone_ConsonantsOnly_ReturnsSame()
+    {
+        Assert.Equal("sh", PinyinUtility.StripTone("sh"));
+    }
+
+    [Fact]
+    public void StripTone_UppercaseToneMark_Stripped()
+    {
+        Assert.Equal("MA", PinyinUtility.StripTone("MĀ"));
+    }
+
+    [Fact]
+    public void StripTone_AllVowelsWithToneMarks_Stripped()
+    {
+        // ü is a diaeresis, not a tone mark — it is preserved.
+        Assert.Equal("aeiouü", PinyinUtility.StripTone("āēīōūǖ"));
+    }
+
+    [Fact]
+    public void StripTone_PlainVowelsNoToneMark_ReturnsSame()
+    {
+        // ü is a diaeresis, not a tone mark — it is preserved.
+        Assert.Equal("aeiouü", PinyinUtility.StripTone("aeiouü"));
+    }
+
+    [Fact]
+    public void StripTone_SecondToneOnUmlautU_Stripped()
+    {
+        // ǘ has a tone mark (acute) on ü; the diaeresis is preserved, tone mark is stripped.
+        Assert.Equal("nü", PinyinUtility.StripTone("nǘ"));
+    }
+
+    [Fact]
+    public void StripTone_FirstToneOnUmlautU_Stripped()
+    {
+        // ǖ has a tone mark (macron) on ü; the diaeresis is preserved, tone mark is stripped.
+        Assert.Equal("nü", PinyinUtility.StripTone("nǖ"));
+    }
+
+    [Fact]
+    public void StripTone_FourthToneOnUmlautU_Stripped()
+    {
+        // ǜ has a tone mark (grave) on ü; the diaeresis is preserved, tone mark is stripped.
+        Assert.Equal("nü", PinyinUtility.StripTone("nǜ"));
+    }
+
+    [Fact]
+    public void StripTone_MixedUppercaseAndLowercase_Stripped()
+    {
+        Assert.Equal("Ma He", PinyinUtility.StripTone("Mā Hé"));
+    }
+
+    [Fact]
+    public void StripTone_StringWithNumbers_ReturnsSame()
+    {
+        Assert.Equal("ma1", PinyinUtility.StripTone("ma1"));
+    }
 }

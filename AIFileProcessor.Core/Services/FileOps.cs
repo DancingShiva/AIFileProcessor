@@ -3,7 +3,7 @@
 //     Copyright (c) Midnight Mission Systems. All rights reserved.
 // </copyright>
 //-----------------------------------------------------------------------
-namespace AIFileProcessor
+namespace AIFileProcessor.Services
 {
     using System;
     using System.IO;

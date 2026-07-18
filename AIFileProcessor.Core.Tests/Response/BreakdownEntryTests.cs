@@ -85,4 +85,84 @@ public class BreakdownEntryTests
 
         Assert.Equal("，||comma|punctuation|N/A|full-width", result);
     }
+
+    [Fact]
+    public void ToString_WithPipeCharactersInValues_PreservesPipesInValues()
+    {
+        var entry = new BreakdownEntry
+        {
+            Chinese = "a|b",
+            Pinyin = "c|d",
+            Gloss = "e|f",
+            PartOfSpeech = "g|h",
+            HskLevel = "i|j",
+            Note = "k|l",
+        };
+
+        var result = entry.ToString();
+
+        Assert.Equal("a|b|c|d|e|f|g|h|i|j|k|l", result);
+    }
+
+    [Fact]
+    public void ToString_WithWhitespaceOnlyValues_ReturnsWhitespaceSegments()
+    {
+        var entry = new BreakdownEntry
+        {
+            Chinese = " ",
+            Pinyin = " ",
+            Gloss = " ",
+            PartOfSpeech = " ",
+            HskLevel = " ",
+            Note = " ",
+        };
+
+        var result = entry.ToString();
+
+        Assert.Equal(" | | | | | ", result);
+    }
+
+    [Fact]
+    public void ToString_WithMixedNullAndNonNullProperties_ReturnsCorrectFormat()
+    {
+        var entry = new BreakdownEntry
+        {
+            Chinese = "是",
+            Pinyin = null!,
+            Gloss = "to be",
+            PartOfSpeech = null!,
+            HskLevel = "1",
+            Note = null!,
+        };
+
+        var result = entry.ToString();
+
+        Assert.Equal("是||to be||1|", result);
+    }
+
+    [Fact]
+    public void ToString_WithOnlyChineseSet_ReturnsCorrectFormat()
+    {
+        var entry = new BreakdownEntry
+        {
+            Chinese = "们",
+        };
+
+        var result = entry.ToString();
+
+        Assert.Equal("们|||||", result);
+    }
+
+    [Fact]
+    public void ToString_WithOnlyNoteSet_ReturnsCorrectFormat()
+    {
+        var entry = new BreakdownEntry
+        {
+            Note = "plural marker",
+        };
+
+        var result = entry.ToString();
+
+        Assert.Equal("|||||plural marker", result);
+    }
 }

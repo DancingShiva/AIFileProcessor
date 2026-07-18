@@ -1,9 +1,9 @@
-﻿namespace AIFileProcessor.Core.Tests;
+﻿namespace AIFileProcessor.Core.Tests.Services;
 
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using AIFileProcessor;
+using AIFileProcessor.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;

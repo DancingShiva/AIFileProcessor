@@ -222,4 +222,114 @@ public class ProcessedSentenceRowTests
 
         Assert.Equal("N0042", row.Id);
     }
+
+    [Fact]
+    public void InitializeId_WithWhitespaceOnlyPrefix_TrimsToEmptyPrefix()
+    {
+        var row = new ProcessedSentenceRow();
+
+        row.InitializeId("   ", 3, 2);
+
+        Assert.Equal("03", row.Id);
+    }
+
+    [Fact]
+    public void InitializeId_WithNegativeSequentialValue_FormatsWithMinusSign()
+    {
+        var row = new ProcessedSentenceRow();
+
+        row.InitializeId("P", -1, 3);
+
+        Assert.Equal("P-001", row.Id);
+    }
+
+    [Fact]
+    public void InitializeId_WithLargeIdPad_PadsWithManyZeros()
+    {
+        var row = new ProcessedSentenceRow();
+
+        row.InitializeId("X", 5, 10);
+
+        Assert.Equal("X0000000005", row.Id);
+    }
+
+    [Fact]
+    public void R_SetWithSegmentHavingExtraParts_IgnoresExtraParts()
+    {
+        var row = new ProcessedSentenceRow();
+
+        // Three parts: "Hello|0,1|extra" – only parts[0] and parts[1] are used.
+        row.R = "Hello|0,1|extra";
+
+        Assert.Single(row.AudioReordering);
+        Assert.Equal("Hello", row.AudioReordering[0].VisualString);
+        Assert.Equal(0, row.AudioReordering[0].StartIndex);
+        Assert.Equal(1, row.AudioReordering[0].EndIndex);
+    }
+
+    [Fact]
+    public void R_SetWithCommaOnlyIndices_DefaultsToMinusOne()
+    {
+        var row = new ProcessedSentenceRow();
+
+        row.R = "Hello|,";
+
+        Assert.Single(row.AudioReordering);
+        Assert.Equal("Hello", row.AudioReordering[0].VisualString);
+        Assert.Equal(-1, row.AudioReordering[0].StartIndex);
+        Assert.Equal(-1, row.AudioReordering[0].EndIndex);
+    }
+
+    [Fact]
+    public void R_SetWithNegativeIndices_ParsesNegativeValues()
+    {
+        var row = new ProcessedSentenceRow();
+
+        row.R = "Hello|-3,-5";
+
+        Assert.Single(row.AudioReordering);
+        Assert.Equal("Hello", row.AudioReordering[0].VisualString);
+        Assert.Equal(-3, row.AudioReordering[0].StartIndex);
+        Assert.Equal(-5, row.AudioReordering[0].EndIndex);
+    }
+
+    [Fact]
+    public void R_SetWithMixedValidAndInvalidSegments_ParsesOnlyValidOnes()
+    {
+        var row = new ProcessedSentenceRow();
+
+        // First segment has no pipe (skipped), second is valid.
+        row.R = "NoPipe||100 ¥|0,1";
+
+        Assert.Single(row.AudioReordering);
+        Assert.Equal("100 ¥", row.AudioReordering[0].VisualString);
+        Assert.Equal(0, row.AudioReordering[0].StartIndex);
+        Assert.Equal(1, row.AudioReordering[0].EndIndex);
+    }
+
+    [Fact]
+    public void R_SetWithWhitespaceAroundIndices_ParsesCorrectly()
+    {
+        var row = new ProcessedSentenceRow();
+
+        row.R = "Hello| 0 , 1 ";
+
+        Assert.Single(row.AudioReordering);
+        Assert.Equal("Hello", row.AudioReordering[0].VisualString);
+        Assert.Equal(0, row.AudioReordering[0].StartIndex);
+        Assert.Equal(1, row.AudioReordering[0].EndIndex);
+    }
+
+    [Fact]
+    public void R_SetWithEmptyVisualString_ParsesEmptyVisualString()
+    {
+        var row = new ProcessedSentenceRow();
+
+        row.R = "|0,1";
+
+        Assert.Single(row.AudioReordering);
+        Assert.Equal(string.Empty, row.AudioReordering[0].VisualString);
+        Assert.Equal(0, row.AudioReordering[0].StartIndex);
+        Assert.Equal(1, row.AudioReordering[0].EndIndex);
+    }
 }
