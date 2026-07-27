@@ -8,6 +8,7 @@ namespace AIFileProcessor.Models
     using System;
     using System.Collections.Generic;
     using System.Text;
+    using System.Text.Json.Serialization;
 
     public class ProcessingOptions
     {
@@ -32,11 +33,13 @@ namespace AIFileProcessor.Models
             IdPad = 3;
             LengthPad = 3;
             ModelReasoningLevels = new Dictionary<string, ReasoningLevel>();
+            ModelMaxTokens = new Dictionary<string, int>();
         }
 
         /// <summary>
         /// Gets or sets the prompt string to be sent to the AI. This is expected to be read from the file specified in PromptPath, but is separated here for easier testing and flexibility.
         /// </summary>
+        [JsonIgnore]
         public string Prompt { get; set; }
 
         /// <summary>
@@ -47,6 +50,7 @@ namespace AIFileProcessor.Models
         /// <summary>
         /// Gets or sets the data string to be sent to the AI. This is expected to be read from the file specified in DataPath, but is separated here for easier testing and flexibility.
         /// </summary>
+        [JsonIgnore]
         public string Data
         {
             get => _data;
@@ -66,6 +70,7 @@ namespace AIFileProcessor.Models
         /// <summary>
         /// Gets or sets the response string to be sent to the AI. This is expected to be read from the file specified in ResponsePath, but is separated here for easier testing and flexibility.
         /// </summary>
+        [JsonIgnore]
         public string Response
         {
             get => _response;
@@ -80,6 +85,7 @@ namespace AIFileProcessor.Models
         /// <summary>
         /// Gets or sets the complete path to the data file.
         /// </summary>
+        [JsonIgnore]
         public string ResponsePath { get; set; }
 
         /// <summary>
@@ -114,5 +120,13 @@ namespace AIFileProcessor.Models
         /// level is restored. Keys are model IDs (e.g., "gpt-5.6-sol").
         /// </summary>
         public Dictionary<string, ReasoningLevel> ModelReasoningLevels { get; set; }
+
+        /// <summary>
+        /// Gets or sets a dictionary mapping model IDs to the user's preferred
+        /// maximum token count for that model. When a model is processed, the
+        /// orchestrator looks up the value here and applies it to the provider
+        /// settings. Keys are model IDs (e.g., "gemini-3.5-flash").
+        /// </summary>
+        public Dictionary<string, int> ModelMaxTokens { get; set; }
     }
 }

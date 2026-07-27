@@ -5,8 +5,6 @@
 //-----------------------------------------------------------------------
 namespace AIFileProcessor.Services
 {
-    using System;
-
     /// <summary>
     /// Provides known token hard-limits for providers / models and sensible fallbacks.
     /// </summary>
@@ -23,7 +21,7 @@ namespace AIFileProcessor.Services
         {
             if (string.IsNullOrWhiteSpace(providerName))
             {
-                return 8192; // conservative fallback
+                return 262144; // conservative fallback
             }
 
             providerName = providerName.Trim().ToLowerInvariant();
@@ -31,33 +29,15 @@ namespace AIFileProcessor.Services
             return providerName switch
             {
                 "gemini" => GetGeminiHardMax(modelName),
-                "openai" => 8192,
-                "deepseek" => 8192,
-                _ => 8192,
+                "openai" => 262144,
+                "deepseek" => 262144,
+                _ => 262144,
             };
         }
 
         private static int GetGeminiHardMax(string? modelName)
         {
-            // Heuristics: modern Gemini variants often support very large contexts but
-            // we choose a safe default unless a specific model is known to support more.
-            if (!string.IsNullOrEmpty(modelName))
-            {
-                if (modelName.Contains("pro", StringComparison.OrdinalIgnoreCase) ||
-                    modelName.Contains("-32k", StringComparison.OrdinalIgnoreCase) ||
-                    modelName.Contains("32k", StringComparison.OrdinalIgnoreCase))
-                {
-                    return 32768;
-                }
-
-                if (modelName.Contains("-128k", StringComparison.OrdinalIgnoreCase) ||
-                    modelName.Contains("128k", StringComparison.OrdinalIgnoreCase))
-                {
-                    return 131072; // allow larger when explicitly requested
-                }
-            }
-
-            return 32768; // sensible default for Gemini
+            return 262144; // 256k for all Gemini models
         }
     }
 }

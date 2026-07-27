@@ -90,6 +90,7 @@
             Assert.Contains("gemini-3-flash", modelIds);
             Assert.Contains("gemini-3.1-pro-preview", modelIds);
             Assert.Contains("gemini-3.5-flash", modelIds);
+            Assert.Contains("gemini-3.6-flash", modelIds);
         }
 
         [Fact]
@@ -103,6 +104,7 @@
             Assert.Contains("Gemini 3 Flash", modelNames);
             Assert.Contains("Gemini 3.1 Pro", modelNames);
             Assert.Contains("Gemini 3.5 Flash", modelNames);
+            Assert.Contains("Gemini 3.6 Flash", modelNames);
         }
 
         // ─── SupportsModel ────────────────────────────────────────────────

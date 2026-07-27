@@ -42,12 +42,6 @@ namespace AIFileProcessor.Services
             var settings = _settingsProvider.GetGeminiSettingsAsync(_userContext.UserId, CancellationToken.None)
                 .GetAwaiter().GetResult();
 
-            var (clamped, wasClamped) = TokenUtils.ClampRequestedMaxTokens(settings.MaxTokens, "Gemini", settings.ModelName, _logger);
-            if (wasClamped)
-            {
-                settings.MaxTokens = clamped;
-            }
-
             return settings;
         }
 
@@ -58,13 +52,6 @@ namespace AIFileProcessor.Services
         public void SaveSettings(GeminiSettings settings)
         {
             ArgumentNullException.ThrowIfNull(settings);
-
-            // Clamp MaxTokens before persisting
-            var (clamped, wasClamped) = TokenUtils.ClampRequestedMaxTokens(settings.MaxTokens, "Gemini", settings.ModelName, _logger);
-            if (wasClamped)
-            {
-                settings.MaxTokens = clamped;
-            }
 
             _settingsProvider.SaveGeminiSettingsAsync(_userContext.UserId, settings, CancellationToken.None)
                 .GetAwaiter().GetResult();

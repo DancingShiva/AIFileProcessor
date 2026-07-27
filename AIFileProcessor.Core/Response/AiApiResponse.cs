@@ -135,6 +135,10 @@ namespace AIFileProcessor.Response
                     this.Scratchpad = responseObject.Scratchpad;
                     this.Corrections = responseObject.Corrections;
                     this.ProcessedSentenceRows = responseObject.ProcessedSentenceRows;
+
+                    // Apply Mandarin tone sandhi transformations to the pinyin fields
+                    Processing.SandhiProcessor.ApplySandhi(this);
+
                     return true;
                 }
             }

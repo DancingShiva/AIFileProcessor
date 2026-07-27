@@ -46,7 +46,6 @@ public class SettingsExtensionsTests
             TimeoutSeconds = 60,
             ProjectId = "override-project",
             Location = "override-location",
-            MaxTokens = 4096,
             Temperature = 0.7,
             TopP = 0.9,
             StreamingEnabled = true,
@@ -72,7 +71,6 @@ public class SettingsExtensionsTests
         Assert.Equal(60, target.TimeoutSeconds);
         Assert.Equal("override-project", target.ProjectId);
         Assert.Equal("override-location", target.Location);
-        Assert.Equal(4096, target.MaxTokens);
         Assert.Equal(0.7, target.Temperature);
         Assert.Equal(0.9, target.TopP);
         Assert.True(target.StreamingEnabled);
@@ -170,7 +168,6 @@ public class SettingsExtensionsTests
             ModelName = "override-model",
             TimeoutSeconds = 60,
             OrganizationId = "override-org",
-            MaxTokens = 4096,
             Temperature = 0.7,
         };
         var target = new OpenAiSettings { ApiKey = "machine-level-key" };
@@ -183,7 +180,6 @@ public class SettingsExtensionsTests
         Assert.Equal("override-model", target.ModelName);
         Assert.Equal(60, target.TimeoutSeconds);
         Assert.Equal("override-org", target.OrganizationId);
-        Assert.Equal(4096, target.MaxTokens);
         Assert.Equal(0.7, target.Temperature);
     }
 
@@ -242,7 +238,6 @@ public class SettingsExtensionsTests
         {
             Endpoint = "https://override.example.com",
             TimeoutSeconds = 60,
-            MaxTokens = 4096,
             Temperature = 0.7,
             ModelName = "override-model",
             EnableReasoning = true,
@@ -255,7 +250,6 @@ public class SettingsExtensionsTests
         Assert.Equal("machine-level-key", target.ApiKey);
         Assert.Equal("https://override.example.com", target.Endpoint);
         Assert.Equal(60, target.TimeoutSeconds);
-        Assert.Equal(4096, target.MaxTokens);
         Assert.Equal(0.7, target.Temperature);
         Assert.Equal("override-model", target.ModelName);
         Assert.True(target.EnableReasoning);

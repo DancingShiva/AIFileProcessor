@@ -60,11 +60,6 @@ namespace AIFileProcessor.Services
                 target.Location = source.Location;
             }
 
-            if (source.MaxTokens.HasValue)
-            {
-                target.MaxTokens = source.MaxTokens;
-            }
-
             if (source.Temperature.HasValue)
             {
                 target.Temperature = source.Temperature;
@@ -172,11 +167,6 @@ namespace AIFileProcessor.Services
                 target.OrganizationId = source.OrganizationId;
             }
 
-            if (source.MaxTokens.HasValue)
-            {
-                target.MaxTokens = source.MaxTokens;
-            }
-
             if (source.Temperature.HasValue)
             {
                 target.Temperature = source.Temperature;
@@ -211,11 +201,6 @@ namespace AIFileProcessor.Services
             if (source.TimeoutSeconds != 0)
             {
                 target.TimeoutSeconds = source.TimeoutSeconds;
-            }
-
-            if (source.MaxTokens.HasValue)
-            {
-                target.MaxTokens = source.MaxTokens;
             }
 
             if (source.Temperature.HasValue)

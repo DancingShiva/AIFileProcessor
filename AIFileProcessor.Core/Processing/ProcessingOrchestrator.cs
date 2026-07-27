@@ -67,12 +67,29 @@ namespace AIFileProcessor.Processing
 
             // Apply the per-model reasoning level from processing options onto the matching provider settings.
             // ModelReasoningLevels is the single source of truth — updated by both MainForm and SettingsForm.
-            if (!string.IsNullOrWhiteSpace(options.ModelId)
-                && options.ModelReasoningLevels.TryGetValue(options.ModelId, out var reasoningLevel))
+            if (!string.IsNullOrWhiteSpace(options.ModelId))
             {
-                geminiSettings.ReasoningLevel = reasoningLevel;
-                openAiSettings.ReasoningLevel = reasoningLevel;
-                deepSeekSettings.ReasoningLevel = reasoningLevel;
+                if (options.ModelReasoningLevels.TryGetValue(options.ModelId, out var reasoningLevel))
+                {
+                    geminiSettings.ReasoningLevel = reasoningLevel;
+                    openAiSettings.ReasoningLevel = reasoningLevel;
+                    deepSeekSettings.ReasoningLevel = reasoningLevel;
+                }
+
+                // Apply per-model MaxTokens override (single source of truth, replaces per-provider MaxTokens)
+                if (options.ModelMaxTokens.TryGetValue(options.ModelId, out var maxTokens))
+                {
+                    geminiSettings.MaxTokens = maxTokens;
+                    openAiSettings.MaxTokens = maxTokens;
+                    deepSeekSettings.MaxTokens = maxTokens;
+                }
+                else
+                {
+                    // No per-model value set — use null to let the API decide
+                    geminiSettings.MaxTokens = null;
+                    openAiSettings.MaxTokens = null;
+                    deepSeekSettings.MaxTokens = null;
+                }
             }
 
             var providerSettings = new Dictionary<string, object>

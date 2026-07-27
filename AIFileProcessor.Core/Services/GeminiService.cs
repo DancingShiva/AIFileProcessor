@@ -39,6 +39,10 @@ namespace AIFileProcessor.Services
                 "Gemini 3.5 Flash",
                 "gemini-3.5-flash",
                 [ReasoningLevel.Minimal, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High]),
+            new AiModelInfo(
+                "Gemini 3.6 Flash",
+                "gemini-3.6-flash",
+                [ReasoningLevel.Minimal, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High]),
         ];
 
         private readonly GeminiSettings _defaultSettings;

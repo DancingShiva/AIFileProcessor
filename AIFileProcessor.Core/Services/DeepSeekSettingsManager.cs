@@ -42,12 +42,6 @@ namespace AIFileProcessor.Services
             var settings = _settingsProvider.GetDeepSeekSettingsAsync(_userContext.UserId, CancellationToken.None)
                 .GetAwaiter().GetResult();
 
-            var (clamped, wasClamped) = TokenUtils.ClampRequestedMaxTokens(settings.MaxTokens, "DeepSeek", settings.ModelName, _logger);
-            if (wasClamped)
-            {
-                settings.MaxTokens = clamped;
-            }
-
             return settings;
         }
 
@@ -58,12 +52,6 @@ namespace AIFileProcessor.Services
         public void SaveSettings(DeepSeekSettings settings)
         {
             ArgumentNullException.ThrowIfNull(settings);
-
-            var (clamped, wasClamped) = TokenUtils.ClampRequestedMaxTokens(settings.MaxTokens, "DeepSeek", settings.ModelName, _logger);
-            if (wasClamped)
-            {
-                settings.MaxTokens = clamped;
-            }
 
             _settingsProvider.SaveDeepSeekSettingsAsync(_userContext.UserId, settings, CancellationToken.None)
                 .GetAwaiter().GetResult();

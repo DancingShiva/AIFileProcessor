@@ -1,4 +1,4 @@
-﻿//-----------------------------------------------------------------------
+//-----------------------------------------------------------------------
 // <copyright file="ProcessedSentenceRow.cs" company="Midnight Mission Systems">
 //     Copyright (c) Midnight Mission Systems. All rights reserved.
 // </copyright>
@@ -83,6 +83,90 @@ namespace AIFileProcessor.Response
         public void InitializeId(string prefix, int sequentialValue, int idPad)
         {
             Id = $"{prefix.Trim()}{sequentialValue.ToString("D" + idPad)}";
+        }
+
+        /// <summary>
+        /// Reconstructs the row's pinyin and updates its breakdown entries based on the transformed sandhi results.
+        /// </summary>
+        /// <param name="transformed">The transformed sandhi results for this row.</param>
+        /// <param name="entryBoundaries">The start index and length boundary tuples of each breakdown entry within the syllable stream.</param>
+        public void ApplySandhiResults(IReadOnlyList<SandhiResult> transformed, IReadOnlyList<(int Start, int Count)> entryBoundaries)
+        {
+            if (Breakdown == null || Breakdown.Count == 0)
+            {
+                return;
+            }
+
+            var sentencePinyinParts = new List<string>();
+            for (int e = 0; e < Breakdown.Count; e++)
+            {
+                var (start, count) = entryBoundaries[e];
+                var entrySyllables = new StringBuilder();
+                var entryNotes = new List<string>();
+
+                for (int i = 0; i < count; i++)
+                {
+                    if (i > 0)
+                    {
+                        entrySyllables.Append(' ');
+                    }
+
+                    var result = transformed[start + i];
+                    entrySyllables.Append(result.Transformed);
+
+                    if (result.Note != null)
+                    {
+                        entryNotes.Add(result.Note);
+                    }
+                }
+
+                string transformedPinyin = entrySyllables.ToString();
+                Breakdown[e].Pinyin = transformedPinyin;
+                sentencePinyinParts.Add(transformedPinyin);
+
+                // Append sandhi notes to the existing Note field
+                if (entryNotes.Count > 0)
+                {
+                    string sandhiNote = string.Join(" ", entryNotes);
+                    if (!string.IsNullOrEmpty(Breakdown[e].Note))
+                    {
+                        Breakdown[e].Note = Breakdown[e].Note + " " + sandhiNote;
+                    }
+                    else
+                    {
+                        Breakdown[e].Note = sandhiNote;
+                    }
+                }
+            }
+
+            // Reconstruct sentence-level pinyin from the transformed breakdown pinyin.
+            // Avoid inserting a space before punctuation (common expectation in
+            // romanization output).
+            var sb = new StringBuilder();
+            for (int i = 0; i < sentencePinyinParts.Count; i++)
+            {
+                string part = sentencePinyinParts[i];
+                string pos = Breakdown?[i].PartOfSpeech ?? string.Empty;
+
+                bool isPunctuation = string.Equals(pos, "Punctuation", System.StringComparison.OrdinalIgnoreCase)
+                    || System.Linq.Enumerable.All(part, ch => char.IsPunctuation(ch));
+
+                if (sb.Length == 0)
+                {
+                    sb.Append(part);
+                }
+                else if (isPunctuation)
+                {
+                    // Append punctuation directly with no leading space
+                    sb.Append(part);
+                }
+                else
+                {
+                    sb.Append(' ').Append(part);
+                }
+            }
+
+            Pinyin = sb.ToString();
         }
 
         private static List<AudioReorder> ParseAudioReordering(string rValue)

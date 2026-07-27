@@ -7,6 +7,7 @@ namespace AIFileProcessor
 {
     using System;
     using System.Collections.Generic;
+    using System.IO;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -157,6 +158,31 @@ namespace AIFileProcessor
 
             openFileDialog.Title = "Select a File";
 
+            // Use the last-saved path as the initial directory for the file dialog
+            string? savedPath = source switch
+            {
+                DisplayMode.Prompt => _options.PromptPath,
+                DisplayMode.Data => _options.DataPath,
+                DisplayMode.Response => _options.ResponsePath,
+                _ => null,
+            };
+
+            if (!string.IsNullOrWhiteSpace(savedPath))
+            {
+                try
+                {
+                    string? dir = Path.GetDirectoryName(savedPath);
+                    if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir))
+                    {
+                        openFileDialog.InitialDirectory = dir;
+                    }
+                }
+                catch
+                {
+                    // Ignore invalid path — fall back to default directory
+                }
+            }
+
             if (openFileDialog.ShowDialog() == DialogResult.OK)
             {
                 try
@@ -181,6 +207,9 @@ namespace AIFileProcessor
                             _options.ResponsePath = openFileDialog.FileName;
                             break;
                     }
+
+                    // Persist the updated paths so they're available as defaults next session
+                    SaveProcessingOptions();
 
                     UpdateDisplay(source);
                     _logger.LogInformation("Successfully read: {FileName}", openFileDialog.FileName);
@@ -522,6 +551,11 @@ namespace AIFileProcessor
                 {
                     _options.ModelReasoningLevels = saved.ModelReasoningLevels;
                 }
+
+                if (saved.ModelMaxTokens != null)
+                {
+                    _options.ModelMaxTokens = saved.ModelMaxTokens;
+                }
             }
             catch (Exception ex)
             {
@@ -539,6 +573,11 @@ namespace AIFileProcessor
                 if (saved.ModelReasoningLevels != null)
                 {
                     _options.ModelReasoningLevels = saved.ModelReasoningLevels;
+                }
+
+                if (saved.ModelMaxTokens != null)
+                {
+                    _options.ModelMaxTokens = saved.ModelMaxTokens;
                 }
 
                 if (!string.IsNullOrWhiteSpace(saved.ModelId))

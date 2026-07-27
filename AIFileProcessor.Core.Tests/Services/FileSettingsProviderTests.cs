@@ -124,8 +124,7 @@ public class FileSettingsProviderTests
                     "endpoint": "https://override.example.com",
                     "modelName": "override-model",
                     "timeoutSeconds": 60,
-                    "temperature": 0.7,
-                    "maxTokens": 4096
+                    "temperature": 0.7
                 }
             }
             """;
@@ -137,7 +136,6 @@ public class FileSettingsProviderTests
             Assert.Equal("override-model", result.ModelName);
             Assert.Equal(60, result.TimeoutSeconds);
             Assert.Equal(0.7, result.Temperature);
-            Assert.Equal(4096, result.MaxTokens);
         }
         finally
         {
@@ -226,7 +224,6 @@ public class FileSettingsProviderTests
                     "timeoutSeconds": 60,
                     "projectId": "override-project",
                     "location": "override-location",
-                    "maxTokens": 4096,
                     "temperature": 0.7,
                     "topP": 0.9,
                     "streamingEnabled": true,
@@ -250,7 +247,6 @@ public class FileSettingsProviderTests
             Assert.Equal(60, result.TimeoutSeconds);
             Assert.Equal("override-project", result.ProjectId);
             Assert.Equal("override-location", result.Location);
-            Assert.Equal(4096, result.MaxTokens);
             Assert.Equal(0.7, result.Temperature);
             Assert.Equal(0.9, result.TopP);
             Assert.True(result.StreamingEnabled);
@@ -320,7 +316,6 @@ public class FileSettingsProviderTests
                     "modelName": "override-model",
                     "timeoutSeconds": 60,
                     "organizationId": "override-org",
-                    "maxTokens": 4096,
                     "temperature": 0.7
                 }
             }
@@ -333,7 +328,6 @@ public class FileSettingsProviderTests
             Assert.Equal("override-model", result.ModelName);
             Assert.Equal(60, result.TimeoutSeconds);
             Assert.Equal("override-org", result.OrganizationId);
-            Assert.Equal(4096, result.MaxTokens);
             Assert.Equal(0.7, result.Temperature);
         }
         finally
@@ -451,7 +445,6 @@ public class FileSettingsProviderTests
                 "DeepSeekSettings": {
                     "endpoint": "https://override.example.com",
                     "timeoutSeconds": 60,
-                    "maxTokens": 4096,
                     "temperature": 0.7,
                     "modelName": "override-model",
                     "enableReasoning": true
@@ -464,7 +457,6 @@ public class FileSettingsProviderTests
 
             Assert.Equal("https://override.example.com", result.Endpoint);
             Assert.Equal(60, result.TimeoutSeconds);
-            Assert.Equal(4096, result.MaxTokens);
             Assert.Equal(0.7, result.Temperature);
             Assert.Equal("override-model", result.ModelName);
             Assert.True(result.EnableReasoning);
@@ -991,8 +983,8 @@ public class FileSettingsProviderTests
             string json = """
             {
                 "ProcessingOptions": {
-                    "prompt": "test-prompt",
                     "promptPath": "C:\\prompts\\test.txt",
+                    "dataPath": "C:\\data\\test.txt",
                     "modelId": "gpt-test",
                     "idPrefix": "T",
                     "idStart": 5,
@@ -1005,8 +997,11 @@ public class FileSettingsProviderTests
 
             ProcessingOptions result = await provider.GetProcessingOptionsAsync(userId, CancellationToken.None);
 
-            Assert.Equal("test-prompt", result.Prompt);
+            // Prompt is [JsonIgnore] so it is not deserialized from the override file
+            Assert.Equal(string.Empty, result.Prompt);
+            // PromptPath and DataPath are persisted and should be deserialized
             Assert.Equal("C:\\prompts\\test.txt", result.PromptPath);
+            Assert.Equal("C:\\data\\test.txt", result.DataPath);
             Assert.Equal("gpt-test", result.ModelId);
             Assert.Equal("T", result.IdPrefix);
             Assert.Equal(5, result.IdStart);
@@ -1091,7 +1086,9 @@ public class FileSettingsProviderTests
         {
             var options = new ProcessingOptions
             {
-                Prompt = "test-prompt",
+                Prompt = "should-not-persist",
+                PromptPath = "C:\\prompts\\test.txt",
+                DataPath = "C:\\data\\test.txt",
                 ModelId = "gpt-test",
                 IdPrefix = "T",
                 IdStart = 10,
@@ -1110,12 +1107,16 @@ public class FileSettingsProviderTests
             Assert.True(root!["ProcessingOptions"] is JsonObject);
 
             var optionsNode = root["ProcessingOptions"]!.AsObject();
-            Assert.Equal("test-prompt", optionsNode["prompt"]?.GetValue<string>());
             Assert.Equal("gpt-test", optionsNode["modelId"]?.GetValue<string>());
             Assert.Equal("T", optionsNode["idPrefix"]?.GetValue<string>());
             Assert.Equal(10, optionsNode["idStart"]?.GetValue<int>());
             Assert.Equal(5, optionsNode["idPad"]?.GetValue<int>());
             Assert.Equal(2, optionsNode["lengthPad"]?.GetValue<int>());
+            // Prompt should not be persisted ([JsonIgnore])
+            Assert.Null(optionsNode["prompt"]);
+            // PromptPath and DataPath should be persisted
+            Assert.Equal("C:\\prompts\\test.txt", optionsNode["promptPath"]?.GetValue<string>());
+            Assert.Equal("C:\\data\\test.txt", optionsNode["dataPath"]?.GetValue<string>());
         }
         finally
         {

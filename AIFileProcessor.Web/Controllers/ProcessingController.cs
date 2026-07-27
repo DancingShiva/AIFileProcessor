@@ -18,8 +18,7 @@ namespace AIFileProcessor.Web.Controllers
 
     /// <summary>
     /// API controller for processing Chinese text through the AI pipeline.
-    /// Users supply their own API keys via request headers; non-secret
-    /// preferences are sent in the request body.
+    /// Non-secret user preferences are sent in the request body; API keys are resolved server-side.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
@@ -107,6 +106,20 @@ namespace AIFileProcessor.Web.Controllers
             if (request.ReasoningLevel.HasValue)
             {
                 options.ModelReasoningLevels[request.ModelId] = request.ReasoningLevel.Value;
+            }
+
+            // Apply per-model MaxTokens from the request preferences if available
+            if (request.GeminiPreferences?.MaxTokens.HasValue == true)
+            {
+                options.ModelMaxTokens[request.ModelId] = request.GeminiPreferences.MaxTokens.Value;
+            }
+            else if (request.OpenAiPreferences?.MaxTokens.HasValue == true)
+            {
+                options.ModelMaxTokens[request.ModelId] = request.OpenAiPreferences.MaxTokens.Value;
+            }
+            else if (request.DeepSeekPreferences?.MaxTokens.HasValue == true)
+            {
+                options.ModelMaxTokens[request.ModelId] = request.DeepSeekPreferences.MaxTokens.Value;
             }
 
             try
