@@ -28,6 +28,15 @@ namespace AIFileProcessor.Configuration
         public int? MaxTokens { get; set; }
 
         /// <inheritdoc />
+        public int MaxRetries { get; set; } = 3;
+
+        /// <inheritdoc />
+        public int BaseDelay { get; set; } = 1;
+
+        /// <inheritdoc />
+        public int MaxDelay { get; set; } = 60;
+
+        /// <inheritdoc />
         public double? Temperature { get; set; }
 
         /// <inheritdoc />

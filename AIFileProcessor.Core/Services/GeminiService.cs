@@ -67,35 +67,12 @@ namespace AIFileProcessor.Services
 
         public bool SupportsModel(string modelNameOrId)
         {
-            if (string.IsNullOrWhiteSpace(modelNameOrId))
-            {
-                return false;
-            }
-
-            string normalizedModel = modelNameOrId.Trim().ToLowerInvariant();
-            foreach (var model in SupportedModels)
-            {
-                if (model.ModelId.Equals(normalizedModel, StringComparison.OrdinalIgnoreCase)
-                    || model.ModelName.Trim().ToLowerInvariant() == normalizedModel)
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return AiModelCatalog.SupportsModel(SupportedModels, modelNameOrId);
         }
 
         public IReadOnlyList<ReasoningLevel> GetSupportedReasoningLevels(string modelId)
         {
-            foreach (var model in SupportedModels)
-            {
-                if (model.ModelId.Equals(modelId, StringComparison.OrdinalIgnoreCase))
-                {
-                    return model.SupportedReasoningLevels;
-                }
-            }
-
-            return [];
+            return AiModelCatalog.GetReasoningLevels(SupportedModels, modelId);
         }
 
         /// <summary>
@@ -311,42 +288,40 @@ namespace AIFileProcessor.Services
             }
             else
             {
-                int maxRetries = Math.Max(0, settings.MaxRetries);
-                int baseDelay = Math.Max(1, settings.BaseDelay);
-                int maxDelay = Math.Max(baseDelay, settings.MaxDelay);
-
-                for (int attempt = 0; ; attempt++)
+                try
                 {
-                    try
-                    {
-                        var response = await client.Models.GenerateContentAsync(
-                            model: targetModel,
-                            contents: data,
-                            config: config,
-                            cancellationToken: ct);
-
-                        if (settings.EnableLogging)
+                    return await TransientRetryPolicy.ExecuteAsync(
+                        async cancellationToken =>
                         {
-                            _logger.LogInformation("[Gemini Log] Model: {TargetModel}, Response Status: Success", targetModel);
-                        }
+                            var response = await client.Models.GenerateContentAsync(
+                                model: targetModel,
+                                contents: data,
+                                config: config,
+                                cancellationToken: cancellationToken).ConfigureAwait(false);
 
-                        return response.Text ?? string.Empty;
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        throw;
-                    }
-                    catch (Exception ex) when (attempt < maxRetries && IsTransient(ex))
-                    {
-                        int delaySeconds = Math.Min(baseDelay * (int)Math.Pow(2, attempt), maxDelay);
-                        _logger.LogWarning(ex, "Gemini API transient failure on attempt {Attempt}/{MaxRetries} for model {TargetModel}. Retrying in {DelaySeconds}s.", attempt + 1, maxRetries, targetModel, delaySeconds);
-                        await Task.Delay(TimeSpan.FromSeconds(delaySeconds), ct);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Gemini API request failed for model {TargetModel}.", targetModel);
-                        throw;
-                    }
+                            if (settings.EnableLogging)
+                            {
+                                _logger.LogInformation("[Gemini Log] Model: {TargetModel}, Response Status: Success", targetModel);
+                            }
+
+                            return response.Text ?? string.Empty;
+                        },
+                        IsTransient,
+                        settings.MaxRetries,
+                        settings.BaseDelay,
+                        settings.MaxDelay,
+                        _logger,
+                        $"Gemini model {targetModel}",
+                        ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Gemini API request failed for model {TargetModel}.", targetModel);
+                    throw;
                 }
             }
         }

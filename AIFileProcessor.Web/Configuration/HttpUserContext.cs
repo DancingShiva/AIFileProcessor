@@ -6,6 +6,7 @@
 namespace AIFileProcessor.Web.Configuration
 {
     using System;
+    using System.Security.Claims;
     using AIFileProcessor.Interfaces;
     using Microsoft.AspNetCore.Http;
 
@@ -44,9 +45,19 @@ namespace AIFileProcessor.Web.Configuration
                 return "anonymous";
             }
 
-            // If authenticated via an identity system, use the name claim
+            // If authenticated via an identity system (Entra ID JWT), prefer a stable,
+            // unique identifier claim over the display name for per-user settings isolation.
             if (ctx.User?.Identity?.IsAuthenticated == true)
             {
+                string? stableId = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? ctx.User.FindFirstValue("oid")
+                    ?? ctx.User.FindFirstValue("sub");
+
+                if (!string.IsNullOrWhiteSpace(stableId))
+                {
+                    return stableId;
+                }
+
                 string? name = ctx.User.Identity.Name;
                 if (!string.IsNullOrWhiteSpace(name))
                 {

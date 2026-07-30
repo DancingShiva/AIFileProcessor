@@ -88,35 +88,12 @@ namespace AIFileProcessor.Services
 
         public bool SupportsModel(string modelNameOrId)
         {
-            if (string.IsNullOrWhiteSpace(modelNameOrId))
-            {
-                return false;
-            }
-
-            string normalizedModel = modelNameOrId.Trim().ToLowerInvariant();
-            foreach (var model in SupportedModels)
-            {
-                if (model.ModelId.Equals(normalizedModel, StringComparison.OrdinalIgnoreCase)
-                    || model.ModelName.Trim().ToLowerInvariant() == normalizedModel)
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return AiModelCatalog.SupportsModel(SupportedModels, modelNameOrId);
         }
 
         public IReadOnlyList<ReasoningLevel> GetSupportedReasoningLevels(string modelId)
         {
-            foreach (var model in SupportedModels)
-            {
-                if (model.ModelId.Equals(modelId, StringComparison.OrdinalIgnoreCase))
-                {
-                    return model.SupportedReasoningLevels;
-                }
-            }
-
-            return [];
+            return AiModelCatalog.GetReasoningLevels(SupportedModels, modelId);
         }
 
         /// <summary>
@@ -250,25 +227,66 @@ namespace AIFileProcessor.Services
 
             try
             {
-                ClientResult<ChatCompletion> result = await client.CompleteChatAsync(
-                    [
-                        new SystemChatMessage(prompt),
-                        new UserChatMessage(data)
-                    ],
-                    chatOptions,
-                    ct);
+                return await TransientRetryPolicy.ExecuteAsync(
+                    async cancellationToken =>
+                    {
+                        ClientResult<ChatCompletion> result = await client.CompleteChatAsync(
+                            [
+                                new SystemChatMessage(prompt),
+                                new UserChatMessage(data)
+                            ],
+                            chatOptions,
+                            cancellationToken).ConfigureAwait(false);
 
-                ChatCompletion completion = result.Value;
+                        ChatCompletion completion = result.Value;
 
-                return completion.Content.Count > 0
-                    ? completion.Content[0].Text ?? string.Empty
-                    : string.Empty;
+                        return completion.Content.Count > 0
+                            ? completion.Content[0].Text ?? string.Empty
+                            : string.Empty;
+                    },
+                    IsTransient,
+                    settings.MaxRetries,
+                    settings.BaseDelay,
+                    settings.MaxDelay,
+                    _logger,
+                    $"OpenAI model {modelId}",
+                    ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "OpenAI API request failed for model {ModelId}.", modelId);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Determines whether an exception from the OpenAI SDK represents a transient
+        /// failure worth retrying (rate-limit, server error, network, or timeout).
+        /// </summary>
+        private static bool IsTransient(Exception ex)
+        {
+            if (ex is HttpRequestException hre)
+            {
+                return hre.StatusCode is null or System.Net.HttpStatusCode.TooManyRequests or >= System.Net.HttpStatusCode.InternalServerError;
+            }
+
+            // The OpenAI SDK wraps HTTP errors in ClientResultException; retry on 429/5xx.
+            if (ex is ClientResultException cre)
+            {
+                return cre.Status == (int)System.Net.HttpStatusCode.TooManyRequests
+                    || cre.Status >= (int)System.Net.HttpStatusCode.InternalServerError;
+            }
+
+            if (ex is TimeoutException or TaskCanceledException)
+            {
+                return true;
+            }
+
+            return false;
         }
     }
 }

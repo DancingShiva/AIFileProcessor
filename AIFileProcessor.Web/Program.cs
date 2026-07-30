@@ -9,10 +9,13 @@ namespace AIFileProcessor.Web
     using AIFileProcessor.DependencyInjection;
     using AIFileProcessor.Interfaces;
     using AIFileProcessor.Web.Configuration;
+    using Microsoft.AspNetCore.Authentication.JwtBearer;
+    using Microsoft.AspNetCore.Authorization;
     using Microsoft.AspNetCore.Builder;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.DependencyInjection.Extensions;
     using Microsoft.Extensions.Hosting;
+    using Microsoft.Identity.Web;
 
     /// <summary>
     /// Entry point for the AIFileProcessor web application.
@@ -26,6 +29,17 @@ namespace AIFileProcessor.Web
         public static void Main(string[] args)
         {
             WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+            // Secure the API with Entra ID (Azure AD) JWT bearer tokens. All endpoints require
+            // an authenticated caller via the authorization fallback policy below. API keys for
+            // the AI providers never leave the server; clients only present their Entra token.
+            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+
+            builder.Services.AddAuthorization(options =>
+                options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .Build());
 
             // Register HTTP context accessor (required for HttpUserContext and WebSettingsProvider)
             builder.Services.AddHttpContextAccessor();
@@ -50,6 +64,7 @@ namespace AIFileProcessor.Web
             WebApplication app = builder.Build();
 
             app.UseHttpsRedirection();
+            app.UseAuthentication();
             app.UseAuthorization();
             app.MapControllers();
 

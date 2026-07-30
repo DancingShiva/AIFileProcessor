@@ -14,6 +14,8 @@ namespace AIFileProcessor.Processing
     using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
     using AIFileProcessor.Response;
+    using AIFileProcessor.Services;
+    using Microsoft.Extensions.Logging;
 
     /// <summary>
     /// Orchestrates the Chinese text processing pipeline: calling the AI service,
@@ -26,6 +28,7 @@ namespace AIFileProcessor.Processing
         private readonly Func<IChineseTextProcessor> _chineseTextProcessorFactory;
         private readonly ISettingsProvider _settingsProvider;
         private readonly IUserContext _userContext;
+        private readonly ILogger<ProcessingOrchestrator> _logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ProcessingOrchestrator"/> class.
@@ -33,18 +36,22 @@ namespace AIFileProcessor.Processing
         /// <param name="chineseTextProcessorFactory">Factory delegate to create transient <see cref="IChineseTextProcessor"/> instances.</param>
         /// <param name="settingsProvider">The settings provider for resolving per-user AI service settings.</param>
         /// <param name="userContext">The current user context for per-user settings resolution.</param>
+        /// <param name="logger">The logger instance for diagnostic messages.</param>
         public ProcessingOrchestrator(
             Func<IChineseTextProcessor> chineseTextProcessorFactory,
             ISettingsProvider settingsProvider,
-            IUserContext userContext)
+            IUserContext userContext,
+            ILogger<ProcessingOrchestrator> logger)
         {
             ArgumentNullException.ThrowIfNull(chineseTextProcessorFactory);
             ArgumentNullException.ThrowIfNull(settingsProvider);
             ArgumentNullException.ThrowIfNull(userContext);
+            ArgumentNullException.ThrowIfNull(logger);
 
             _chineseTextProcessorFactory = chineseTextProcessorFactory;
             _settingsProvider = settingsProvider;
             _userContext = userContext;
+            _logger = logger;
         }
 
         /// <summary>
@@ -76,12 +83,13 @@ namespace AIFileProcessor.Processing
                     deepSeekSettings.ReasoningLevel = reasoningLevel;
                 }
 
-                // Apply per-model MaxTokens override (single source of truth, replaces per-provider MaxTokens)
+                // Apply per-model MaxTokens override (single source of truth, replaces per-provider MaxTokens).
+                // Clamp to each provider's hard max so out-of-range requests don't fail at the API.
                 if (options.ModelMaxTokens.TryGetValue(options.ModelId, out var maxTokens))
                 {
-                    geminiSettings.MaxTokens = maxTokens;
-                    openAiSettings.MaxTokens = maxTokens;
-                    deepSeekSettings.MaxTokens = maxTokens;
+                    geminiSettings.MaxTokens = TokenUtils.ClampRequestedMaxTokens(maxTokens, "Gemini", options.ModelId, _logger).ClampedValue;
+                    openAiSettings.MaxTokens = TokenUtils.ClampRequestedMaxTokens(maxTokens, "OpenAi", options.ModelId, _logger).ClampedValue;
+                    deepSeekSettings.MaxTokens = TokenUtils.ClampRequestedMaxTokens(maxTokens, "DeepSeek", options.ModelId, _logger).ClampedValue;
                 }
                 else
                 {
