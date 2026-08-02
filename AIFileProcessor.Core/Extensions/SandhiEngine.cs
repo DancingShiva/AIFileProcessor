@@ -10,21 +10,9 @@ namespace AIFileProcessor.Extensions
     using System.Text;
 
     /// <summary>
-    /// Engine responsible for processing sandhi rules on a stream of syllables
-    /// using the prosodic-word/prosodic-phrase hierarchy described in
-    /// Chen (2000), Duanmu (2007), and Kubler &amp; Wang (2018).
-    /// <para>
-    /// Sandhi is applied in two cyclic passes:
-    /// <list type="number">
-    /// <item> <b>Within-PW (lexical/obligatory):</b> Rules applied within each
-    /// prosodic word — 3rd+3rd, bù, yī, particle neutralization. Tone values
-    /// are updated before the next pass.</item>
-    /// <item> <b>Cross-PW within-PP (post-lexical):</b> The 3rd+3rd rule is
-    /// re-applied across PW boundaries within the same prosodic phrase, using
-    /// the updated tones from pass 1. This correctly resolves 3-3-3 ambiguity
-    /// based on prosodic grouping (Chen 2000 §3, Duanmu 2007 Ch. 11).</item>
-    /// </list>
-    /// </para>
+    /// Engine responsible for processing sandhi rules on a stream of syllables.
+    /// Rules are applied in a single flat pass over the sequence: 3rd+3rd, bù,
+    /// yī, and particle neutralization.
     /// </summary>
     public class SandhiEngine
     {
@@ -47,7 +35,7 @@ namespace AIFileProcessor.Extensions
 
         /// <summary>
         /// Processes a list of SyllableNodes according to Mandarin sandhi rules
-        /// using the prosodic hierarchy (PW/PP), returning a list of
+        /// in a single pass over the sequence, returning a list of
         /// <see cref="SandhiResult"/> with transformed syllables and
         /// human-readable notes describing each transformation.
         /// </summary>
@@ -60,18 +48,14 @@ namespace AIFileProcessor.Extensions
                 return [];
             }
 
-            // Build prosodic structure
-            var pws = ProsodicAnalyzer.GroupProsodicWords(stream);
-            var pps = ProsodicAnalyzer.GroupProsodicPhrases(stream, pws);
-
             // Establish the session context to address Data Clumps
             var session = new SandhiSession(stream);
 
-            // Pass 1: Within-PW (lexical/obligatory) sandhi
-            ApplyWithinProsodicWords(pws, session);
-
-            // Pass 2: Cross-PW within-PP (post-lexical) sandhi
-            ApplyAcrossProsodicWords(pws, pps, session);
+            // Flat sequential pass: apply sandhi rules to each syllable in order.
+            for (int i = 0; i < stream.Count; i++)
+            {
+                ApplyRulesToSyllable(session, i, stream.Count);
+            }
 
             // Build final results
             var results = new SandhiResult[stream.Count];
@@ -81,82 +65,6 @@ namespace AIFileProcessor.Extensions
             }
 
             return results;
-        }
-
-        /// <summary>
-        /// Pass 1: Applies all sandhi rules within each prosodic word.
-        /// Rules: 3rd+3rd, bù, yī, particle neutralization.
-        /// </summary>
-        private static void ApplyWithinProsodicWords(
-            IReadOnlyList<ProsodicWord> pws,
-            SandhiSession session)
-        {
-            foreach (var pw in pws)
-            {
-                for (int local = 0; local < pw.SyllableCount; local++)
-                {
-                    int i = pw.StartIndex + local;
-                    ApplyRulesToSyllable(session, i, pw.StartIndex + pw.SyllableCount);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Pass 2: Applies post-lexical sandhi rules across PW boundaries
-        /// within the same prosodic phrase, using updated tones from pass 1.
-        /// Rules applied: 3rd+3rd, bù, yī. Particle neutralization is NOT
-        /// re-applied (it is lexical only). This follows the cyclic/stratified
-        /// application model in Chen (2000) and Duanmu (2007).
-        /// </summary>
-        private static void ApplyAcrossProsodicWords(
-            IReadOnlyList<ProsodicWord> pws,
-            IReadOnlyList<ProsodicPhrase> pps,
-            SandhiSession session)
-        {
-            foreach (var pp in pps)
-            {
-                for (int w = pp.StartWordIndex; w < pp.StartWordIndex + pp.WordCount; w++)
-                {
-                    var pw = pws[w];
-
-                    // Check the last syllable of this PW against the first syllable of the next PW
-                    if (w < pp.StartWordIndex + pp.WordCount - 1)
-                    {
-                        int lastIdx = pw.StartIndex + pw.SyllableCount - 1;
-                        int nextFirstIdx = pws[w + 1].StartIndex;
-
-                        if (lastIdx < 0 || nextFirstIdx >= session.Stream.Count)
-                        {
-                            continue;
-                        }
-
-                        // Skip if either is a boundary
-                        if (session.Stream[lastIdx].context.IsBoundary || session.Stream[nextFirstIdx].context.IsBoundary)
-                        {
-                            continue;
-                        }
-
-                        var nextTone = session.WorkingTone[nextFirstIdx];
-                        string original = session.WorkingText[lastIdx];
-
-                        bool hasTransform = EvaluateRules(
-                            original,
-                            session.WorkingTone[lastIdx],
-                            nextTone,
-                            session.Stream[lastIdx].context,
-                            isPostLexical: true,
-                            out string transformed,
-                            out string? note);
-
-                        if (hasTransform && transformed != original)
-                        {
-                            session.WorkingText[lastIdx] = transformed;
-                            session.WorkingTone[lastIdx] = PinyinUtility.GetTone(transformed);
-                            session.Notes[lastIdx] = AppendNote(session.Notes[lastIdx], note);
-                        }
-                    }
-                }
-            }
         }
 
         /// <summary>
@@ -170,7 +78,7 @@ namespace AIFileProcessor.Extensions
         {
             var current = session.Stream[i];
 
-            // Determine next tone within the PW boundary
+            // Determine next tone up to the processing boundary
             var nextTone = Tone.Unknown;
             if (i < limit - 1 && i < session.Stream.Count - 1 && !session.Stream[i + 1].context.IsBoundary)
             {
@@ -184,7 +92,6 @@ namespace AIFileProcessor.Extensions
                 session.WorkingTone[i],
                 nextTone,
                 current.context,
-                isPostLexical: false,
                 out string transformed,
                 out string? note);
 
@@ -208,15 +115,14 @@ namespace AIFileProcessor.Extensions
             Tone tone,
             Tone nextTone,
             SandhiContext context,
-            bool isPostLexical,
             out string transformed,
             out string? note)
         {
             transformed = text;
             note = null;
 
-            // RULE D: Neutral Particles (lexical only, not applied post-lexically)
-            if (!isPostLexical && context.IsTargetParticle)
+            // RULE D: Neutral Particles
+            if (context.IsTargetParticle)
             {
                 transformed = PinyinUtility.StripTone(text);
                 if (transformed != text)
