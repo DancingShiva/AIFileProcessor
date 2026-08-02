@@ -106,11 +106,9 @@ namespace AIFileProcessor.Response
 
                 for (int i = 0; i < count; i++)
                 {
-                    if (i > 0)
-                    {
-                        entrySyllables.Append(' ');
-                    }
-
+                    // Join a word's intra-word syllables tightly (no space) — the apostrophe in
+                    // the source pinyin only delimits syllables for sandhi, but the word's
+                    // syllables are written joined (e.g. "xiǎo'yǔ" -> "xiáoyǔ", "yī'fu" -> "yīfu").
                     var result = transformed[start + i];
                     entrySyllables.Append(result.Transformed);
 

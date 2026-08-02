@@ -66,7 +66,7 @@ namespace AIFileProcessor.Extensions
     /// <param name="source">The original text of the syllable or particle.</param>
     /// <param name="pos">The part of speech tag associated with the syllable, used for context-sensitive rules.</param>
     /// <param name="isParticle">Indicates whether the syllable is a particle, which affects certain sandhi rules.</param>
-    /// <param name="rawPartOfSpeech">The original part-of-speech label from the breakdown entry (e.g., "Measure Word"), used for prosodic word grouping.</param>
+    /// <param name="rawPartOfSpeech">The original part-of-speech label from the breakdown entry (e.g., "Measure Word").</param>
     public record SandhiContext(string source, PartOfSpeechTag pos, bool isParticle, string rawPartOfSpeech = "")
     {
         // Explicitly define boundary characters.
