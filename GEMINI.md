@@ -1,5 +1,9 @@
 # Project Overview
-This is a C# desktop application built on .NET 10 using Windows Forms. 
+This is a C# desktop application built on .NET 10 using Windows Forms.
+
+> Full project documentation now lives in [README.md](README.md) and the [docs/](docs/) folder
+> (architecture, settings/authentication, web API, deployment). This file retains only a short
+> summary and project-specific coding notes.
 
 # Architecture & Components
 * **UI Layer:** We utilize standard Windows Forms controls (primarily `RichTextBox`) for text rendering, data editing, and formatting.

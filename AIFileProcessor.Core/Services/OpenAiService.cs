@@ -1,4 +1,4 @@
-﻿//-----------------------------------------------------------------------
+//-----------------------------------------------------------------------
 // <copyright file="OpenAiService.cs" company="Midnight Mission Systems">
 //     Copyright (c) Midnight Mission Systems. All rights reserved.
 // </copyright>
@@ -129,11 +129,7 @@ namespace AIFileProcessor.Services
             object settings,
             CancellationToken ct = default)
         {
-            if (settings is not OpenAiSettings openAiSettings)
-            {
-                throw new ArgumentException($"Expected OpenAiSettings but received {settings?.GetType().Name ?? "null"}.", nameof(settings));
-            }
-
+            OpenAiSettings openAiSettings = AiServiceGuard.RequireSettings<OpenAiSettings>(settings);
             return ProcessTextAsync(modelId, prompt, data, openAiSettings, ct);
         }
 
@@ -158,20 +154,7 @@ namespace AIFileProcessor.Services
             OpenAiSettings settings,
             CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(modelId))
-            {
-                throw new ArgumentException("Model ID is required.", nameof(modelId));
-            }
-
-            if (string.IsNullOrWhiteSpace(prompt))
-            {
-                throw new ArgumentException("Prompt is required.", nameof(prompt));
-            }
-
-            if (string.IsNullOrWhiteSpace(data))
-            {
-                throw new ArgumentException("Data is required.", nameof(data));
-            }
+            AiServiceGuard.RequireValidRequest(modelId, prompt, data);
 
             if (string.IsNullOrWhiteSpace(settings.ApiKey))
             {

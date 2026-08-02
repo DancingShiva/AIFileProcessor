@@ -11,6 +11,7 @@ namespace AIFileProcessor.Services
     using System.IO;
     using System.Net;
     using System.Net.Http;
+    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
     using AIFileProcessor.Configuration;
@@ -99,11 +100,7 @@ namespace AIFileProcessor.Services
         /// <returns>The generated text response.</returns>
         public Task<string> ProcessTextAsync(string modelId, string prompt, string data, object settings, CancellationToken ct = default)
         {
-            if (settings is not GeminiSettings geminiSettings)
-            {
-                throw new ArgumentException($"Expected GeminiSettings but received {settings?.GetType().Name ?? "null"}.", nameof(settings));
-            }
-
+            GeminiSettings geminiSettings = AiServiceGuard.RequireSettings<GeminiSettings>(settings);
             return ProcessTextAsync(modelId, prompt, data, geminiSettings, ct);
         }
 
@@ -187,20 +184,7 @@ namespace AIFileProcessor.Services
         /// </summary>
         private async Task<string> ProcessTextAsync(string modelId, string prompt, string data, GeminiSettings settings, CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(modelId))
-            {
-                throw new ArgumentException("Model ID is required.", nameof(modelId));
-            }
-
-            if (string.IsNullOrWhiteSpace(prompt))
-            {
-                throw new ArgumentException("Prompt is required.", nameof(prompt));
-            }
-
-            if (string.IsNullOrWhiteSpace(data))
-            {
-                throw new ArgumentException("Data is required.", nameof(data));
-            }
+            AiServiceGuard.RequireValidRequest(modelId, prompt, data);
 
             if (string.IsNullOrWhiteSpace(settings.ApiKey))
             {
@@ -265,8 +249,10 @@ namespace AIFileProcessor.Services
                         cancellationToken: ct);
 
                     using var writer = new StringWriter();
-                    await foreach (var chunk in responseStream)
+                    await foreach (var chunk in responseStream.WithCancellation(ct).ConfigureAwait(false))
                     {
+                        ct.ThrowIfCancellationRequested();
+
                         if (chunk.Text != null)
                         {
                             await writer.WriteAsync(chunk.Text);

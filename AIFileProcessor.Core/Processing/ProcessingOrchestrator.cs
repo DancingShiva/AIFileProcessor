@@ -72,40 +72,67 @@ namespace AIFileProcessor.Processing
             var openAiSettings = await _settingsProvider.GetOpenAiSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
             var deepSeekSettings = await _settingsProvider.GetDeepSeekSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
 
-            // Apply the per-model reasoning level from processing options onto the matching provider settings.
-            // ModelReasoningLevels is the single source of truth — updated by both MainForm and SettingsForm.
+            // Single source of truth for provider keys (matches ChineseTextProcessor.GetProviderKey).
+            var providers = new (string Key, object Settings)[]
+            {
+                ("Gemini", geminiSettings),
+                ("OpenAI", openAiSettings),
+                ("DeepSeek", deepSeekSettings),
+            };
+
+            // Apply the per-model reasoning level and clamped MaxTokens from processing options
+            // onto each provider's settings. ModelReasoningLevels/ModelMaxTokens are the single
+            // source of truth — updated by both MainForm and SettingsForm.
             if (!string.IsNullOrWhiteSpace(options.ModelId))
             {
-                if (options.ModelReasoningLevels.TryGetValue(options.ModelId, out var reasoningLevel))
-                {
-                    geminiSettings.ReasoningLevel = reasoningLevel;
-                    openAiSettings.ReasoningLevel = reasoningLevel;
-                    deepSeekSettings.ReasoningLevel = reasoningLevel;
-                }
+                bool hasReasoningLevel = options.ModelReasoningLevels.TryGetValue(options.ModelId, out var reasoningLevel);
+                bool hasMaxTokens = options.ModelMaxTokens.TryGetValue(options.ModelId, out var maxTokens);
 
-                // Apply per-model MaxTokens override (single source of truth, replaces per-provider MaxTokens).
-                // Clamp to each provider's hard max so out-of-range requests don't fail at the API.
-                if (options.ModelMaxTokens.TryGetValue(options.ModelId, out var maxTokens))
+                foreach (var (key, settings) in providers)
                 {
-                    geminiSettings.MaxTokens = TokenUtils.ClampRequestedMaxTokens(maxTokens, "Gemini", options.ModelId, _logger).ClampedValue;
-                    openAiSettings.MaxTokens = TokenUtils.ClampRequestedMaxTokens(maxTokens, "OpenAi", options.ModelId, _logger).ClampedValue;
-                    deepSeekSettings.MaxTokens = TokenUtils.ClampRequestedMaxTokens(maxTokens, "DeepSeek", options.ModelId, _logger).ClampedValue;
-                }
-                else
-                {
-                    // No per-model value set — use null to let the API decide
-                    geminiSettings.MaxTokens = null;
-                    openAiSettings.MaxTokens = null;
-                    deepSeekSettings.MaxTokens = null;
+                    // Clamp to this provider's hard max so out-of-range requests don't fail at the API.
+                    // No per-model value => null, letting the API decide.
+                    int? clampedMaxTokens = hasMaxTokens
+                        ? TokenUtils.ClampRequestedMaxTokens(maxTokens, key, options.ModelId, _logger).ClampedValue
+                        : null;
+
+                    switch (settings)
+                    {
+                        case Configuration.GeminiSettings g:
+                            if (hasReasoningLevel)
+                            {
+                                g.ReasoningLevel = reasoningLevel;
+                            }
+
+                            g.MaxTokens = clampedMaxTokens;
+                            break;
+
+                        case Configuration.OpenAiSettings o:
+                            if (hasReasoningLevel)
+                            {
+                                o.ReasoningLevel = reasoningLevel;
+                            }
+
+                            o.MaxTokens = clampedMaxTokens;
+                            break;
+
+                        case Configuration.DeepSeekSettings d:
+                            if (hasReasoningLevel)
+                            {
+                                d.ReasoningLevel = reasoningLevel;
+                            }
+
+                            d.MaxTokens = clampedMaxTokens;
+                            break;
+                    }
                 }
             }
 
-            var providerSettings = new Dictionary<string, object>
+            var providerSettings = new Dictionary<string, object>();
+            foreach (var (key, settings) in providers)
             {
-                ["Gemini"] = geminiSettings,
-                ["OpenAI"] = openAiSettings,
-                ["DeepSeek"] = deepSeekSettings,
-            };
+                providerSettings[key] = settings;
+            }
 
             var chineseTextProcessor = _chineseTextProcessorFactory();
 

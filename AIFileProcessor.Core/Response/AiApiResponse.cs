@@ -13,7 +13,7 @@ namespace AIFileProcessor.Response
     using AIFileProcessor.Extensions;
 
     /// <summary>
-    ///  BUGBUG This is currently tied to Gemini, but the structure is generic enough that it could be used for other LLM responses as well. The key is that the JSON structure of the response matches the properties of this class. If we were to switch to a different LLM, we would need to ensure that the response format is compatible or implement a mapping layer to convert the new format into this structure.
+    ///  This is a class to handle the response from the AI API. It is designed to be flexible and robust, capable of parsing JSON responses that may vary in structure or formatting. The class includes properties for scratchpad data, corrections made by the AI, and processed sentence rows. It also provides methods to populate its properties from a JSON string, handling various edge cases such as markdown code blocks and trailing commas.
     /// </summary>
     public class AiApiResponse
     {
@@ -83,43 +83,45 @@ namespace AIFileProcessor.Response
                 return false;
             }
 
-            response = response.Trim();
+            // Work over a ReadOnlySpan<char>: Slice/Trim are zero-allocation views into the
+            // original string, avoiding the repeated Substring/Trim copies on large responses.
+            ReadOnlySpan<char> json = response.AsSpan().Trim();
 
-            // Extract the content specifically wrapped inside markdown code blocks
-            int jsonStartIndex = response.IndexOf("```json", StringComparison.OrdinalIgnoreCase);
+            // Extract the content specifically wrapped inside markdown code blocks.
+            int jsonStartIndex = json.IndexOf("```json", StringComparison.OrdinalIgnoreCase);
             if (jsonStartIndex != -1)
             {
                 int contentStart = jsonStartIndex + 7;
-                int jsonEndIndex = response.IndexOf("```", contentStart, StringComparison.OrdinalIgnoreCase);
+                int jsonEndIndex = json.Slice(contentStart).IndexOf("```", StringComparison.OrdinalIgnoreCase);
                 if (jsonEndIndex != -1)
                 {
-                    response = response.Substring(contentStart, jsonEndIndex - contentStart);
+                    json = json.Slice(contentStart, jsonEndIndex);
                 }
             }
             else
             {
-                int generalCodeStartIndex = response.IndexOf("```", StringComparison.OrdinalIgnoreCase);
+                int generalCodeStartIndex = json.IndexOf("```", StringComparison.OrdinalIgnoreCase);
                 if (generalCodeStartIndex != -1)
                 {
                     int contentStart = generalCodeStartIndex + 3;
-                    int generalCodeEndIndex = response.IndexOf("```", contentStart, StringComparison.OrdinalIgnoreCase);
+                    int generalCodeEndIndex = json.Slice(contentStart).IndexOf("```", StringComparison.OrdinalIgnoreCase);
                     if (generalCodeEndIndex != -1)
                     {
-                        response = response.Substring(contentStart, generalCodeEndIndex - contentStart);
+                        json = json.Slice(contentStart, generalCodeEndIndex);
                     }
                 }
             }
 
-            response = response.Trim();
+            json = json.Trim();
 
-            // Suffix and prefix fallback: extract everything between outer curly braces
-            if (!response.StartsWith('{'))
+            // Suffix and prefix fallback: extract everything between outer curly braces.
+            if (!json.StartsWith('{'))
             {
-                int firstBrace = response.IndexOf('{');
-                int lastBrace = response.LastIndexOf('}');
+                int firstBrace = json.IndexOf('{');
+                int lastBrace = json.LastIndexOf('}');
                 if (firstBrace != -1 && lastBrace > firstBrace)
                 {
-                    response = response.Substring(firstBrace, lastBrace - firstBrace + 1);
+                    json = json.Slice(firstBrace, lastBrace - firstBrace + 1);
                 }
             }
 
@@ -129,7 +131,7 @@ namespace AIFileProcessor.Response
                 // allowing trailing commas prevent unnecessary parse failures.
                 options ??= _options;
 
-                var responseObject = JsonSerializer.Deserialize<AiApiResponse>(response, options);
+                var responseObject = JsonSerializer.Deserialize<AiApiResponse>(json, options);
                 if (responseObject != null)
                 {
                     this.Scratchpad = responseObject.Scratchpad;
@@ -147,7 +149,7 @@ namespace AIFileProcessor.Response
                 // Issue #11: Removed Debug.Fail which showed a modal dialog in debug builds.
                 // Debug.WriteLine is sufficient for development diagnostics without
                 // interrupting the application with a modal dialog.
-                Debug.WriteLine($"JSON Deserialization failed: {ex.Message}. Response: {response}");
+                Debug.WriteLine($"JSON Deserialization failed: {ex.Message}. Response: {json.ToString()}");
             }
 
             return false;

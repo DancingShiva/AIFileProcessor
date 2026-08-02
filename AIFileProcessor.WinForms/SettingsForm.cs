@@ -8,6 +8,7 @@ namespace AIFileProcessor
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Threading.Tasks;
     using System.Windows.Forms;
     using AIFileProcessor.Configuration;
     using AIFileProcessor.Interfaces;
@@ -22,9 +23,6 @@ namespace AIFileProcessor
     /// </summary>
     public partial class SettingsForm : Form
     {
-        private readonly GeminiSettingsManager _geminiManager;
-        private readonly OpenAiSettingsManager _openAiManager;
-        private readonly DeepSeekSettingsManager _deepSeekManager;
         private readonly IEnumerable<IAiService> _aiServices;
         private readonly ISettingsProvider _settingsProvider;
         private readonly IUserContext _userContext;
@@ -32,18 +30,12 @@ namespace AIFileProcessor
         private Dictionary<string, int> _modelMaxTokens = new();
 
         public SettingsForm(
-            GeminiSettingsManager geminiManager,
-            OpenAiSettingsManager openAiManager,
-            DeepSeekSettingsManager deepSeekManager,
             IEnumerable<IAiService> aiServices,
             ISettingsProvider settingsProvider,
             IUserContext userContext)
         {
             InitializeComponent();
 
-            _geminiManager = geminiManager ?? throw new ArgumentNullException(nameof(geminiManager));
-            _openAiManager = openAiManager ?? throw new ArgumentNullException(nameof(openAiManager));
-            _deepSeekManager = deepSeekManager ?? throw new ArgumentNullException(nameof(deepSeekManager));
             _aiServices = aiServices ?? throw new ArgumentNullException(nameof(aiServices));
             _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
             _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
@@ -236,15 +228,16 @@ namespace AIFileProcessor
 
         private void SettingsForm_Load(object sender, EventArgs e)
         {
-            LoadSettings();
+            // Fire-and-forget: LoadSettingsAsync handles its own errors via a MessageBox.
+            _ = LoadSettingsAsync();
         }
 
-        private void LoadSettings()
+        private async Task LoadSettingsAsync()
         {
             try
             {
                 // Load per-model reasoning levels and MaxTokens from ProcessingOptions (single source of truth)
-                var processingOptions = _settingsProvider.GetProcessingOptionsAsync(_userContext.UserId).GetAwaiter().GetResult();
+                var processingOptions = await _settingsProvider.GetProcessingOptionsAsync(_userContext.UserId).ConfigureAwait(true);
                 if (processingOptions.ModelReasoningLevels != null)
                 {
                     _modelReasoningLevels = processingOptions.ModelReasoningLevels;
@@ -256,7 +249,7 @@ namespace AIFileProcessor
                 }
 
                 // Load Gemini Settings
-                var gemini = _geminiManager.ReadSettings();
+                var gemini = await _settingsProvider.GetGeminiSettingsAsync(_userContext.UserId).ConfigureAwait(true);
                 txtGeminiEndpoint.Text = gemini.Endpoint ?? string.Empty;
                 SelectModelByModelId(ddlGeminiModel, gemini.ModelName);
                 UpdateGeminiReasoningLevels();
@@ -284,7 +277,7 @@ namespace AIFileProcessor
                 txtGeminiCredentialType.Text = gemini.CredentialType ?? string.Empty;
 
                 // Load OpenAI Settings
-                var openAi = _openAiManager.ReadSettings();
+                var openAi = await _settingsProvider.GetOpenAiSettingsAsync(_userContext.UserId).ConfigureAwait(true);
                 txtOpenAiEndpoint.Text = openAi.Endpoint ?? string.Empty;
                 SelectModelByModelId(ddlOpenAiModel, openAi.ModelName);
                 UpdateOpenAiReasoningLevels();
@@ -297,7 +290,7 @@ namespace AIFileProcessor
                 chkOpenAiTempNull.Checked = !openAi.Temperature.HasValue;
 
                 // Load DeepSeek Settings
-                var deepSeek = _deepSeekManager.ReadSettings();
+                var deepSeek = await _settingsProvider.GetDeepSeekSettingsAsync(_userContext.UserId).ConfigureAwait(true);
                 SelectModelByModelId(ddlDeepSeekModel, deepSeek.ModelName);
                 UpdateDeepSeekReasoningLevels();
                 SelectReasoningLevelForModel(ddlDeepSeekReasoning, GetModelId(ddlDeepSeekModel));
@@ -315,7 +308,7 @@ namespace AIFileProcessor
             }
         }
 
-        private void btnSave_Click(object sender, EventArgs e)
+        private async void btnSave_Click(object sender, EventArgs e)
         {
             try
             {
@@ -339,7 +332,7 @@ namespace AIFileProcessor
                     UseManagedIdentity = chkGeminiUseManagedIdentity.Checked,
                     CredentialType = string.IsNullOrWhiteSpace(txtGeminiCredentialType.Text) ? null : txtGeminiCredentialType.Text
                 };
-                _geminiManager.SaveSettings(gemini);
+                await _settingsProvider.SaveGeminiSettingsAsync(_userContext.UserId, gemini).ConfigureAwait(true);
 
                 // Save OpenAI Settings (ApiKey is not included — it comes from environment variables)
                 var openAi = new OpenAiSettings
@@ -350,9 +343,9 @@ namespace AIFileProcessor
                     OrganizationId = string.IsNullOrWhiteSpace(txtOpenAiOrgId.Text) ? null : txtOpenAiOrgId.Text.Trim(),
                     Temperature = chkOpenAiTempNull.Checked ? null : (double)nudOpenAiTemp.Value
                 };
-                _openAiManager.SaveSettings(openAi);
+                await _settingsProvider.SaveOpenAiSettingsAsync(_userContext.UserId, openAi).ConfigureAwait(true);
 
-                // Save DeepSeek Settings (ApiKey is not included — it comes from environment variables)
+                // Save DeepSeek Settings (ApiKey is not included — it comes from enviro
                 var deepSeek = new DeepSeekSettings
                 {
                     ModelName = ddlDeepSeekModel.SelectedItem is AiModelInfo deepSeekModel ? deepSeekModel.ModelId : null,
@@ -361,7 +354,7 @@ namespace AIFileProcessor
                     Temperature = chkDeepSeekTempNull.Checked ? null : (double)nudDeepSeekTemp.Value,
                     EnableReasoning = chkDeepSeekReasoning.Checked
                 };
-                _deepSeekManager.SaveSettings(deepSeek);
+                await _settingsProvider.SaveDeepSeekSettingsAsync(_userContext.UserId, deepSeek).ConfigureAwait(true);
 
                 // Save per-model reasoning levels and MaxTokens to ProcessingOptions (single source of truth)
                 SaveReasoningLevelForModel(ddlGeminiReasoning, GetModelId(ddlGeminiModel));
@@ -371,10 +364,10 @@ namespace AIFileProcessor
                 SaveMaxTokensForModel(nudOpenAiMaxTokens, chkOpenAiMaxTokensNull, GetModelId(ddlOpenAiModel));
                 SaveMaxTokensForModel(nudDeepSeekMaxTokens, chkDeepSeekMaxTokensNull, GetModelId(ddlDeepSeekModel));
 
-                var options = _settingsProvider.GetProcessingOptionsAsync(_userContext.UserId).GetAwaiter().GetResult();
+                var options = await _settingsProvider.GetProcessingOptionsAsync(_userContext.UserId).ConfigureAwait(true);
                 options.ModelReasoningLevels = _modelReasoningLevels;
                 options.ModelMaxTokens = _modelMaxTokens;
-                _settingsProvider.SaveProcessingOptionsAsync(_userContext.UserId, options).GetAwaiter().GetResult();
+                await _settingsProvider.SaveProcessingOptionsAsync(_userContext.UserId, options).ConfigureAwait(true);
 
                 MessageBox.Show("Settings saved successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 DialogResult = DialogResult.OK;

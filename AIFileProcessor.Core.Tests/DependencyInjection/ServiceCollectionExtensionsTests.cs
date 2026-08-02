@@ -131,11 +131,6 @@ public class ServiceCollectionExtensionsTests
         // Func<IChineseTextProcessor> (transient)
         Assert.Contains(services, d => d.ServiceType == typeof(Func<IChineseTextProcessor>) && d.Lifetime == ServiceLifetime.Transient);
 
-        // Settings managers (transient)
-        Assert.Contains(services, d => d.ServiceType == typeof(GeminiSettingsManager) && d.Lifetime == ServiceLifetime.Transient);
-        Assert.Contains(services, d => d.ServiceType == typeof(OpenAiSettingsManager) && d.Lifetime == ServiceLifetime.Transient);
-        Assert.Contains(services, d => d.ServiceType == typeof(DeepSeekSettingsManager) && d.Lifetime == ServiceLifetime.Transient);
-
         // Three IAiService registrations
         var aiServiceDescs = services.Where(d => d.ServiceType == typeof(IAiService)).ToList();
         Assert.Equal(3, aiServiceDescs.Count);

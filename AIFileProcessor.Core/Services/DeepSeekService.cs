@@ -101,11 +101,7 @@ namespace AIFileProcessor.Services
             object settings,
             CancellationToken ct = default)
         {
-            if (settings is not DeepSeekSettings deepSeekSettings)
-            {
-                throw new ArgumentException($"Expected DeepSeekSettings but received {settings?.GetType().Name ?? "null"}.", nameof(settings));
-            }
-
+            DeepSeekSettings deepSeekSettings = AiServiceGuard.RequireSettings<DeepSeekSettings>(settings);
             return ProcessTextAsync(modelId, prompt, data, deepSeekSettings, ct);
         }
 
@@ -130,20 +126,7 @@ namespace AIFileProcessor.Services
             DeepSeekSettings settings,
             CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(modelId))
-            {
-                throw new ArgumentException("Model ID is required.", nameof(modelId));
-            }
-
-            if (string.IsNullOrWhiteSpace(prompt))
-            {
-                throw new ArgumentException("Prompt is required.", nameof(prompt));
-            }
-
-            if (string.IsNullOrWhiteSpace(data))
-            {
-                throw new ArgumentException("Data is required.", nameof(data));
-            }
+            AiServiceGuard.RequireValidRequest(modelId, prompt, data);
 
             if (string.IsNullOrWhiteSpace(settings.ApiKey))
             {

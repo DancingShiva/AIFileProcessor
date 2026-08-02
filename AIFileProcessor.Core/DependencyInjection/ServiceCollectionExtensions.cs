@@ -94,11 +94,6 @@ namespace AIFileProcessor.DependencyInjection
             // Register factory delegates for transient services
             services.AddTransient<Func<IChineseTextProcessor>>(sp => () => sp.GetRequiredService<IChineseTextProcessor>());
 
-            // Register configuration settings managers as transient services
-            services.AddTransient<GeminiSettingsManager>();
-            services.AddTransient<OpenAiSettingsManager>();
-            services.AddTransient<DeepSeekSettingsManager>();
-
             return services;
         }
     }
