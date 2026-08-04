@@ -13,7 +13,7 @@ namespace AIFileProcessor.Services
     /// <summary>
     /// Shared retry-with-exponential-backoff for transient failures, shared by all
     /// AI service implementations. Stateless and parameter-driven (no DI) — each
-    /// caller supplies its own <paramref name="isTransient"/> predicate because the
+    /// caller supplies its own <see langword="isTransient"/> predicate because the
     /// exception types differ per SDK. Consistent with <see cref="TokenUtils"/> and
     /// <see cref="ModelTokenLimits"/>.
     /// </summary>

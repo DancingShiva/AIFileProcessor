@@ -56,19 +56,35 @@ namespace AIFileProcessor.Web.Controllers
         {
             ArgumentNullException.ThrowIfNull(request);
 
-            if (string.IsNullOrWhiteSpace(request.ModelId))
+            var options = new ProcessingOptions
             {
-                return BadRequest("ModelId is required.");
-            }
+                ModelId = request.ModelId,
+                Prompt = request.Prompt,
+                Data = request.Data,
+                IdPrefix = request.IdPrefix,
+                IdStart = request.IdStart,
+                IdPad = request.IdPad,
+                LengthPad = request.LengthPad,
+            };
 
-            if (string.IsNullOrWhiteSpace(request.Prompt))
+            // Validate once with the shared validator (consistent with the desktop UI). An empty
+            // IdPrefix is valid for the API (IDs are still generated), so substitute a placeholder
+            // to avoid a spurious error while keeping the other field checks.
+            var validationOptions = new ProcessingOptions
             {
-                return BadRequest("Prompt is required.");
-            }
+                ModelId = options.ModelId,
+                Prompt = options.Prompt,
+                Data = options.Data,
+                IdPrefix = string.IsNullOrWhiteSpace(options.IdPrefix) ? "x" : options.IdPrefix,
+                IdStart = options.IdStart,
+                IdPad = options.IdPad,
+                LengthPad = options.LengthPad,
+            };
 
-            if (string.IsNullOrWhiteSpace(request.Data))
+            var errors = ProcessingOptionsValidator.Validate(validationOptions, options.ModelId);
+            if (errors.Count > 0)
             {
-                return BadRequest("Data is required.");
+                return BadRequest(new { errors });
             }
 
             // Stash non-secret preferences in HttpContext.Items so WebSettingsProvider can overlay them
@@ -90,17 +106,6 @@ namespace AIFileProcessor.Web.Controllers
                     ctx.Items["DeepSeekPreferences"] = request.DeepSeekPreferences;
                 }
             }
-
-            var options = new ProcessingOptions
-            {
-                ModelId = request.ModelId,
-                Prompt = request.Prompt,
-                Data = request.Data,
-                IdPrefix = request.IdPrefix,
-                IdStart = request.IdStart,
-                IdPad = request.IdPad,
-                LengthPad = request.LengthPad,
-            };
 
             // Apply reasoning level from the request to the per-model dictionary
             if (request.ReasoningLevel.HasValue)

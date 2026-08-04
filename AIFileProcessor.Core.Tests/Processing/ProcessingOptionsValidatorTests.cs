@@ -12,7 +12,7 @@ public class ProcessingOptionsValidatorTests
         IdPad = 3,
         LengthPad = 3,
         Prompt = "Some prompt",
-        Data = "Some data",
+        Data = "我在超市买菜。",
     };
 
     [Fact]
@@ -231,6 +231,51 @@ public class ProcessingOptionsValidatorTests
     }
 
     [Fact]
+    public void Validate_DataWithNoChinese_AddsNoChineseContentError()
+    {
+        var options = CreateValidOptions();
+        options.Data = "Hello world 12345";
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.Contains("The data file contains no Chinese text to process.", errors);
+    }
+
+    [Fact]
+    public void Validate_DataOnlyPunctuation_AddsNoChineseContentError()
+    {
+        var options = CreateValidOptions();
+        options.Data = "。，！？【】";
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.Contains("The data file contains no Chinese text to process.", errors);
+    }
+
+    [Fact]
+    public void Validate_DataWithChineseMixedContent_NoChineseContentError()
+    {
+        var options = CreateValidOptions();
+        options.Data = "Line one with English\n我在超市买菜。";
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.DoesNotContain("The data file contains no Chinese text to process.", errors);
+    }
+
+    [Fact]
+    public void Validate_DataNull_AddsLoadDataErrorOnly_NoChineseContentError()
+    {
+        var options = CreateValidOptions();
+        options.Data = null!;
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.Contains("Please load a data file before processing.", errors);
+        Assert.DoesNotContain("The data file contains no Chinese text to process.", errors);
+    }
+
+    [Fact]
     public void Validate_AllInvalid_AddsAllErrors()
     {
         var options = new ProcessingOptions
@@ -253,5 +298,35 @@ public class ProcessingOptionsValidatorTests
         Assert.Contains("The value for the length padding must be a positive integer.", errors);
         Assert.Contains("Please load a prompt file before processing.", errors);
         Assert.Contains("Please load a data file before processing.", errors);
+    }
+
+    [Fact]
+    public void Validate_AllInvalid_ErrorsInFieldOrder()
+    {
+        var options = new ProcessingOptions
+        {
+            IdPrefix = string.Empty,
+            IdStart = 0,
+            IdPad = 0,
+            LengthPad = 0,
+            Prompt = string.Empty,
+            Data = string.Empty,
+        };
+
+        var errors = ProcessingOptionsValidator.Validate(options, null);
+
+        // Errors are returned in field/UI order so the UI can present them in one pass.
+        Assert.Equal(
+            new[]
+            {
+                "Please select a model before processing.",
+                "Please enter a prefix before processing.",
+                "The starting index must be a positive numeric value.",
+                "The value for the Id padding must be a positive integer.",
+                "The value for the length padding must be a positive integer.",
+                "Please load a prompt file before processing.",
+                "Please load a data file before processing.",
+            },
+            errors);
     }
 }

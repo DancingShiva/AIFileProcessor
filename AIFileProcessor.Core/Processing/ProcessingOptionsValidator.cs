@@ -24,6 +24,7 @@ namespace AIFileProcessor.Processing
         {
             var errors = new List<string>();
 
+            // Field/UI order, all errors collected so the caller can present them in one pass.
             if (string.IsNullOrWhiteSpace(selectedModelId))
             {
                 errors.Add("Please select a model before processing.");
@@ -58,8 +59,36 @@ namespace AIFileProcessor.Processing
             {
                 errors.Add("Please load a data file before processing.");
             }
+            else if (!ContainsChineseIdeograph(options.Data))
+            {
+                // Pre-flight rejection for payloads with no Chinese lexical content. The
+                // headless generator can only emit hallucinated rows for such input, so
+                // the call is blocked before any tokens are spent.
+                errors.Add("The data file contains no Chinese text to process.");
+            }
 
             return errors;
+        }
+
+        /// <summary>
+        /// Determines whether the text contains at least one CJK unified ideograph
+        /// (the ranges that carry Chinese lexical content).
+        /// </summary>
+        /// <param name="text">The data text to inspect.</param>
+        /// <returns><see langword="true"/> if a CJK ideograph is present; otherwise <see langword="false"/>.</returns>
+        private static bool ContainsChineseIdeograph(string text)
+        {
+            foreach (char c in text)
+            {
+                if (c is >= '一' and <= '鿿'           // CJK Unified Ideographs U+4E00..U+9FFF
+                    or >= '㐀' and <= '䶿'       // CJK Extension A U+3400..U+4DBF
+                    or >= '豈' and <= '﫿')      // CJK Compatibility Ideographs U+F900..U+FAFF
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

@@ -199,6 +199,12 @@ namespace AIFileProcessor
                             _options.DataPath = openFileDialog.FileName;
                             break;
                         case DisplayMode.Prompt:
+                            if (!ConfirmPromptLooksUsable(destination.Text))
+                            {
+                                _logger.LogInformation("User declined to load the selected prompt file.");
+                                return;
+                            }
+
                             _options.Prompt = destination.Text;
                             _options.PromptPath = openFileDialog.FileName;
                             break;
@@ -211,6 +217,7 @@ namespace AIFileProcessor
                     // Persist the updated paths so they're available as defaults next session
                     SaveProcessingOptions();
 
+                    UpdateInputStatus(source, destination.Text);
                     UpdateDisplay(source);
                     _logger.LogInformation("Successfully read: {FileName}", openFileDialog.FileName);
                 }
@@ -219,6 +226,104 @@ namespace AIFileProcessor
                     _logger.LogError(ex, "Error occurred while loading file: {Message}", ex.Message);
                     MessageBox.Show($"An error occurred: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Displays all validation errors in a single dialog and focuses the control
+        /// for the first one. Used so the user sees every problem at once rather than
+        /// re-clicking Process per missing field.
+        /// </summary>
+        private static void ShowErrors(List<string> errors)
+        {
+            MessageBox.Show(string.Join(Environment.NewLine, errors), "Please fix the following:", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        /// <summary>
+        /// Soft-validates a loaded prompt (non-blocking). Returns false only when the user
+        /// explicitly declines to proceed after a warning. These are warnings, not hard blocks.
+        /// </summary>
+        private bool ConfirmPromptLooksUsable(string promptText)
+        {
+            if (string.IsNullOrWhiteSpace(promptText))
+            {
+                return MessageBox.Show(
+                    "The selected prompt file is empty. The AI call will produce nothing useful. Load it anyway?", "Empty Prompt", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;
+            }
+
+            const int MinPromptLength = 50;
+            if (promptText.Trim().Length < MinPromptLength)
+            {
+                if (MessageBox.Show(
+                        "This prompt is very short and doesn't look like the processing specification. Load it anyway?", "Very Short Prompt", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                {
+                    return false;
+                }
+            }
+
+            const int MaxPromptLength = 30000;
+            if (promptText.Length > MaxPromptLength
+                && MessageBox.Show(
+                    $"This prompt is very large ({promptText.Length:n0} characters) and may be an oversized/wrong file. Load it anyway?", "Very Large Prompt", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Reports prompt/data usage stats in the window title so the user can see the size
+        /// of the input they loaded (and estimate processing fan-out for Data).
+        /// </summary>
+        private void UpdateInputStatus(DisplayMode source, string text)
+        {
+            switch (source)
+            {
+                case DisplayMode.Prompt:
+                    this.Text = $"AI File Processor — Prompt: {(text ?? string.Empty).Length:n0} chars";
+                    break;
+
+                case DisplayMode.Data:
+                    int lines = string.IsNullOrEmpty(text) ? 0 : text.Split('\n').Length;
+                    int chunks = (int)System.Math.Ceiling(lines / 40.0);
+                    this.Text = $"AI File Processor — Data: {lines:n0} lines, ~{chunks} chunk{(chunks == 1 ? string.Empty : "s")}";
+                    break;
+            }
+        }
+
+        // Stage 2: parse rtbResponse, format breakdowns, and populate rtbFormatted
+        private async void btnFormatResponse_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string textToParse = rtbResponse.Text;
+                btnFormatResponse.Enabled = false;
+
+                var (parsedRows, formattedText) = await Task.Run(() =>
+                {
+                    var rows = ResponseParser.Parse(textToParse);
+                    var formatted = rows.Count > 0 ? ResponseFormatter.FormatRows(rows) : string.Empty;
+                    return (rows, formatted);
+                });
+
+                if (parsedRows.Count == 0)
+                {
+                    MessageBox.Show("No parseable response rows to format.");
+                    return;
+                }
+
+                rtbFormatted.Text = formattedText;
+
+                UpdateDisplay(DisplayMode.Formatted);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Formatting failed: {ex.Message}");
+            }
+            finally
+            {
+                btnFormatResponse.Enabled = true;
             }
         }
 
@@ -342,41 +447,6 @@ namespace AIFileProcessor
                 _isProcessing = false;
                 btnProcess.Text = "Process";
                 btnProcess.Enabled = true;
-            }
-        }
-
-        // Stage 2: parse rtbResponse, format breakdowns, and populate rtbFormatted
-        private async void btnFormatResponse_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                string textToParse = rtbResponse.Text;
-                btnFormatResponse.Enabled = false;
-
-                var (parsedRows, formattedText) = await Task.Run(() =>
-                {
-                    var rows = ResponseParser.Parse(textToParse);
-                    var formatted = rows.Count > 0 ? ResponseFormatter.FormatRows(rows) : string.Empty;
-                    return (rows, formatted);
-                });
-
-                if (parsedRows.Count == 0)
-                {
-                    MessageBox.Show("No parseable response rows to format.");
-                    return;
-                }
-
-                rtbFormatted.Text = formattedText;
-
-                UpdateDisplay(DisplayMode.Formatted);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Formatting failed: {ex.Message}");
-            }
-            finally
-            {
-                btnFormatResponse.Enabled = true;
             }
         }
 
@@ -631,75 +701,52 @@ namespace AIFileProcessor
 
         private bool FillOptionsFromUI()
         {
-            if (ddlModel.SelectedItem != null && !string.IsNullOrWhiteSpace(ddlModel.Text))
+            // Read raw values from the controls, then validate once with the shared validator.
+            string? selectedModelId = null;
+            if (ddlModel.SelectedItem is AiModelInfo selectedModel && !string.IsNullOrWhiteSpace(ddlModel.Text))
             {
-                _options.ModelId = ((AiModelInfo)ddlModel.SelectedItem).ModelId;
-            }
-            else
-            {
-                MessageBox.Show("Please select a model before processing.");
-                ddlModel.Focus();
-                return false;
+                selectedModelId = selectedModel.ModelId;
             }
 
-            if (ddlReasoning.SelectedItem is ReasoningLevel reasoningLevel)
+            _options.ModelId = selectedModelId ?? string.Empty;
+
+            if (ddlReasoning.SelectedItem is ReasoningLevel reasoningLevel && !string.IsNullOrEmpty(_options.ModelId))
             {
                 _options.ModelReasoningLevels[_options.ModelId] = reasoningLevel;
             }
 
-            if (!string.IsNullOrWhiteSpace(txtPrefix.Text))
-            {
-                _options.IdPrefix = txtPrefix.Text.Trim();
-            }
-            else
-            {
-                MessageBox.Show("Please enter a prefix before processing.");
-                txtPrefix.Focus();
-                return false;
-            }
+            _options.IdPrefix = txtPrefix.Text.Trim();
+            _options.IdStart = (int)nudIdStart.Value;
+            _options.IdPad = (int)nudIdPad.Value;
+            _options.LengthPad = (int)nudLengthPad.Value;
 
-            if (int.TryParse(nudIdStart.Text, out int tempInt))
+            var errors = ProcessingOptionsValidator.Validate(_options, selectedModelId);
+            if (errors.Count > 0)
             {
-                _options.IdStart = tempInt;
-            }
-            else
-            {
-                MessageBox.Show("The starting index is not a numeric value.");
-                nudIdStart.Focus();
-                return false;
-            }
+                ShowErrors(errors);
 
-            if (int.TryParse(nudIdPad.Text, out tempInt))
-            {
-                _options.IdPad = tempInt;
-            }
-            else
-            {
-                MessageBox.Show("The value for the Id padding is not an integer.");
-                nudIdPad.Focus();
-                return false;
-            }
+                // Focus the control for the first error so the user knows where to fix.
+                if (selectedModelId == null)
+                {
+                    ddlModel.Focus();
+                }
+                else if (string.IsNullOrWhiteSpace(_options.IdPrefix))
+                {
+                    txtPrefix.Focus();
+                }
+                else if (_options.IdStart <= 0)
+                {
+                    nudIdStart.Focus();
+                }
+                else if (_options.IdPad <= 0)
+                {
+                    nudIdPad.Focus();
+                }
+                else
+                {
+                    nudLengthPad.Focus();
+                }
 
-            if (int.TryParse(nudLengthPad.Text, out tempInt))
-            {
-                _options.LengthPad = tempInt;
-            }
-            else
-            {
-                MessageBox.Show("The value for the length padding is not an integer.");
-                nudLengthPad.Focus();
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(_options.Prompt))
-            {
-                MessageBox.Show("Please load a prompt file before processing.");
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(_options.Data))
-            {
-                MessageBox.Show("Please load a data file before processing.");
                 return false;
             }
 

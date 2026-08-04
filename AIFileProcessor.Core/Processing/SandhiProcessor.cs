@@ -26,16 +26,6 @@ namespace AIFileProcessor.Processing
         // apostrophe or space and survive as a single token.
         private static readonly char[] SyllableDelimiters = ['\'', ' '];
 
-        private static string[] TokenizePinyin(string pinyin)
-        {
-            if (string.IsNullOrWhiteSpace(pinyin))
-            {
-                return [pinyin ?? string.Empty];
-            }
-
-            return pinyin.Split(SyllableDelimiters, System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries);
-        }
-
         /// <summary>
         /// Applies sandhi transformations to all pinyin fields in the response, in place.
         /// For each sentence, builds a syllable stream from the breakdown entries,
@@ -53,6 +43,16 @@ namespace AIFileProcessor.Processing
             {
                 ApplySandhiToRow(row);
             }
+        }
+
+        private static string[] TokenizePinyin(string pinyin)
+        {
+            if (string.IsNullOrWhiteSpace(pinyin))
+            {
+                return [pinyin ?? string.Empty];
+            }
+
+            return pinyin.Split(SyllableDelimiters, System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries);
         }
 
         private static void ApplySandhiToRow(ProcessedSentenceRow row)
@@ -78,12 +78,16 @@ namespace AIFileProcessor.Processing
 
                 int start = syllableStream.Count;
 
-                foreach (var syllable in syllables)
+                for (int s = 0; s < syllables.Length; s++)
                 {
-                    string source = entry.Chinese ?? syllable;
-                    var tone = PinyinUtility.GetTone(syllable);
+                    string source = entry.Chinese ?? syllables[s];
+                    var tone = PinyinUtility.GetTone(syllables[s]);
                     var context = new SandhiContext(source, pos, isParticle, rawPos);
-                    syllableStream.Add(new SyllableNode(syllable, tone, context));
+
+                    // Last syllable of the entry's token run ends the word — 3rd-tone sandhi
+                    // must not lookahead across this boundary into the next word.
+                    bool endsWord = s == syllables.Length - 1;
+                    syllableStream.Add(new SyllableNode(syllables[s], tone, context, endsWord));
                 }
 
                 entryBoundaries.Add((start, syllables.Length));

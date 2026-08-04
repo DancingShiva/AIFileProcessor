@@ -488,6 +488,7 @@ namespace AIFileProcessor
             nudIdStart.Location = new Point(874, 4);
             nudIdStart.Margin = new Padding(3, 4, 3, 4);
             nudIdStart.Maximum = new decimal(new int[] { 99999, 0, 0, 0 });
+            nudIdStart.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
             nudIdStart.Name = "nudIdStart";
             nudIdStart.Size = new Size(89, 35);
             nudIdStart.TabIndex = 36;
@@ -510,6 +511,7 @@ namespace AIFileProcessor
             nudIdPad.Location = new Point(1054, 4);
             nudIdPad.Margin = new Padding(3, 4, 3, 4);
             nudIdPad.Maximum = new decimal(new int[] { 99999, 0, 0, 0 });
+            nudIdPad.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
             nudIdPad.Name = "nudIdPad";
             nudIdPad.Size = new Size(89, 35);
             nudIdPad.TabIndex = 32;
@@ -532,6 +534,7 @@ namespace AIFileProcessor
             nudLengthPad.Location = new Point(1279, 4);
             nudLengthPad.Margin = new Padding(3, 4, 3, 4);
             nudLengthPad.Maximum = new decimal(new int[] { 99999, 0, 0, 0 });
+            nudLengthPad.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
             nudLengthPad.Name = "nudLengthPad";
             nudLengthPad.Size = new Size(93, 35);
             nudLengthPad.TabIndex = 38;

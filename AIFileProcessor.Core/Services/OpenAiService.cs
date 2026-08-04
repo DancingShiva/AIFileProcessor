@@ -144,6 +144,32 @@ namespace AIFileProcessor.Services
         }
 
         /// <summary>
+        /// Determines whether an exception from the OpenAI SDK represents a transient
+        /// failure worth retrying (rate-limit, server error, network, or timeout).
+        /// </summary>
+        private static bool IsTransient(Exception ex)
+        {
+            if (ex is HttpRequestException hre)
+            {
+                return hre.StatusCode is null or System.Net.HttpStatusCode.TooManyRequests or >= System.Net.HttpStatusCode.InternalServerError;
+            }
+
+            // The OpenAI SDK wraps HTTP errors in ClientResultException; retry on 429/5xx.
+            if (ex is ClientResultException cre)
+            {
+                return cre.Status == (int)System.Net.HttpStatusCode.TooManyRequests
+                    || cre.Status >= (int)System.Net.HttpStatusCode.InternalServerError;
+            }
+
+            if (ex is TimeoutException or TaskCanceledException)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Internal implementation that executes the OpenAI API call using the
         /// specified settings, caching clients keyed by a settings fingerprint.
         /// </summary>
@@ -244,32 +270,6 @@ namespace AIFileProcessor.Services
                 _logger.LogError(ex, "OpenAI API request failed for model {ModelId}.", modelId);
                 throw;
             }
-        }
-
-        /// <summary>
-        /// Determines whether an exception from the OpenAI SDK represents a transient
-        /// failure worth retrying (rate-limit, server error, network, or timeout).
-        /// </summary>
-        private static bool IsTransient(Exception ex)
-        {
-            if (ex is HttpRequestException hre)
-            {
-                return hre.StatusCode is null or System.Net.HttpStatusCode.TooManyRequests or >= System.Net.HttpStatusCode.InternalServerError;
-            }
-
-            // The OpenAI SDK wraps HTTP errors in ClientResultException; retry on 429/5xx.
-            if (ex is ClientResultException cre)
-            {
-                return cre.Status == (int)System.Net.HttpStatusCode.TooManyRequests
-                    || cre.Status >= (int)System.Net.HttpStatusCode.InternalServerError;
-            }
-
-            if (ex is TimeoutException or TaskCanceledException)
-            {
-                return true;
-            }
-
-            return false;
         }
     }
 }

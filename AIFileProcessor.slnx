@@ -1,6 +1,9 @@
 <Solution>
-  <Project Path="AIFileProcessor.Core/AIFileProcessor.Core.csproj" />
-  <Project Path="AIFileProcessor.WinForms/AIFileProcessor.WinForms.csproj" />
-  <Project Path="AIFileProcessor.Web/AIFileProcessor.Web.csproj" />
+  <Folder Name="/Prompt/">
+    <File Path="Prompt/Chinese Processing Prompt.txt" />
+  </Folder>
   <Project Path="AIFileProcessor.Core.Tests/AIFileProcessor.Core.Tests.csproj" />
+  <Project Path="AIFileProcessor.Core/AIFileProcessor.Core.csproj" />
+  <Project Path="AIFileProcessor.Web/AIFileProcessor.Web.csproj" />
+  <Project Path="AIFileProcessor.WinForms/AIFileProcessor.WinForms.csproj" />
 </Solution>

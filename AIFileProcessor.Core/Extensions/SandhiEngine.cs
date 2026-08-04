@@ -78,12 +78,18 @@ namespace AIFileProcessor.Extensions
         {
             var current = session.Stream[i];
 
-            // Determine next tone up to the processing boundary
+            // Next tone up to the processing boundary, ignoring any punctuation boundary in between.
             var nextTone = Tone.Unknown;
             if (i < limit - 1 && i < session.Stream.Count - 1 && !session.Stream[i + 1].context.IsBoundary)
             {
                 nextTone = session.WorkingTone[i + 1];
             }
+
+            // Rule A (3rd+3rd) only applies WITHIN a word, and decides from the next syllable's
+            // BASE tone (not the already-shifted working tone), so it shifts once and doesn't chain.
+            // bù / yī / particle rules keep cross-word, surface-tone lookahead.
+            bool nextIsSameWord = !current.EndsWord && nextTone != Tone.Unknown;
+            Tone nextBaseTone = nextIsSameWord ? session.Stream[i + 1].tone : Tone.Unknown;
 
             string original = session.WorkingText[i];
 
@@ -91,6 +97,8 @@ namespace AIFileProcessor.Extensions
                 original,
                 session.WorkingTone[i],
                 nextTone,
+                nextBaseTone,
+                nextIsSameWord,
                 current.context,
                 out string transformed,
                 out string? note);
@@ -114,6 +122,8 @@ namespace AIFileProcessor.Extensions
             string text,
             Tone tone,
             Tone nextTone,
+            Tone nextBaseTone,
+            bool nextIsSameWord,
             SandhiContext context,
             out string transformed,
             out string? note)
@@ -159,8 +169,9 @@ namespace AIFileProcessor.Extensions
                 }
             }
 
-            // RULE A: 3rd + 3rd Sandhi
-            if (tone is Tone.Third && nextTone is Tone.Third)
+            // RULE A: 3rd + 3rd Sandhi — only within a word (same breakdown entry) and decided
+            // from the next syllable's BASE tone, so it shifts once and does not chain.
+            if (tone is Tone.Third && nextBaseTone is Tone.Third && nextIsSameWord)
             {
                 transformed = PinyinUtility.ShiftTone(text, Tone.Second);
                 note = $"({text} → {transformed} before 3rd tone)";

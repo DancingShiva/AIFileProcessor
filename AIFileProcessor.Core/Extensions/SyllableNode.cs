@@ -15,5 +15,6 @@ namespace AIFileProcessor.Extensions
     /// <param name="text">The text of the syllable.</param>
     /// <param name="tone">The tone of the syllable.</param>
     /// <param name="context">The contextual information for sandhi processing.</param>
-    public record SyllableNode(string text, Tone tone, SandhiContext context);
+    /// <param name="EndsWord">True when this syllable is the last syllable of its word (breakdown entry). The 3rd-tone sandhi rule only looks within a word, so a word-final syllable does not shift based on the following word.</param>
+    public record SyllableNode(string text, Tone tone, SandhiContext context, bool EndsWord = false);
 }

@@ -69,9 +69,9 @@ public class SandhiProcessorTests
     // ─── Rule A: 3rd + 3rd tone → 2nd + 3rd tone ──────────────────────────────
 
     [Fact]
-    public void ApplySandhi_ThirdThirdTone_FirstSyllableBecomesSecondTone()
+    public void ApplySandhi_ThirdThirdAcrossWordBoundary_NoShift()
     {
-        // nǐ (3rd) + hǎo (3rd) → ní hǎo
+        // nǐ (3rd) + hǎo (3rd) as SEPARATE entries (word boundary) → stays nǐ hǎo
         var row = new ProcessedSentenceRow
         {
             Chinese = "你好",
@@ -86,9 +86,9 @@ public class SandhiProcessorTests
 
         SandhiProcessor.ApplySandhi(response);
 
-        Assert.Equal("ní", response.ProcessedSentenceRows[0].Breakdown[0].Pinyin);
+        Assert.Equal("nǐ", response.ProcessedSentenceRows[0].Breakdown[0].Pinyin);
         Assert.Equal("hǎo", response.ProcessedSentenceRows[0].Breakdown[1].Pinyin);
-        Assert.Equal("ní hǎo", response.ProcessedSentenceRows[0].Pinyin);
+        Assert.Equal("nǐ hǎo", response.ProcessedSentenceRows[0].Pinyin);
     }
 
     // ─── Rule B: bù before 4th tone → bú ──────────────────────────────────────
@@ -212,9 +212,9 @@ public class SandhiProcessorTests
         SandhiProcessor.ApplySandhi(response);
 
         var row = response.ProcessedSentenceRows[0];
-        // After sandhi: ní hǎo — sentence pinyin should match breakdown joined
-        Assert.Equal("ní hǎo", row.Pinyin);
-        Assert.Equal("ní hǎo", $"{row.Breakdown[0].Pinyin} {row.Breakdown[1].Pinyin}");
+        // Sentence pinyin should match the breakdown joined (no cross-word 3rd+3rd shift)
+        Assert.Equal("nǐ hǎo", row.Pinyin);
+        Assert.Equal("nǐ hǎo", $"{row.Breakdown[0].Pinyin} {row.Breakdown[1].Pinyin}");
     }
 
     // ─── No change cases ───────────────────────────────────────────────────────
@@ -267,14 +267,14 @@ public class SandhiProcessorTests
 
         SandhiProcessor.ApplySandhi(response);
 
-        Assert.Equal("ní hǎo", response.ProcessedSentenceRows[0].Pinyin);
+        Assert.Equal("nǐ hǎo", response.ProcessedSentenceRows[0].Pinyin);
         Assert.Equal("bú shì", response.ProcessedSentenceRows[1].Pinyin);
     }
 
     // ─── Sandhi notes ─────────────────────────────────────────────────────────
 
     [Fact]
-    public void ApplySandhi_ThirdThirdTone_NoteAddedToChangedEntry()
+    public void ApplySandhi_ThirdThirdAcrossBoundary_NoNoteAdded()
     {
         var row = new ProcessedSentenceRow
         {
@@ -290,7 +290,8 @@ public class SandhiProcessorTests
 
         SandhiProcessor.ApplySandhi(response);
 
-        Assert.Equal("(nǐ → ní before 3rd tone)", response.ProcessedSentenceRows[0].Breakdown[0].Note);
+        // No cross-word 3rd+3rd shift, so no sandhi note is added.
+        Assert.Equal(string.Empty, response.ProcessedSentenceRows[0].Breakdown[0].Note);
         Assert.Equal(string.Empty, response.ProcessedSentenceRows[0].Breakdown[1].Note);
     }
 
@@ -402,19 +403,19 @@ public class SandhiProcessorTests
     {
         var row = new ProcessedSentenceRow
         {
-            Chinese = "你好",
-            Pinyin = "nǐ hǎo",
+            Chinese = "不是",
+            Pinyin = "bù shì",
             Breakdown = new List<BreakdownEntry>
             {
-                new() { Chinese = "你", Pinyin = "nǐ", PartOfSpeech = "Pronoun", Note = "existing note" },
-                new() { Chinese = "好", Pinyin = "hǎo", PartOfSpeech = "Adjective" },
+                new() { Chinese = "不", Pinyin = "bù", PartOfSpeech = "Adverb", Note = "existing note" },
+                new() { Chinese = "是", Pinyin = "shì", PartOfSpeech = "Verb" },
             },
         };
         var response = CreateResponse(row);
 
         SandhiProcessor.ApplySandhi(response);
 
-        Assert.Equal("existing note (nǐ → ní before 3rd tone)", response.ProcessedSentenceRows[0].Breakdown[0].Note);
+        Assert.Equal("existing note (bù → bú before 4th tone)", response.ProcessedSentenceRows[0].Breakdown[0].Note);
     }
 
     [Fact]
@@ -422,18 +423,18 @@ public class SandhiProcessorTests
     {
         var row = new ProcessedSentenceRow
         {
-            Chinese = "你好",
-            Pinyin = "nǐ hǎo",
+            Chinese = "不是",
+            Pinyin = "bù shì",
             Breakdown = new List<BreakdownEntry>
             {
-                new() { Chinese = "你", Pinyin = "nǐ", PartOfSpeech = "Pronoun", Note = "" },
-                new() { Chinese = "好", Pinyin = "hǎo", PartOfSpeech = "Adjective" },
+                new() { Chinese = "不", Pinyin = "bù", PartOfSpeech = "Adverb", Note = "" },
+                new() { Chinese = "是", Pinyin = "shì", PartOfSpeech = "Verb" },
             },
         };
         var response = CreateResponse(row);
 
         SandhiProcessor.ApplySandhi(response);
 
-        Assert.Equal("(nǐ → ní before 3rd tone)", response.ProcessedSentenceRows[0].Breakdown[0].Note);
+        Assert.Equal("(bù → bú before 4th tone)", response.ProcessedSentenceRows[0].Breakdown[0].Note);
     }
 }

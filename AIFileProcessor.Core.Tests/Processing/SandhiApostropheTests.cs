@@ -105,16 +105,35 @@ namespace AIFileProcessor.Core.Tests.Processing
         }
 
         [Fact]
-        public void ThirdThirdAcrossEntries_ShiftToSecond()
+        public void ThirdThirdAcrossEntries_StaysUnshifted_WordBoundary()
         {
-            // 你好 is 3rd+3rd across two entries (nǐ hǎo): nǐ (3rd) before hǎo (3rd) -> ní hǎo.
+            // 你 / 好 as SEPARATE entries (word boundary): 3rd+3rd does NOT shift under the
+            // within-word policy.
             var response = MakeResponse("你好", "nǐ hǎo", "你|nǐ|you|pron|1| ||好|hǎo|good|adj|1| ");
 
             SandhiProcessor.ApplySandhi(response);
 
-            Assert.Equal("ní", response.ProcessedSentenceRows[0].Breakdown[0].Pinyin);
+            Assert.Equal("nǐ", response.ProcessedSentenceRows[0].Breakdown[0].Pinyin);
             Assert.Equal("hǎo", response.ProcessedSentenceRows[0].Breakdown[1].Pinyin);
-            Assert.Equal("ní hǎo", response.ProcessedSentenceRows[0].Pinyin);
+            Assert.Equal("nǐ hǎo", response.ProcessedSentenceRows[0].Pinyin);
+        }
+
+        [Fact]
+        public void XiaoyuWant_NoChainedShiftAcrossBoundary()
+        {
+            // 小雨 想 : xiǎo'yǔ shifts WITHIN the word to xiáoyǔ, but yǔ does NOT shift
+            // before the separate word 想 (xiǎng) — no chained cross-boundary shift.
+            var response = MakeResponse(
+                "小雨 想",
+                "xiǎoyǔ xiǎng",
+                "小雨|xiǎo'yǔ|Xiaoyu|pn|N/A| ||想|xiǎng|want|v|1| ");
+
+            SandhiProcessor.ApplySandhi(response);
+
+            var row = response.ProcessedSentenceRows[0];
+            Assert.Equal("xiáoyǔ", row.Breakdown[0].Pinyin);
+            Assert.Equal("xiǎng", row.Breakdown[1].Pinyin);
+            Assert.Equal("xiáoyǔ xiǎng", row.Pinyin);
         }
     }
 }

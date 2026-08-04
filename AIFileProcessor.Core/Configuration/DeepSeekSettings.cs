@@ -27,13 +27,19 @@ namespace AIFileProcessor.Configuration
         /// <inheritdoc />
         public int? MaxTokens { get; set; }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Gets or sets the maximum number of retries after the initial attempt for transient failures.
+        /// </summary>
         public int MaxRetries { get; set; } = 3;
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Gets or sets the base delay, in seconds, before the first retry; doubled each subsequent retry.
+        /// </summary>
         public int BaseDelay { get; set; } = 1;
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Gets or sets the maximum delay, in seconds, between retries.
+        /// </summary>
         public int MaxDelay { get; set; } = 60;
 
         /// <inheritdoc />
