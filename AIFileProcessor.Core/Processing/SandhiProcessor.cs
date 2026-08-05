@@ -73,7 +73,8 @@ namespace AIFileProcessor.Processing
                 string pinyin = entry.Pinyin ?? string.Empty;
                 string[] syllables = TokenizePinyin(pinyin);
                 PartOfSpeechTag pos = MapPos(entry.PartOfSpeech);
-                bool isParticle = entry.PartOfSpeech == "Particle";
+                bool isParticle = string.Equals(entry.PartOfSpeech, "Particle", System.StringComparison.Ordinal)
+                    || string.Equals(entry.PartOfSpeech, "part", System.StringComparison.Ordinal);
                 string rawPos = entry.PartOfSpeech ?? string.Empty;
 
                 int start = syllableStream.Count;
@@ -105,14 +106,14 @@ namespace AIFileProcessor.Processing
         {
             return partOfSpeech switch
             {
-                "Numeral" => PartOfSpeechTag.Numeral,
-                "Particle" => PartOfSpeechTag.Particle,
-                "Punctuation" => PartOfSpeechTag.Punctuation,
-                "Measure Word" => PartOfSpeechTag.MeasureWord,
-                "Pronoun" => PartOfSpeechTag.Pronoun,
-                "Preposition" => PartOfSpeechTag.Preposition,
-                "Conjunction" => PartOfSpeechTag.Conjunction,
-                "Locative" => PartOfSpeechTag.Locative,
+                "Numeral" or "num" => PartOfSpeechTag.Numeral,
+                "Particle" or "part" => PartOfSpeechTag.Particle,
+                "Punctuation" or "punc" => PartOfSpeechTag.Punctuation,
+                "Measure Word" or "mw" => PartOfSpeechTag.MeasureWord,
+                "Pronoun" or "pron" => PartOfSpeechTag.Pronoun,
+                "Preposition" or "prep" => PartOfSpeechTag.Preposition,
+                "Conjunction" or "conj" => PartOfSpeechTag.Conjunction,
+                "Locative" or "loc" => PartOfSpeechTag.Locative,
                 _ => PartOfSpeechTag.Other,
             };
         }

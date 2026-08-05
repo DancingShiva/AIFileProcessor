@@ -151,12 +151,20 @@ namespace AIFileProcessor.Processing
                         options.LengthPad);
             }
 
+            // Always-on deterministic verification (no API cost). Findings are
+            // appended to Corrections alongside the model-reported corrections.
+            foreach (string finding in ResponseVerifier.Verify(results))
+            {
+                results.Corrections ??= [];
+                results.Corrections.Add(finding);
+            }
+
             string rawResponse = string.Join(
                 System.Environment.NewLine,
                 results.ProcessedSentenceRows.Select(r =>
                 {
                     string breakdownStr = string.Join("||", r.Breakdown.Select(b =>
-                        $"{b.Chinese}|{b.Pinyin}|{b.Gloss}|{b.PartOfSpeech}|{b.HskLevel}|{(string.IsNullOrWhiteSpace(b.Note) ? " " : b.Note)}"));
+                        $"{b.Chinese}|{b.Pinyin}|{b.Gloss}|{b.DisplayPartOfSpeech}|{b.DisplayHskLevel}|{(string.IsNullOrWhiteSpace(b.Note) ? " " : b.Note)}"));
                     return $"{r.Id}\t{r.Chinese}\t{r.Pinyin}\t{breakdownStr}\t{string.Join("||", r.AudioReordering.Select(a => $"{a.VisualString}|{a.StartIndex},{a.EndIndex}"))}\t{r.English}\t{r.Length}";
                 }));
 

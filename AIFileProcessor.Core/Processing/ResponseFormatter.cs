@@ -56,8 +56,8 @@ namespace AIFileProcessor.Processing
                 sb.Append($"<td>{entry.Chinese}</td><td>&nbsp;&nbsp;</td>");
                 sb.Append($"<td>{entry.Pinyin}</td><td>&nbsp;&nbsp;</td>");
                 sb.Append($"<td>{entry.Gloss}</td><td>&nbsp;&nbsp;</td>");
-                sb.Append($"<td>{entry.PartOfSpeech}</td><td>&nbsp;&nbsp;</td>");
-                sb.Append($"<td>{entry.HskLevel}</td><td>&nbsp;&nbsp;</td>");
+                sb.Append($"<td>{entry.DisplayPartOfSpeech}</td><td>&nbsp;&nbsp;</td>");
+                sb.Append($"<td>{entry.DisplayHskLevel}</td><td>&nbsp;&nbsp;</td>");
                 sb.Append($"<td>{entry.Note}</td>");
                 sb.Append("</tr>");
             }

@@ -53,7 +53,9 @@ namespace AIFileProcessor.Extensions
                     Chinese = parts.Length > 0 ? parts[0] : string.Empty,
                     Pinyin = parts.Length > 1 ? parts[1] : string.Empty,
                     Gloss = parts.Length > 2 ? parts[2] : string.Empty,
+                    RawPartOfSpeech = parts.Length > 3 ? parts[3] : string.Empty,
                     PartOfSpeech = ConvertProperty(parts.Length > 3 ? parts[3] : string.Empty, _posConverter, serializerOptions),
+                    RawHskLevel = parts.Length > 4 ? parts[4] : string.Empty,
                     HskLevel = ConvertProperty(parts.Length > 4 ? parts[4] : string.Empty, _hskConverter, serializerOptions),
                     Note = parts.Length > 5 ? parts[5] : string.Empty
                 };

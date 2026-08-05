@@ -24,6 +24,37 @@ namespace AIFileProcessor.Extensions
         private static readonly string Hsk6 = "HSK6";
         private static readonly string Hsk7To9 = "HSK7-9";
 
+        /// <summary>
+        /// Maps a spec wire HSK value to its display form, mirroring the deserialization
+        /// inflation. Single digits become <c>HSK1</c>..<c>HSK6</c>; other shapes fall
+        /// back to the same normalization used during deserialization.
+        /// </summary>
+        /// <param name="value">The raw wire value (e.g. <c>1</c>).</param>
+        /// <returns>The display form (e.g. <c>HSK1</c>).</returns>
+        public static string DisplayName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            string trimmed = value.Trim();
+            if (trimmed.Length == 1)
+            {
+                switch (trimmed[0])
+                {
+                    case '1': return Hsk1;
+                    case '2': return Hsk2;
+                    case '3': return Hsk3;
+                    case '4': return Hsk4;
+                    case '5': return Hsk5;
+                    case '6': return Hsk6;
+                }
+            }
+
+            return NormalizeHskLevelFallback(trimmed);
+        }
+
         public override string Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             if (reader.TokenType == JsonTokenType.Null)

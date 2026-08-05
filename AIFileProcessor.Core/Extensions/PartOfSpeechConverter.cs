@@ -28,6 +28,42 @@ namespace AIFileProcessor.Extensions
         private static readonly string TimeWord = "Time Word";
         private static readonly string Verb = "Verb";
 
+        /// <summary>
+        /// Maps a spec wire abbreviation to its display name, mirroring the
+        /// deserialization inflation (case-insensitive, whitespace-trimmed). Unknown
+        /// values are returned unchanged.
+        /// </summary>
+        /// <param name="value">The raw wire value (e.g. <c>pron</c>).</param>
+        /// <returns>The display name (e.g. <c>Pronoun</c>).</returns>
+        public static string DisplayName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            switch (value.Trim().ToLowerInvariant())
+            {
+                case "n": return Noun;
+                case "v": return Verb;
+                case "t": return TimeWord;
+                case "id": return Idiom;
+                case "mw": return MeasureWord;
+                case "pn": return ProperNoun;
+                case "adj": return Adjective;
+                case "adv": return Adverb;
+                case "int": return Interjection;
+                case "loc": return Locative;
+                case "num": return Numeral;
+                case "conj": return Conjunction;
+                case "part": return Particle;
+                case "prep": return Preposition;
+                case "pron": return Pronoun;
+                case "punc": return Punctuation;
+                default: return value;
+            }
+        }
+
         public override string Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             if (reader.TokenType == JsonTokenType.Null)

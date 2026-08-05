@@ -80,9 +80,12 @@ namespace AIFileProcessor.Processing
         {
             foreach (char c in text)
             {
-                if (c is >= '一' and <= '鿿'           // CJK Unified Ideographs U+4E00..U+9FFF
-                    or >= '㐀' and <= '䶿'       // CJK Extension A U+3400..U+4DBF
-                    or >= '豈' and <= '﫿')      // CJK Compatibility Ideographs U+F900..U+FAFF
+                // '一' and '鿿' are CJK Unified Ideographs U+4E00..U+9FFF
+                // '㐀' and '䶿' are CJK Extension A U+3400..U+4DBF
+                // '豈' and '﫿' are CJK Compatibility Ideographs U+F900..U+FAFF
+                if (c is >= '一' and <= '鿿'
+                    or >= '㐀' and <= '䶿'
+                    or >= '豈' and <= '﫿')
                 {
                     return true;
                 }

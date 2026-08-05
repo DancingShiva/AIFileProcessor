@@ -147,6 +147,7 @@ namespace AIFileProcessor.Response
                 string pos = Breakdown?[i].PartOfSpeech ?? string.Empty;
 
                 bool isPunctuation = string.Equals(pos, "Punctuation", System.StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(pos, "punc", System.StringComparison.Ordinal)
                     || System.Linq.Enumerable.All(part, ch => char.IsPunctuation(ch));
 
                 if (sb.Length == 0)
