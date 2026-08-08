@@ -23,5 +23,18 @@ namespace AIFileProcessor.Interfaces
         /// <param name="data">The data to be written to the file.</param>
         /// <returns>Boolean indicating success.</returns>
         Task<bool> SaveFileAsync(string pathOfFile, string data);
+
+        /// <summary>
+        /// Writes the file, then reads it back to confirm the persisted content matches
+        /// <paramref name="data"/>. Retries the read-back briefly to allow sync clients
+        /// (e.g., OneDrive Files On-Demand) to settle, since they may update the file's
+        /// timestamp immediately while still serving stale content.
+        /// </summary>
+        /// <param name="pathOfFile">The Complete path and FileName of the file to save.</param>
+        /// <param name="data">The data to be written to the file.</param>
+        /// <param name="maxAttempts">Maximum number of read-back attempts (including the first).</param>
+        /// <param name="delayBetweenAttemptsMs">Delay in milliseconds between read-back attempts.</param>
+        /// <returns>Boolean indicating whether the file content verified as matching <paramref name="data"/>.</returns>
+        Task<bool> SaveFileWithVerificationAsync(string pathOfFile, string data, int maxAttempts = 3, int delayBetweenAttemptsMs = 500);
     }
 }

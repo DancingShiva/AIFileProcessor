@@ -83,8 +83,8 @@ namespace AIFileProcessor.Services
         /// <param name="prompt">The user prompt to process.</param>
         /// <param name="data">The string data for the AI model.</param>
         /// <param name="ct">A token to cancel the request.</param>
-        /// <returns>The generated text response.</returns>
-        public Task<string> ProcessTextAsync(string modelId, string prompt, string data, CancellationToken ct = default)
+        /// <returns>The generated text response and telemetry.</returns>
+        public Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(string modelId, string prompt, string data, CancellationToken ct = default)
         {
             return ProcessTextAsync(modelId, prompt, data, _defaultSettings, ct);
         }
@@ -97,8 +97,8 @@ namespace AIFileProcessor.Services
         /// <param name="data">The string data for the AI model.</param>
         /// <param name="settings">The per-call settings (must be a <see cref="GeminiSettings"/>).</param>
         /// <param name="ct">A token to cancel the request.</param>
-        /// <returns>The generated text response.</returns>
-        public Task<string> ProcessTextAsync(string modelId, string prompt, string data, object settings, CancellationToken ct = default)
+        /// <returns>The generated text response and telemetry.</returns>
+        public Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(string modelId, string prompt, string data, object settings, CancellationToken ct = default)
         {
             GeminiSettings geminiSettings = AiServiceGuard.RequireSettings<GeminiSettings>(settings);
             return ProcessTextAsync(modelId, prompt, data, geminiSettings, ct);
@@ -182,7 +182,7 @@ namespace AIFileProcessor.Services
         /// Internal implementation that executes the Gemini API call using the
         /// specified settings, caching clients keyed by a settings fingerprint.
         /// </summary>
-        private async Task<string> ProcessTextAsync(string modelId, string prompt, string data, GeminiSettings settings, CancellationToken ct)
+        private async Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(string modelId, string prompt, string data, GeminiSettings settings, CancellationToken ct)
         {
             AiServiceGuard.RequireValidRequest(modelId, prompt, data);
 
@@ -236,7 +236,13 @@ namespace AIFileProcessor.Services
                 };
             }
 
+            // Wrap user-supplied data in delimiter tags to defend against prompt injection.
+            string wrappedData = $"<DATA_BEGIN>\n{data}\n<DATA_END>";
+
             string targetModel = modelId;
+
+            // Initialize telemetry for this call
+            var telemetry = new AIFileProcessor.Telemetry.CallTelemetry { StartUtc = DateTime.UtcNow, Attempts = 1 };
 
             if (settings.StreamingEnabled)
             {
@@ -244,14 +250,25 @@ namespace AIFileProcessor.Services
                 {
                     var responseStream = client.Models.GenerateContentStreamAsync(
                         model: targetModel,
-                        contents: data,
+                        contents: wrappedData,
                         config: config,
                         cancellationToken: ct);
 
                     using var writer = new StringWriter();
+                    bool sawFirst = false;
+                    Google.GenAI.Types.GenerateContentResponseUsageMetadata? streamUsage = null;
                     await foreach (var chunk in responseStream.WithCancellation(ct).ConfigureAwait(false))
                     {
                         ct.ThrowIfCancellationRequested();
+
+                        if (!sawFirst)
+                        {
+                            sawFirst = true;
+                            telemetry.TimeToFirstByteMs = (long)(DateTime.UtcNow - telemetry.StartUtc).TotalMilliseconds;
+                        }
+
+                        // Usage metadata is typically only present on the final streamed chunk.
+                        streamUsage ??= chunk.UsageMetadata;
 
                         if (chunk.Text != null)
                         {
@@ -264,7 +281,25 @@ namespace AIFileProcessor.Services
                         }
                     }
 
-                    return writer.ToString();
+                    telemetry.EndUtc = DateTime.UtcNow;
+                    telemetry.ElapsedMs = (long)(telemetry.EndUtc - telemetry.StartUtc).TotalMilliseconds;
+
+                    // Map token counts from the usage metadata carried by the final streamed chunk.
+                    try
+                    {
+                        if (streamUsage != null)
+                        {
+                            telemetry.PromptTokens = streamUsage.PromptTokenCount;
+                            telemetry.CompletionTokens = streamUsage.CandidatesTokenCount;
+                        }
+                    }
+                    catch
+                    {
+                        // best-effort only
+                    }
+
+                    // Return AiCallResult carrying the concatenated text and telemetry
+                    return new AIFileProcessor.Response.AiCallResult { Text = writer.ToString(), Telemetry = telemetry };
                 }
                 catch (Exception ex)
                 {
@@ -276,21 +311,14 @@ namespace AIFileProcessor.Services
             {
                 try
                 {
-                    return await TransientRetryPolicy.ExecuteAsync(
+                    var response = await TransientRetryPolicy.ExecuteAsync(
                         async cancellationToken =>
                         {
-                            var response = await client.Models.GenerateContentAsync(
+                            return await client.Models.GenerateContentAsync(
                                 model: targetModel,
-                                contents: data,
+                                contents: wrappedData,
                                 config: config,
                                 cancellationToken: cancellationToken).ConfigureAwait(false);
-
-                            if (settings.EnableLogging)
-                            {
-                                _logger.LogInformation("[Gemini Log] Model: {TargetModel}, Response Status: Success", targetModel);
-                            }
-
-                            return response.Text ?? string.Empty;
                         },
                         IsTransient,
                         settings.MaxRetries,
@@ -298,7 +326,34 @@ namespace AIFileProcessor.Services
                         settings.MaxDelay,
                         _logger,
                         $"Gemini model {targetModel}",
-                        ct).ConfigureAwait(false);
+                        ct,
+                        onAttempt: attempt => telemetry.Attempts = attempt).ConfigureAwait(false);
+
+                    if (settings.EnableLogging)
+                    {
+                        _logger.LogInformation("[Gemini Log] Model: {TargetModel}, Response Status: Success", targetModel);
+                    }
+
+                    // finalize telemetry for non-streaming response
+                    telemetry ??= new AIFileProcessor.Telemetry.CallTelemetry { StartUtc = DateTime.UtcNow, Attempts = 1 };
+                    telemetry.EndUtc = DateTime.UtcNow;
+                    telemetry.ElapsedMs = (long)(telemetry.EndUtc - telemetry.StartUtc).TotalMilliseconds;
+
+                    // Try reflection-based mapping for token counts
+                    try
+                    {
+                        if (Telemetry.TelemetryUtils.TryExtractTokens(response, out var p, out var c))
+                        {
+                            telemetry.PromptTokens = p;
+                            telemetry.CompletionTokens = c;
+                        }
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+
+                    return new AIFileProcessor.Response.AiCallResult { Text = response.Text ?? string.Empty, Telemetry = telemetry };
                 }
                 catch (OperationCanceledException)
                 {

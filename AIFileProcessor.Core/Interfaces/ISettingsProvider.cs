@@ -86,5 +86,43 @@ namespace AIFileProcessor.Interfaces
         /// <param name="ct">A token to cancel the operation.</param>
         /// <returns>A task representing the asynchronous save operation.</returns>
         Task SaveProcessingOptionsAsync(string userId, ProcessingOptions options, CancellationToken ct = default);
+
+        /// <summary>
+        /// Gets the resolved per-model Gemini settings for the specified user and model,
+        /// merging defaults → per-model default → per-user override, capped by global limits.
+        /// </summary>
+        Task<GeminiModelSettings> GetGeminiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default);
+
+        /// <summary>
+        /// Gets the resolved per-model OpenAI settings for the specified user and model,
+        /// merging defaults → per-model default → per-user override, capped by global limits.
+        /// </summary>
+        Task<OpenAiModelSettings> GetOpenAiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default);
+
+        /// <summary>
+        /// Gets the resolved per-model DeepSeek settings for the specified user and model,
+        /// merging defaults → per-model default → per-user override, capped by global limits.
+        /// </summary>
+        Task<DeepSeekModelSettings> GetDeepSeekModelSettingsAsync(string modelId, string userId, CancellationToken ct = default);
+
+        /// <summary>
+        /// Persists the specified per-model Gemini settings as per-user overrides.
+        /// </summary>
+        Task SaveGeminiModelSettingsAsync(string modelId, string userId, GeminiModelSettings settings, CancellationToken ct = default);
+
+        /// <summary>
+        /// Persists the specified per-model OpenAI settings as per-user overrides.
+        /// </summary>
+        Task SaveOpenAiModelSettingsAsync(string modelId, string userId, OpenAiModelSettings settings, CancellationToken ct = default);
+
+        /// <summary>
+        /// Persists the specified per-model DeepSeek settings as per-user overrides.
+        /// </summary>
+        Task SaveDeepSeekModelSettingsAsync(string modelId, string userId, DeepSeekModelSettings settings, CancellationToken ct = default);
+
+        /// <summary>
+        /// Gets the global processing settings (defaults and caps) for the current machine.
+        /// </summary>
+        Task<ProcessingSettings> GetProcessingSettingsAsync(CancellationToken ct = default);
     }
 }

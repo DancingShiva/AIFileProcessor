@@ -25,8 +25,6 @@ namespace AIFileProcessor.Services
     public class ChineseTextProcessor(ILogger<ChineseTextProcessor> logger, IEnumerable<IAiService> aiServices) : IChineseTextProcessor
 #pragma warning restore SA1009 // Closing parenthesis should be spaced correctly
     {
-        private const int MaxConcurrentChunks = 3;
-
         // Define the separators as a static readonly field
         private static readonly string[] _lineSeparators = ["\r\n", "\r", "\n"];
 
@@ -38,17 +36,19 @@ namespace AIFileProcessor.Services
         };
 
         /// <summary>
-        /// Splits Chinese text into 40-line chunks, processes them in parallel,
+        /// Splits Chinese text into chunks of the given size, processes them in parallel,
         /// tracks their original index to maintain order, and merges them.
         /// </summary>
         /// <param name="modelId">The ID of the AI model to use for processing.</param>
         /// <param name="prompt">The prompt to execute for each chunk of text.</param>
         /// <param name="data">The block of Chinese text to process.</param>
+        /// <param name="chunkSize">The number of lines per API call chunk.</param>
+        /// <param name="maxConcurrentChunks">The maximum number of concurrent API calls (semaphore size).</param>
         /// <param name="ct">Token to cancel the operation.</param>
         /// <returns>A merged AiApiResponse containing the combined results from all chunks.</returns>
-        public async Task<AiApiResponse> ProcessChineseTextAsync(string modelId, string prompt, string data, CancellationToken ct = default)
+        public async Task<AiApiResponse> ProcessChineseTextAsync(string modelId, string prompt, string data, int chunkSize, int maxConcurrentChunks, CancellationToken ct = default)
         {
-            return await ProcessInternalAsync(modelId, prompt, data, providerSettings: null, ct).ConfigureAwait(false);
+            return await ProcessInternalAsync(modelId, prompt, data, providerSettings: null, chunkSize, maxConcurrentChunks, ct).ConfigureAwait(false);
         }
 
         /// <inheritdoc/>
@@ -57,10 +57,12 @@ namespace AIFileProcessor.Services
             string prompt,
             string data,
             IDictionary<string, object> providerSettings,
+            int chunkSize,
+            int maxConcurrentChunks,
             CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(providerSettings);
-            return await ProcessInternalAsync(modelId, prompt, data, providerSettings, ct).ConfigureAwait(false);
+            return await ProcessInternalAsync(modelId, prompt, data, providerSettings, chunkSize, maxConcurrentChunks, ct).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -89,6 +91,8 @@ namespace AIFileProcessor.Services
             string prompt,
             string data,
             IDictionary<string, object>? providerSettings,
+            int chunkSize,
+            int maxConcurrentChunks,
             CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(data))
@@ -128,15 +132,14 @@ namespace AIFileProcessor.Services
             // 1. Split text into individual lines
             string[] lines = data.Split(_lineSeparators, StringSplitOptions.None);
 
-            // 2. Break down into chunks of 40 lines and associate each with its original index
+            // 2. Break down into chunks of chunkSize lines and associate each with its original index
             var chunks = new List<(int Index, string Text)>();
-            const int ChunkSize = 40;
 
-            for (int i = 0; i < lines.Length; i += ChunkSize)
+            for (int i = 0; i < lines.Length; i += chunkSize)
             {
-                var chunkLines = lines.Skip(i).Take(ChunkSize);
+                var chunkLines = lines.Skip(i).Take(chunkSize);
                 string chunkText = string.Join(Environment.NewLine, chunkLines);
-                chunks.Add((Index: i / ChunkSize, Text: chunkText));
+                chunks.Add((Index: i / chunkSize, Text: chunkText));
             }
 
             // 3. Configure JsonSerializerOptions (Mapping "SP" to "Scratchpad" and "Sentences" to "ProcessedSentenceRows")
@@ -144,21 +147,45 @@ namespace AIFileProcessor.Services
 
             // Use a semaphore to limit concurrency, preventing rate-limit violations
             // and connection pool exhaustion when processing many chunks.
-            using var semaphore = new SemaphoreSlim(MaxConcurrentChunks, MaxConcurrentChunks);
+            using var semaphore = new SemaphoreSlim(maxConcurrentChunks, maxConcurrentChunks);
+
+            // Capture run start for aggregate metrics
+            var runStart = DateTime.UtcNow;
+
+            // Prepare a list to capture per-chunk metrics as they complete
+            var chunkMetrics = new System.Collections.Concurrent.ConcurrentBag<Telemetry.ChunkMetrics>();
 
             // 4. Start all tasks concurrently (throttled by the semaphore), capturing the index of each chunk.
             var tasks = chunks.Select(async chunk =>
             {
+                var queueStart = DateTime.UtcNow;
                 await semaphore.WaitAsync(ct).ConfigureAwait(false);
+                var queueDelayMs = (long)(DateTime.UtcNow - queueStart).TotalMilliseconds;
                 try
                 {
                     // Execute prompt asynchronously — use per-call settings if available
-                    string rawJsonResult = perCallSettings != null
+                    AiCallResult aiResult = perCallSettings != null
                         ? await aiService.ProcessTextAsync(modelId, prompt, chunk.Text, perCallSettings, ct)
                         : await aiService.ProcessTextAsync(modelId, prompt, chunk.Text, ct);
 
                     // Parse directly into a AiApiResponse using the specified constructor
-                    var response = new AiApiResponse(rawJsonResult, serializerOptions);
+                    var response = new AiApiResponse(aiResult.Text, serializerOptions);
+
+                    // Compute this chunk's line range
+                    int startLine = (chunk.Index * chunkSize) + 1;
+                    int endLine = Math.Min(lines.Length, (chunk.Index + 1) * chunkSize);
+
+                    // Record per-chunk metrics (telemetry object may be null)
+                    var cm = new Telemetry.ChunkMetrics
+                    {
+                        ChunkIndex = chunk.Index,
+                        StartLine = startLine,
+                        EndLine = endLine,
+                        QueueDelayMs = queueDelayMs,
+                        Telemetry = aiResult.Telemetry ?? new Telemetry.CallTelemetry { StartUtc = DateTime.UtcNow, EndUtc = DateTime.UtcNow, Attempts = 1 }
+                    };
+
+                    chunkMetrics.Add(cm);
 
                     return (Index: chunk.Index, Response: response, Exception: (Exception?)null);
                 }
@@ -189,8 +216,8 @@ namespace AIFileProcessor.Services
             if (failedResults.Any())
             {
                 var firstFailure = failedResults[0];
-                int startLine = (firstFailure.Index * ChunkSize) + 1;
-                int endLine = Math.Min(lines.Length, (firstFailure.Index + 1) * ChunkSize);
+                int startLine = (firstFailure.Index * chunkSize) + 1;
+                int endLine = Math.Min(lines.Length, (firstFailure.Index + 1) * chunkSize);
 
                 throw new InvalidOperationException(
                     $"Processing failed for lines {startLine}-{endLine} of the file. Details: {firstFailure.Exception!.Message}",
@@ -216,6 +243,49 @@ namespace AIFileProcessor.Services
                 // Combine all sentence rows in order
                 ProcessedSentenceRows = [.. orderedResponses.SelectMany(r => r.ProcessedSentenceRows ?? [])],
             };
+
+            // Aggregate run-level processing metrics from per-chunk metrics and attach to the merged response.
+            var runEnd = DateTime.UtcNow;
+            var elapsedMs = (long)(runEnd - runStart).TotalMilliseconds;
+
+            var orderedChunks = chunkMetrics.OrderBy(c => c.ChunkIndex).ToList();
+
+            int chunkCount = orderedChunks.Count;
+            int succeeded = orderedChunks.Count; // failures are thrown earlier
+            int failed = 0;
+
+            int? totalPrompt = orderedChunks.Any(c => c.Telemetry?.PromptTokens != null)
+                ? orderedChunks.Sum(c => c.Telemetry?.PromptTokens ?? 0)
+                : (int?)null;
+
+            int? totalCompletion = orderedChunks.Any(c => c.Telemetry?.CompletionTokens != null)
+                ? orderedChunks.Sum(c => c.Telemetry?.CompletionTokens ?? 0)
+                : (int?)null;
+
+            double effectiveParallelism = elapsedMs > 0
+                ? Math.Round(orderedChunks.Sum(c => c.Telemetry?.ElapsedMs ?? 0) / (double)elapsedMs, 3)
+                : 0.0;
+
+            double linesPerSecond = elapsedMs > 0
+                ? Math.Round(lines.Length / (elapsedMs / 1000.0), 3)
+                : 0.0;
+
+            var processingMetrics = new Telemetry.ProcessingMetrics
+            {
+                StartUtc = runStart,
+                EndUtc = runEnd,
+                ElapsedMs = elapsedMs,
+                ChunkCount = chunkCount,
+                Succeeded = succeeded,
+                Failed = failed,
+                TotalPromptTokens = totalPrompt,
+                TotalCompletionTokens = totalCompletion,
+                EffectiveParallelism = effectiveParallelism,
+                LinesPerSecond = linesPerSecond,
+                Chunks = orderedChunks,
+            };
+
+            mergedResponse.Metrics = processingMetrics;
 
             return mergedResponse;
         }

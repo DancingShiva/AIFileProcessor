@@ -23,7 +23,7 @@ namespace AIFileProcessor.Configuration
 
         public string? ModelName { get; set; } = null;
 
-        public int TimeoutSeconds { get; set; } = 30;
+        public int TimeoutSeconds { get; set; } = 300;
 
         public string? ProjectId { get; set; } = null;
 

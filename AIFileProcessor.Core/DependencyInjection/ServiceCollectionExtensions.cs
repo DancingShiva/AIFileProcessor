@@ -38,12 +38,17 @@ namespace AIFileProcessor.DependencyInjection
             services.Configure<GeminiSettings>(configuration.GetSection("GeminiSettings"));
             services.Configure<OpenAiSettings>(configuration.GetSection("OpenAiSettings"));
 
+            // Configure per-model token limits from the Processing section of appsettings.json.
+            var processingSettings = new ProcessingSettings();
+            configuration.GetSection("Processing").Bind(processingSettings);
+            ModelTokenLimits.Configure(processingSettings.ModelTokenLimitsMap, processingSettings.DefaultTokenLimit);
+
             // Register Typed HttpClients against concrete service types so each gets
             // its own DI-managed HttpClient with the correct timeout and base address.
             services.AddHttpClient<GeminiService>((sp, client) =>
             {
                 var settings = sp.GetRequiredService<IOptions<GeminiSettings>>().Value;
-                client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 600);
+                client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 300);
 
                 if (!string.IsNullOrWhiteSpace(settings.Endpoint))
                 {
@@ -65,13 +70,13 @@ namespace AIFileProcessor.DependencyInjection
             services.AddHttpClient<DeepSeekService>((sp, client) =>
             {
                 var settings = sp.GetRequiredService<IOptions<DeepSeekSettings>>().Value;
-                client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 600);
+                client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 300);
             });
 
             services.AddHttpClient<OpenAiService>((sp, client) =>
             {
                 var settings = sp.GetRequiredService<IOptions<OpenAiSettings>>().Value;
-                client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 600);
+                client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 300);
             });
 
             // Register all three AI services as IAiService implementations so that

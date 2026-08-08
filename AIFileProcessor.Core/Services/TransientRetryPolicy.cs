@@ -33,6 +33,7 @@ namespace AIFileProcessor.Services
         /// <param name="logger">Logger for retry warnings.</param>
         /// <param name="operationName">Operation/model name included in log messages.</param>
         /// <param name="ct">A token to cancel the operation and any retry delay.</param>
+        /// <param name="onAttempt">Optional callback invoked before each attempt with the 1-based attempt number. Used to record retry counts for telemetry.</param>
         /// <returns>The result of a successful execution.</returns>
         public static async Task<T> ExecuteAsync<T>(
             Func<CancellationToken, Task<T>> action,
@@ -42,7 +43,8 @@ namespace AIFileProcessor.Services
             int maxDelaySeconds,
             ILogger logger,
             string operationName,
-            CancellationToken ct)
+            CancellationToken ct,
+            Action<int>? onAttempt = null)
         {
             ArgumentNullException.ThrowIfNull(action);
             ArgumentNullException.ThrowIfNull(isTransient);
@@ -56,6 +58,7 @@ namespace AIFileProcessor.Services
             {
                 try
                 {
+                    onAttempt?.Invoke(attempt + 1);
                     return await action(ct).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)

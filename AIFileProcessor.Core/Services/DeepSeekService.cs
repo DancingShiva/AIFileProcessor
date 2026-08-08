@@ -75,8 +75,8 @@ namespace AIFileProcessor.Services
         /// <param name="prompt">The user prompt to process.</param>
         /// <param name="data">The string data for the AI model.</param>
         /// <param name="ct">A token to cancel the request.</param>
-        /// <returns>The generated text response.</returns>
-        public Task<string> ProcessTextAsync(
+        /// <returns>The generated text response and telemetry.</returns>
+        public Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(
             string modelId,
             string prompt,
             string data,
@@ -93,8 +93,8 @@ namespace AIFileProcessor.Services
         /// <param name="data">The string data for the AI model.</param>
         /// <param name="settings">The per-call settings (must be a <see cref="DeepSeekSettings"/>).</param>
         /// <param name="ct">A token to cancel the request.</param>
-        /// <returns>The generated text response.</returns>
-        public Task<string> ProcessTextAsync(
+        /// <returns>The generated text response and telemetry.</returns>
+        public Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(
             string modelId,
             string prompt,
             string data,
@@ -145,7 +145,7 @@ namespace AIFileProcessor.Services
         /// Internal implementation that executes the DeepSeek API call using the
         /// specified settings, caching clients keyed by a settings fingerprint.
         /// </summary>
-        private async Task<string> ProcessTextAsync(
+        private async Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(
             string modelId,
             string prompt,
             string data,
@@ -209,6 +209,9 @@ namespace AIFileProcessor.Services
 #pragma warning restore OPENAI001
             }
 
+            // Wrap user-supplied data in delimiter tags to defend against prompt injection.
+            string wrappedData = $"<DATA_BEGIN>\n{data}\n<DATA_END>";
+
             try
             {
                 // Build message array using modern, type-safe collection literals
@@ -221,35 +224,24 @@ namespace AIFileProcessor.Services
                         "When answering, please show your chain-of-thought reasoning step-by-step, then provide a concise final answer. " +
                         "If the model supports explicit reasoning configuration, that will be used instead.");
 
-                    messages =
-                    [
-                        reasoningInstruction,
-                        new SystemChatMessage(prompt),
-                        new UserChatMessage(data)
-                    ];
+                    messages = new List<ChatMessage> { reasoningInstruction, new SystemChatMessage(prompt), new UserChatMessage(wrappedData) };
                 }
                 else
                 {
-                    messages =
-                    [
-                        new SystemChatMessage(prompt),
-                        new UserChatMessage(data)
-                    ];
+                    messages = new List<ChatMessage> { new SystemChatMessage(prompt), new UserChatMessage(wrappedData) };
                 }
 
-                return await TransientRetryPolicy.ExecuteAsync(
+                // Initialize telemetry before the API call so the retry hook can update Attempts.
+                var localTelemetry = new AIFileProcessor.Telemetry.CallTelemetry { StartUtc = DateTime.UtcNow, Attempts = 1 };
+
+                var completion = await TransientRetryPolicy.ExecuteAsync(
                     async cancellationToken =>
                     {
                         ClientResult<ChatCompletion> result = await client.CompleteChatAsync(
                             messages,
                             chatOptions,
                             cancellationToken).ConfigureAwait(false);
-
-                        ChatCompletion completion = result.Value;
-
-                        return completion.Content.Count > 0
-                            ? completion.Content[0].Text ?? string.Empty
-                            : string.Empty;
+                        return result.Value;
                     },
                     IsTransient,
                     settings.MaxRetries,
@@ -257,7 +249,29 @@ namespace AIFileProcessor.Services
                     settings.MaxDelay,
                     _logger,
                     $"DeepSeek model {modelId}",
-                    ct).ConfigureAwait(false);
+                    ct,
+                    onAttempt: attempt => localTelemetry.Attempts = attempt).ConfigureAwait(false);
+
+                // finalize telemetry and return
+                localTelemetry.EndUtc = DateTime.UtcNow;
+                localTelemetry.ElapsedMs = (long)(localTelemetry.EndUtc - localTelemetry.StartUtc).TotalMilliseconds;
+
+                // ChatCompletion.Usage properties may vary by SDK version; attempt best-effort mapping using reflection helper.
+                try
+                {
+                    if (Telemetry.TelemetryUtils.TryExtractTokens(completion, out var p, out var c))
+                    {
+                        localTelemetry.PromptTokens = p;
+                        localTelemetry.CompletionTokens = c;
+                    }
+                }
+                catch
+                {
+                    // Ignore if usage fields are not present in this SDK shape.
+                }
+
+                string text = completion.Content.Count > 0 ? completion.Content[0].Text ?? string.Empty : string.Empty;
+                return new AIFileProcessor.Response.AiCallResult { Text = text, Telemetry = localTelemetry };
             }
             catch (OperationCanceledException)
             {

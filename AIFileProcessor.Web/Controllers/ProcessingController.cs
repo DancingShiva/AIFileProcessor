@@ -139,6 +139,7 @@ namespace AIFileProcessor.Web.Controllers
                     Scratchpad = result.Scratchpad,
                     Corrections = result.Corrections,
                     ProcessedSentenceRows = result.ProcessedSentenceRows,
+                    Metrics = result.Metrics,
                 });
             }
             catch (OperationCanceledException)

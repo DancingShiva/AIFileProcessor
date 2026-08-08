@@ -83,6 +83,14 @@ namespace AIFileProcessor
             this.chkDeepSeekTempNull = new System.Windows.Forms.CheckBox();
             this.chkDeepSeekReasoning = new System.Windows.Forms.CheckBox();
 
+            // Per-model chunking/concurrency controls
+            this.nudGeminiChunkSize = new System.Windows.Forms.NumericUpDown();
+            this.nudGeminiMaxConcurrentChunks = new System.Windows.Forms.NumericUpDown();
+            this.nudOpenAiChunkSize = new System.Windows.Forms.NumericUpDown();
+            this.nudOpenAiMaxConcurrentChunks = new System.Windows.Forms.NumericUpDown();
+            this.nudDeepSeekChunkSize = new System.Windows.Forms.NumericUpDown();
+            this.nudDeepSeekMaxConcurrentChunks = new System.Windows.Forms.NumericUpDown();
+
             this.tabControl.SuspendLayout();
             this.tabGemini.SuspendLayout();
             this.tabOpenAi.SuspendLayout();
@@ -163,6 +171,8 @@ namespace AIFileProcessor
             // Setup controls helper layout
             BuildLabelledComboBox(this.flpGemini, "Model Name:", this.ddlGeminiModel);
             BuildLabelledComboBox(this.flpGemini, "Reasoning Level:", this.ddlGeminiReasoning);
+            BuildLabelledNumeric(this.flpGemini, "Chunk Size (Lines):", this.nudGeminiChunkSize, 1, 1000);
+            BuildLabelledNumeric(this.flpGemini, "Max Concurrent Chunks:", this.nudGeminiMaxConcurrentChunks, 1, 32);
             BuildLabelledTextBox(this.flpGemini, "Endpoint:", this.txtGeminiEndpoint, false);
             BuildLabelledNumeric(this.flpGemini, "Timeout (Seconds):", this.nudGeminiTimeout, 1, 3600);
             BuildLabelledTextBox(this.flpGemini, "Project ID (Optional):", this.txtGeminiProjectId, false);
@@ -186,6 +196,8 @@ namespace AIFileProcessor
 
             BuildLabelledComboBox(this.flpOpenAi, "Model Name:", this.ddlOpenAiModel);
             BuildLabelledComboBox(this.flpOpenAi, "Reasoning Level:", this.ddlOpenAiReasoning);
+            BuildLabelledNumeric(this.flpOpenAi, "Chunk Size (Lines):", this.nudOpenAiChunkSize, 1, 1000);
+            BuildLabelledNumeric(this.flpOpenAi, "Max Concurrent Chunks:", this.nudOpenAiMaxConcurrentChunks, 1, 32);
             BuildLabelledTextBox(this.flpOpenAi, "Endpoint:", this.txtOpenAiEndpoint, false);
             BuildLabelledNumeric(this.flpOpenAi, "Timeout (Seconds):", this.nudOpenAiTimeout, 1, 3600);
             BuildLabelledTextBox(this.flpOpenAi, "Organization ID (Optional):", this.txtOpenAiOrgId, false);
@@ -196,6 +208,8 @@ namespace AIFileProcessor
 
             BuildLabelledComboBox(this.flpDeepSeek, "Model Name:", this.ddlDeepSeekModel);
             BuildLabelledComboBox(this.flpDeepSeek, "Reasoning Level:", this.ddlDeepSeekReasoning);
+            BuildLabelledNumeric(this.flpDeepSeek, "Chunk Size (Lines):", this.nudDeepSeekChunkSize, 1, 1000);
+            BuildLabelledNumeric(this.flpDeepSeek, "Max Concurrent Chunks:", this.nudDeepSeekMaxConcurrentChunks, 1, 32);
             BuildLabelledTextBox(this.flpDeepSeek, "Endpoint:", this.txtDeepSeekEndpoint, false);
             BuildLabelledNumeric(this.flpDeepSeek, "Timeout (Seconds):", this.nudDeepSeekTimeout, 1, 3600);
             BuildLabelledNumericWithNull(this.flpDeepSeek, "Max Tokens:", this.nudDeepSeekMaxTokens, this.chkDeepSeekMaxTokensNull, 0, 1000000);
@@ -413,5 +427,13 @@ namespace AIFileProcessor
         private System.Windows.Forms.CheckBox chkDeepSeekTempNull;
         private System.Windows.Forms.CheckBox chkDeepSeekReasoning;
         private System.Windows.Forms.ComboBox ddlDeepSeekReasoning;
+
+        // Per-model chunking/concurrency controls
+        private System.Windows.Forms.NumericUpDown nudGeminiChunkSize;
+        private System.Windows.Forms.NumericUpDown nudGeminiMaxConcurrentChunks;
+        private System.Windows.Forms.NumericUpDown nudOpenAiChunkSize;
+        private System.Windows.Forms.NumericUpDown nudOpenAiMaxConcurrentChunks;
+        private System.Windows.Forms.NumericUpDown nudDeepSeekChunkSize;
+        private System.Windows.Forms.NumericUpDown nudDeepSeekMaxConcurrentChunks;
     }
 }

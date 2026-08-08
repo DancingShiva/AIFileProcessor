@@ -1,4 +1,4 @@
-namespace AIFileProcessor.Core.Tests.Processing
+﻿namespace AIFileProcessor.Core.Tests.Processing
 {
     using System;
     using System.Collections.Generic;
@@ -35,14 +35,14 @@ namespace AIFileProcessor.Core.Tests.Processing
             {
                 new()
                 {
-                    Chinese = "你好",
+                    Chinese = "??",
                     Pinyin = "ni hao",
                     English = "hello",
                     Breakdown = new List<BreakdownEntry>
                     {
                         new()
                         {
-                            Chinese = "你",
+                            Chinese = "?",
                             Pinyin = "ni",
                             Gloss = "you",
                             PartOfSpeech = "pron",
@@ -52,13 +52,13 @@ namespace AIFileProcessor.Core.Tests.Processing
                     },
                     AudioReordering = new List<AudioReorder>
                     {
-                        new() { VisualString = "你好", StartIndex = 0, EndIndex = 1 },
+                        new() { VisualString = "??", StartIndex = 0, EndIndex = 1 },
                     },
                 },
             },
         };
 
-        private static (Mock<ISettingsProvider> settings, Mock<IUserContext> userCtx, Mock<IChineseTextProcessor> processor, Func<IChineseTextProcessor> factory) CreateMocks(AiApiResponse? response = null)
+        private static (Mock<ISettingsProvider> settings, Mock<IUserContext> userCtx, Mock<IChineseTextProcessor> processor, Func<IChineseTextProcessor> factory, Mock<IAiService> aiService) CreateMocks(AiApiResponse? response = null)
         {
             response ??= CreateApiResponse();
 
@@ -70,26 +70,42 @@ namespace AIFileProcessor.Core.Tests.Processing
             settingsMock.Setup(s => s.GetDeepSeekSettingsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new DeepSeekSettings());
 
+            // Mock per-model settings resolution methods used by the new orchestrator
+            settingsMock.Setup(s => s.GetGeminiModelSettingsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new GeminiModelSettings { ChunkSize = 40, MaxConcurrentChunks = 3 });
+            settingsMock.Setup(s => s.GetOpenAiModelSettingsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new OpenAiModelSettings { ChunkSize = 40, MaxConcurrentChunks = 3 });
+            settingsMock.Setup(s => s.GetDeepSeekModelSettingsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new DeepSeekModelSettings { ChunkSize = 40, MaxConcurrentChunks = 3 });
+            settingsMock.Setup(s => s.GetProcessingSettingsAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ProcessingSettings());
+
             var userCtxMock = new Mock<IUserContext>();
             userCtxMock.Setup(u => u.UserId).Returns("test-user");
 
             var processorMock = new Mock<IChineseTextProcessor>();
             processorMock.Setup(p => p.ProcessChineseTextAsync(
                     It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                    It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+                    It.IsAny<IDictionary<string, object>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
+
+            // Mock IAiService instance that supports "test-model" so ProcessAsync can resolve the provider
+            var aiServiceMock = new Mock<IAiService>();
+            aiServiceMock.Setup(s => s.SupportsModel(It.IsAny<string>())).Returns(true);
 
             Func<IChineseTextProcessor> factory = () => processorMock.Object;
 
-            return (settingsMock, userCtxMock, processorMock, factory);
+            return (settingsMock, userCtxMock, processorMock, factory, aiServiceMock);
         }
 
         private static ProcessingOrchestrator CreateOrchestrator(
             Mock<ISettingsProvider> settings,
             Mock<IUserContext> userCtx,
-            Func<IChineseTextProcessor> factory)
+            Func<IChineseTextProcessor> factory,
+            Mock<IAiService>? aiService = null)
         {
-            return new ProcessingOrchestrator(factory, settings.Object, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object);
+            var aiServices = aiService != null ? new[] { aiService.Object } : Array.Empty<IAiService>();
+            return new ProcessingOrchestrator(factory, settings.Object, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices);
         }
 
         // ---- Constructor tests ----
@@ -97,36 +113,39 @@ namespace AIFileProcessor.Core.Tests.Processing
         [Fact]
         public void Constructor_NullFactory_ThrowsArgumentNullException()
         {
-            var (settings, userCtx, _, _) = CreateMocks();
+            var (settings, userCtx, _, _, aiService) = CreateMocks();
+            var aiServices = new[] { aiService.Object };
 
             Assert.Throws<ArgumentNullException>(() =>
-                new ProcessingOrchestrator(null!, settings.Object, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object));
+                new ProcessingOrchestrator(null!, settings.Object, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices));
         }
 
         [Fact]
         public void Constructor_NullSettingsProvider_ThrowsArgumentNullException()
         {
-            var (_, userCtx, _, factory) = CreateMocks();
+            var (_, userCtx, _, factory, aiService) = CreateMocks();
+            var aiServices = new[] { aiService.Object };
 
             Assert.Throws<ArgumentNullException>(() =>
-                new ProcessingOrchestrator(factory, null!, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object));
+                new ProcessingOrchestrator(factory, null!, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices));
         }
 
         [Fact]
         public void Constructor_NullUserContext_ThrowsArgumentNullException()
         {
-            var (settings, _, _, factory) = CreateMocks();
+            var (settings, _, _, factory, aiService) = CreateMocks();
+            var aiServices = new[] { aiService.Object };
 
             Assert.Throws<ArgumentNullException>(() =>
-                new ProcessingOrchestrator(factory, settings.Object, null!, new Mock<ILogger<ProcessingOrchestrator>>().Object));
+                new ProcessingOrchestrator(factory, settings.Object, null!, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices));
         }
 
         [Fact]
         public void Constructor_AllArgumentsValid_CreatesInstance()
         {
-            var (settings, userCtx, _, factory) = CreateMocks();
+            var (settings, userCtx, _, factory, aiService) = CreateMocks();
 
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
 
             Assert.NotNull(orchestrator);
         }
@@ -134,10 +153,11 @@ namespace AIFileProcessor.Core.Tests.Processing
         [Fact]
         public void Constructor_NullLogger_ThrowsArgumentNullException()
         {
-            var (settings, userCtx, _, factory) = CreateMocks();
+            var (settings, userCtx, _, factory, aiService) = CreateMocks();
+            var aiServices = new[] { aiService.Object };
 
             Assert.Throws<ArgumentNullException>(() =>
-                new ProcessingOrchestrator(factory, settings.Object, userCtx.Object, null!));
+                new ProcessingOrchestrator(factory, settings.Object, userCtx.Object, null!, aiServices));
         }
 
         // ---- ProcessAsync tests ----
@@ -145,8 +165,8 @@ namespace AIFileProcessor.Core.Tests.Processing
         [Fact]
         public async Task ProcessAsync_NullOptions_ThrowsArgumentNullException()
         {
-            var (settings, userCtx, _, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, _, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
 
             await Assert.ThrowsAsync<ArgumentNullException>(() =>
                 orchestrator.ProcessAsync(null!, TestContext.Current.CancellationToken));
@@ -155,8 +175,8 @@ namespace AIFileProcessor.Core.Tests.Processing
         [Fact]
         public async Task ProcessAsync_ValidOptions_ReturnsProcessingResultWithRawResponse()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
 
             ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
@@ -172,63 +192,60 @@ namespace AIFileProcessor.Core.Tests.Processing
         [Fact]
         public async Task ProcessAsync_InvokesSettingsProviderForAllProviders()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
 
             await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
-            settings.Verify(s => s.GetGeminiSettingsAsync("test-user", It.IsAny<CancellationToken>()), Times.Once);
-            settings.Verify(s => s.GetOpenAiSettingsAsync("test-user", It.IsAny<CancellationToken>()), Times.Once);
-            settings.Verify(s => s.GetDeepSeekSettingsAsync("test-user", It.IsAny<CancellationToken>()), Times.Once);
+            settings.Verify(s => s.GetGeminiModelSettingsAsync("test-model", "test-user", It.IsAny<CancellationToken>()), Times.Once);
+            settings.Verify(s => s.GetOpenAiModelSettingsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+            settings.Verify(s => s.GetDeepSeekModelSettingsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         }
 
         [Fact]
         public async Task ProcessAsync_InvokesFactoryAndProcessChineseText()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
 
             await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             processor.Verify(p => p.ProcessChineseTextAsync(
                 "test-model", "test prompt", "test data",
-                It.IsAny<IDictionary<string, object>>(),
+                It.IsAny<IDictionary<string, object>>(), It.IsAny<int>(), It.IsAny<int>(),
                 It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [Fact]
         public async Task ProcessAsync_PassesProviderSettingsDictionaryToProcessor()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
             IDictionary<string, object>? capturedSettings = null;
 
             processor.Setup(p => p.ProcessChineseTextAsync(
                     It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                    It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
-                .Callback<string, string, string, IDictionary<string, object>, CancellationToken>(
-                    (_, _, _, dict, _) => capturedSettings = dict)
+                    It.IsAny<IDictionary<string, object>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Callback<string, string, string, IDictionary<string, object>, int, int, CancellationToken>(
+                    (_, _, _, dict, _, _, _) => capturedSettings = dict)
                 .ReturnsAsync(CreateApiResponse());
 
             await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             Assert.NotNull(capturedSettings);
-            Assert.True(capturedSettings!.ContainsKey("Gemini"));
-            Assert.True(capturedSettings.ContainsKey("OpenAI"));
-            Assert.True(capturedSettings.ContainsKey("DeepSeek"));
-            Assert.IsType<GeminiSettings>(capturedSettings["Gemini"]);
-            Assert.IsType<OpenAiSettings>(capturedSettings["OpenAI"]);
-            Assert.IsType<DeepSeekSettings>(capturedSettings["DeepSeek"]);
+            Assert.Single(capturedSettings!);
+            Assert.True(capturedSettings.ContainsKey("Gemini"));
+            Assert.IsType<GeminiModelSettings>(capturedSettings["Gemini"]);
         }
 
         [Fact]
         public async Task ProcessAsync_InitializesIdsWithPrefixAndPadding()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
             options.IdPrefix = " S ";
             options.IdStart = 5;
@@ -239,13 +256,13 @@ namespace AIFileProcessor.Core.Tests.Processing
                 ProcessedSentenceRows = new List<ProcessedSentenceRow>
                 {
                     new() { Chinese = "?", Pinyin = "yi", English = "one", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
-                    new() { Chinese = "?", Pinyin = "�r", English = "two", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
+                    new() { Chinese = "?", Pinyin = "èr", English = "two", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
                 },
             };
 
             processor.Setup(p => p.ProcessChineseTextAsync(
                     It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                    It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+                    It.IsAny<IDictionary<string, object>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
 
             ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
@@ -257,17 +274,17 @@ namespace AIFileProcessor.Core.Tests.Processing
         [Fact]
         public async Task ProcessAsync_ComputesLengthForRows()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
             options.LengthPad = 3;
 
             var response = CreateApiResponse();
-            response.ProcessedSentenceRows[0].Chinese = "你好世界";
+            response.ProcessedSentenceRows[0].Chinese = "你好世界"; // 4 CJK characters
 
             processor.Setup(p => p.ProcessChineseTextAsync(
                     It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                    It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+                    It.IsAny<IDictionary<string, object>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
 
             ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
@@ -278,8 +295,8 @@ namespace AIFileProcessor.Core.Tests.Processing
         [Fact]
         public async Task ProcessAsync_RawResponseContainsTabDelimitedFields()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
             options.IdPrefix = "T";
             options.IdStart = 1;
@@ -291,7 +308,7 @@ namespace AIFileProcessor.Core.Tests.Processing
             Assert.Single(lines);
             string[] fields = lines[0].Split('\t');
             Assert.Equal("T001", fields[0]);
-            Assert.Equal("你好", fields[1]);
+            Assert.Equal("??", fields[1]);
             Assert.Equal("ni hao", fields[2]);
             Assert.Equal("hello", fields[5]);
         }
@@ -299,8 +316,8 @@ namespace AIFileProcessor.Core.Tests.Processing
         [Fact]
         public async Task ProcessAsync_RawResponseBreakdownContainsNoteAsSpaceWhenEmpty()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
 
             var response = CreateApiResponse();
@@ -308,7 +325,7 @@ namespace AIFileProcessor.Core.Tests.Processing
 
             processor.Setup(p => p.ProcessChineseTextAsync(
                     It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                    It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+                    It.IsAny<IDictionary<string, object>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
 
             ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
@@ -324,8 +341,8 @@ namespace AIFileProcessor.Core.Tests.Processing
         [Fact]
         public async Task ProcessAsync_RawResponseBreakdownContainsNoteWhenNonEmpty()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
 
             var response = CreateApiResponse();
@@ -333,7 +350,7 @@ namespace AIFileProcessor.Core.Tests.Processing
 
             processor.Setup(p => p.ProcessChineseTextAsync(
                     It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                    It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+                    It.IsAny<IDictionary<string, object>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
 
             ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
@@ -349,8 +366,8 @@ namespace AIFileProcessor.Core.Tests.Processing
         [Fact]
         public async Task ProcessAsync_RawResponseContainsAudioReorderingData()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
 
             ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
@@ -358,14 +375,14 @@ namespace AIFileProcessor.Core.Tests.Processing
             string[] lines = result.RawResponse.Split(Environment.NewLine);
             string[] fields = lines[0].Split('\t');
             string audioReorderStr = fields[4];
-            Assert.Contains("你好|0,1", audioReorderStr);
+            Assert.Contains("??|0,1", audioReorderStr);
         }
 
         [Fact]
         public async Task ProcessAsync_MultipleRows_AllHaveIdsInitialized()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
             options.IdPrefix = "R";
             options.IdStart = 10;
@@ -376,13 +393,13 @@ namespace AIFileProcessor.Core.Tests.Processing
                 ProcessedSentenceRows = new List<ProcessedSentenceRow>
                 {
                     new() { Chinese = "?", Pinyin = "yi", English = "one", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
-                    new() { Chinese = "?", Pinyin = "�r", English = "two", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
+                    new() { Chinese = "?", Pinyin = "èr", English = "two", Breakdown = new List<BreakdownEntry>(), AudioReordering = new List<AudioReorder>() },
                 },
             };
 
             processor.Setup(p => p.ProcessChineseTextAsync(
                     It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                    It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+                    It.IsAny<IDictionary<string, object>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
 
             ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
@@ -395,8 +412,8 @@ namespace AIFileProcessor.Core.Tests.Processing
         [Fact]
         public async Task ProcessAsync_EmptySentenceRows_ProducesEmptyRawResponse()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
 
             var response = new AiApiResponse
@@ -406,7 +423,7 @@ namespace AIFileProcessor.Core.Tests.Processing
 
             processor.Setup(p => p.ProcessChineseTextAsync(
                     It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                    It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+                    It.IsAny<IDictionary<string, object>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
 
             ProcessingResult result = await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
@@ -418,18 +435,18 @@ namespace AIFileProcessor.Core.Tests.Processing
         [Fact]
         public async Task ProcessAsync_PassesCancellationTokenToSettingsAndProcessor()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
             using var cts = new CancellationTokenSource();
             var token = cts.Token;
 
             await orchestrator.ProcessAsync(options, token);
 
-            settings.Verify(s => s.GetGeminiSettingsAsync("test-user", token), Times.Once);
+            settings.Verify(s => s.GetGeminiModelSettingsAsync("test-model", "test-user", token), Times.Once);
             processor.Verify(p => p.ProcessChineseTextAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                It.IsAny<IDictionary<string, object>>(), token), Times.Once);
+                It.IsAny<IDictionary<string, object>>(), It.IsAny<int>(), It.IsAny<int>(), token), Times.Once);
         }
 
         // ---- MaxTokens clamping tests ----
@@ -437,49 +454,47 @@ namespace AIFileProcessor.Core.Tests.Processing
         [Fact]
         public async Task ProcessAsync_MaxTokensExceedsHardMax_IsClampedForAllProviders()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
             options.ModelMaxTokens["test-model"] = 524288; // exceeds 262144 hard max
 
             IDictionary<string, object>? captured = null;
             processor.Setup(p => p.ProcessChineseTextAsync(
                     It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                    It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
-                .Callback<string, string, string, IDictionary<string, object>, CancellationToken>(
-                    (_, _, _, dict, _) => captured = dict)
+                    It.IsAny<IDictionary<string, object>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Callback<string, string, string, IDictionary<string, object>, int, int, CancellationToken>(
+                    (_, _, _, dict, _, _, _) => captured = dict)
                 .ReturnsAsync(CreateApiResponse());
 
             await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             Assert.NotNull(captured);
-            Assert.Equal(262144, ((GeminiSettings)captured!["Gemini"]).MaxTokens);
-            Assert.Equal(262144, ((OpenAiSettings)captured["OpenAI"]).MaxTokens);
-            Assert.Equal(262144, ((DeepSeekSettings)captured["DeepSeek"]).MaxTokens);
+            Assert.Single(captured!);
+            Assert.Equal(262144, ((GeminiModelSettings)captured!["Gemini"]).MaxTokens);
         }
 
         [Fact]
         public async Task ProcessAsync_MaxTokensWithinHardMax_IsPassedThroughUnchanged()
         {
-            var (settings, userCtx, processor, factory) = CreateMocks();
-            var orchestrator = CreateOrchestrator(settings, userCtx, factory);
+            var (settings, userCtx, processor, factory, aiService) = CreateMocks();
+            var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
             var options = CreateValidOptions();
             options.ModelMaxTokens["test-model"] = 4096;
 
             IDictionary<string, object>? captured = null;
             processor.Setup(p => p.ProcessChineseTextAsync(
                     It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                    It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
-                .Callback<string, string, string, IDictionary<string, object>, CancellationToken>(
-                    (_, _, _, dict, _) => captured = dict)
+                    It.IsAny<IDictionary<string, object>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Callback<string, string, string, IDictionary<string, object>, int, int, CancellationToken>(
+                    (_, _, _, dict, _, _, _) => captured = dict)
                 .ReturnsAsync(CreateApiResponse());
 
             await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken);
 
             Assert.NotNull(captured);
-            Assert.Equal(4096, ((GeminiSettings)captured!["Gemini"]).MaxTokens);
-            Assert.Equal(4096, ((OpenAiSettings)captured["OpenAI"]).MaxTokens);
-            Assert.Equal(4096, ((DeepSeekSettings)captured["DeepSeek"]).MaxTokens);
+            Assert.Single(captured!);
+            Assert.Equal(4096, ((GeminiModelSettings)captured!["Gemini"]).MaxTokens);
         }
     }
 }

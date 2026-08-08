@@ -1,4 +1,4 @@
-﻿namespace AIFileProcessor.Core.Tests.Services;
+namespace AIFileProcessor.Core.Tests.Services;
 
 using System.Collections.Generic;
 using AIFileProcessor.Configuration;
@@ -7,7 +7,7 @@ using Xunit;
 
 public class SettingsExtensionsTests
 {
-    // ─── GeminiSettings.CopyOnto ──────────────────────────────────────
+    // --- GeminiSettings.CopyOnto --------------------------------------
 
     [Fact]
     public void CopyOnto_Gemini_NullSource_ReturnsWithoutThrowing()
@@ -120,7 +120,7 @@ public class SettingsExtensionsTests
         Assert.Equal("machine-level-key", target.ApiKey);
         Assert.Equal("https://target.example.com", target.Endpoint);
         Assert.Equal("target-model", target.ModelName);
-        Assert.Equal(30, target.TimeoutSeconds);
+        Assert.Equal(300, target.TimeoutSeconds);
         Assert.Equal("target-project", target.ProjectId);
         Assert.Equal("target-location", target.Location);
         Assert.Equal(2048, target.MaxTokens);
@@ -139,7 +139,7 @@ public class SettingsExtensionsTests
         Assert.Equal("ManagedIdentity", target.CredentialType);
     }
 
-    // ─── OpenAiSettings.CopyOnto ──────────────────────────────────────
+    // --- OpenAiSettings.CopyOnto --------------------------------------
 
     [Fact]
     public void CopyOnto_OpenAi_NullSource_ReturnsWithoutThrowing()
@@ -200,18 +200,18 @@ public class SettingsExtensionsTests
 
         source.CopyOnto(target);
 
-        // TimeoutSeconds=30 is non-default, so it overwrites. Others stay.
+        // TimeoutSeconds=45 is non-default, so it overwrites. Others stay.
         // ApiKey is never overlaid.
         Assert.Equal("machine-level-key", target.ApiKey);
         Assert.Equal("https://target.example.com", target.Endpoint);
         Assert.Equal("target-model", target.ModelName);
-        Assert.Equal(30, target.TimeoutSeconds);
+        Assert.Equal(300, target.TimeoutSeconds);
         Assert.Equal("target-org", target.OrganizationId);
         Assert.Equal(2048, target.MaxTokens);
         Assert.Equal(0.5, target.Temperature);
     }
 
-    // ─── DeepSeekSettings.CopyOnto ────
+    // --- DeepSeekSettings.CopyOnto ----
 
     [Fact]
     public void CopyOnto_DeepSeek_NullSource_ReturnsWithoutThrowing()
@@ -272,11 +272,11 @@ public class SettingsExtensionsTests
 
         source.CopyOnto(target);
 
-        // TimeoutSeconds=30 is non-default, so it overwrites. Others stay.
+        // TimeoutSeconds=45 is non-default, so it overwrites. Others stay.
         // ApiKey is never overlaid.
         Assert.Equal("machine-level-key", target.ApiKey);
         Assert.Equal("https://target.example.com", target.Endpoint);
-        Assert.Equal(30, target.TimeoutSeconds);
+        Assert.Equal(300, target.TimeoutSeconds);
         Assert.Equal(2048, target.MaxTokens);
         Assert.Equal(0.5, target.Temperature);
         Assert.Equal("target-model", target.ModelName);

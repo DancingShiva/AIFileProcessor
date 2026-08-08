@@ -265,5 +265,431 @@ namespace AIFileProcessor.Services
 
             File.WriteAllText(filePath, rootNode.ToJsonString(WriteOptions));
         }
+
+        /// <inheritdoc/>
+        public Task<GeminiModelSettings> GetGeminiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            ArgumentNullException.ThrowIfNull(modelId);
+
+            var modelSettings = new GeminiModelSettings();
+            var processing = GetProcessingSettingsAsync(ct).Result;
+
+            // Start with provider-level defaults
+            _configuration.GetSection("GeminiSettings").Bind(modelSettings);
+
+            // Overlay per-model defaults from appsettings.json
+            string modelSection = $"GeminiModels:{modelId}";
+            if (_configuration.GetSection(modelSection).Exists())
+            {
+                _configuration.GetSection(modelSection).Bind(modelSettings);
+            }
+
+            // Clamp to global caps
+            var caps = processing;
+            if (modelSettings.ChunkSize.HasValue)
+            {
+                modelSettings.ChunkSize = Math.Max(1, Math.Min(modelSettings.ChunkSize.Value, caps.ChunkSizeCap));
+            }
+            modelSettings.ChunkSize ??= caps.ChunkSizeDefault;
+
+            if (modelSettings.MaxConcurrentChunks.HasValue)
+            {
+                modelSettings.MaxConcurrentChunks = Math.Max(1, Math.Min(modelSettings.MaxConcurrentChunks.Value, caps.MaxConcurrentChunksCap));
+            }
+            modelSettings.MaxConcurrentChunks ??= caps.MaxConcurrentChunksDefault;
+
+            // Migrate legacy "GeminiSettings" user override into "GeminiModels:{modelId}" if needed.
+            MigrateLegacyProviderToModelSettings(
+                userId,
+                "GeminiSettings",
+                "GeminiModels",
+                modelId,
+                () =>
+                {
+                    var migrated = new GeminiSettings();
+                    _configuration.GetSection("GeminiSettings").Bind(migrated);
+
+                    JsonObject? legacyRoot = ReadUserOverrides(userId);
+                    if (legacyRoot != null && legacyRoot["GeminiSettings"] is JsonObject legacyOverride)
+                    {
+                        string legacyJson = legacyOverride.ToJsonString();
+                        var legacySettings = JsonSerializer.Deserialize<GeminiSettings>(legacyJson, ReadOptions);
+                        if (legacySettings != null)
+                        {
+                            legacySettings.CopyOnto(migrated);
+                        }
+                    }
+
+                    return new GeminiModelSettings
+                    {
+                        Endpoint = migrated.Endpoint,
+                        ModelName = migrated.ModelName ?? modelId,
+                        TimeoutSeconds = migrated.TimeoutSeconds,
+                        ProjectId = migrated.ProjectId,
+                        Location = migrated.Location,
+                        MaxTokens = migrated.MaxTokens,
+                        Temperature = migrated.Temperature,
+                        TopP = migrated.TopP,
+                        StreamingEnabled = migrated.StreamingEnabled,
+                        MaxRetries = migrated.MaxRetries,
+                        BaseDelay = migrated.BaseDelay,
+                        MaxDelay = migrated.MaxDelay,
+                        RequestHeaders = migrated.RequestHeaders,
+                        AdditionalParameters = migrated.AdditionalParameters,
+                        EnableLogging = migrated.EnableLogging,
+                        RateLimitPerMinute = migrated.RateLimitPerMinute,
+                        ProxyUrl = migrated.ProxyUrl,
+                        UseManagedIdentity = migrated.UseManagedIdentity,
+                        CredentialType = migrated.CredentialType,
+                        ReasoningLevel = migrated.ReasoningLevel,
+                        ChunkSize = Math.Max(1, Math.Min(caps.ChunkSizeDefault, caps.ChunkSizeCap)),
+                        MaxConcurrentChunks = Math.Max(1, Math.Min(caps.MaxConcurrentChunksDefault, caps.MaxConcurrentChunksCap)),
+                    };
+                });
+
+            // Apply per-user overrides (same clamping)
+            JsonObject? userOverrides = ReadUserOverrides(userId);
+            if (userOverrides != null && userOverrides["GeminiModels"] is JsonObject geminiModels
+                && geminiModels[modelId] is JsonObject userModelOverride)
+            {
+                string json = userModelOverride.ToJsonString();
+                var overrideSettings = JsonSerializer.Deserialize<GeminiModelSettings>(json, ReadOptions);
+                if (overrideSettings != null)
+                {
+                    overrideSettings.CopyOnto(modelSettings);
+                    overrideSettings.ChunkSize = modelSettings.ChunkSize;
+                    overrideSettings.MaxConcurrentChunks = modelSettings.MaxConcurrentChunks;
+                }
+            }
+
+            return Task.FromResult(modelSettings);
+        }
+
+        /// <inheritdoc/>
+        public Task<OpenAiModelSettings> GetOpenAiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            ArgumentNullException.ThrowIfNull(modelId);
+
+            var modelSettings = new OpenAiModelSettings();
+            var processing = GetProcessingSettingsAsync(ct).Result;
+
+            // Start with provider-level defaults
+            _configuration.GetSection("OpenAiSettings").Bind(modelSettings);
+
+            // Overlay per-model defaults from appsettings.json
+            string modelSection = $"OpenAiModels:{modelId}";
+            if (_configuration.GetSection(modelSection).Exists())
+            {
+                _configuration.GetSection(modelSection).Bind(modelSettings);
+            }
+
+            // Clamp to global caps
+            var caps = processing;
+            if (modelSettings.ChunkSize.HasValue)
+            {
+                modelSettings.ChunkSize = Math.Max(1, Math.Min(modelSettings.ChunkSize.Value, caps.ChunkSizeCap));
+            }
+            modelSettings.ChunkSize ??= caps.ChunkSizeDefault;
+
+            if (modelSettings.MaxConcurrentChunks.HasValue)
+            {
+                modelSettings.MaxConcurrentChunks = Math.Max(1, Math.Min(modelSettings.MaxConcurrentChunks.Value, caps.MaxConcurrentChunksCap));
+            }
+            modelSettings.MaxConcurrentChunks ??= caps.MaxConcurrentChunksDefault;
+
+            // Migrate legacy "OpenAiSettings" user override into "OpenAiModels:{modelId}" if needed.
+            MigrateLegacyProviderToModelSettings(
+                userId,
+                "OpenAiSettings",
+                "OpenAiModels",
+                modelId,
+                () =>
+                {
+                    var migrated = new OpenAiSettings();
+                    _configuration.GetSection("OpenAiSettings").Bind(migrated);
+
+                    JsonObject? legacyRoot = ReadUserOverrides(userId);
+                    if (legacyRoot != null && legacyRoot["OpenAiSettings"] is JsonObject legacyOverride)
+                    {
+                        string legacyJson = legacyOverride.ToJsonString();
+                        var legacySettings = JsonSerializer.Deserialize<OpenAiSettings>(legacyJson, ReadOptions);
+                        if (legacySettings != null)
+                        {
+                            legacySettings.CopyOnto(migrated);
+                        }
+                    }
+
+                    return new OpenAiModelSettings
+                    {
+                        Endpoint = migrated.Endpoint,
+                        ModelName = migrated.ModelName ?? modelId,
+                        TimeoutSeconds = migrated.TimeoutSeconds,
+                        OrganizationId = migrated.OrganizationId,
+                        MaxTokens = migrated.MaxTokens,
+                        MaxRetries = migrated.MaxRetries,
+                        BaseDelay = migrated.BaseDelay,
+                        MaxDelay = migrated.MaxDelay,
+                        Temperature = migrated.Temperature,
+                        ReasoningLevel = migrated.ReasoningLevel,
+                        ChunkSize = Math.Max(1, Math.Min(caps.ChunkSizeDefault, caps.ChunkSizeCap)),
+                        MaxConcurrentChunks = Math.Max(1, Math.Min(caps.MaxConcurrentChunksDefault, caps.MaxConcurrentChunksCap)),
+                    };
+                });
+
+            // Apply per-user overrides (same clamping)
+            JsonObject? userOverrides = ReadUserOverrides(userId);
+            if (userOverrides != null && userOverrides["OpenAiModels"] is JsonObject openAiModels
+                && openAiModels[modelId] is JsonObject userModelOverride)
+            {
+                string json = userModelOverride.ToJsonString();
+                var overrideSettings = JsonSerializer.Deserialize<OpenAiModelSettings>(json, ReadOptions);
+                if (overrideSettings != null)
+                {
+                    overrideSettings.CopyOnto(modelSettings);
+                    overrideSettings.ChunkSize = modelSettings.ChunkSize;
+                    overrideSettings.MaxConcurrentChunks = modelSettings.MaxConcurrentChunks;
+                }
+            }
+
+            return Task.FromResult(modelSettings);
+        }
+
+        /// <inheritdoc/>
+        public Task<DeepSeekModelSettings> GetDeepSeekModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            ArgumentNullException.ThrowIfNull(modelId);
+
+            var modelSettings = new DeepSeekModelSettings();
+            var processing = GetProcessingSettingsAsync(ct).Result;
+
+            // Start with provider-level defaults
+            _configuration.GetSection("DeepSeekSettings").Bind(modelSettings);
+
+            // Overlay per-model defaults from appsettings.json
+            string modelSection = $"DeepSeekModels:{modelId}";
+            if (_configuration.GetSection(modelSection).Exists())
+            {
+                _configuration.GetSection(modelSection).Bind(modelSettings);
+            }
+
+            // Clamp to global caps
+            var caps = processing;
+            if (modelSettings.ChunkSize.HasValue)
+            {
+                modelSettings.ChunkSize = Math.Max(1, Math.Min(modelSettings.ChunkSize.Value, caps.ChunkSizeCap));
+            }
+            modelSettings.ChunkSize ??= caps.ChunkSizeDefault;
+
+            if (modelSettings.MaxConcurrentChunks.HasValue)
+            {
+                modelSettings.MaxConcurrentChunks = Math.Max(1, Math.Min(modelSettings.MaxConcurrentChunks.Value, caps.MaxConcurrentChunksCap));
+            }
+            modelSettings.MaxConcurrentChunks ??= caps.MaxConcurrentChunksDefault;
+
+            // Migrate legacy "DeepSeekSettings" user override into "DeepSeekModels:{modelId}" if needed.
+            MigrateLegacyProviderToModelSettings(
+                userId,
+                "DeepSeekSettings",
+                "DeepSeekModels",
+                modelId,
+                () =>
+                {
+                    var migrated = new DeepSeekSettings();
+                    _configuration.GetSection("DeepSeekSettings").Bind(migrated);
+
+                    JsonObject? legacyRoot = ReadUserOverrides(userId);
+                    if (legacyRoot != null && legacyRoot["DeepSeekSettings"] is JsonObject legacyOverride)
+                    {
+                        string legacyJson = legacyOverride.ToJsonString();
+                        var legacySettings = JsonSerializer.Deserialize<DeepSeekSettings>(legacyJson, ReadOptions);
+                        if (legacySettings != null)
+                        {
+                            legacySettings.CopyOnto(migrated);
+                        }
+                    }
+
+                    return new DeepSeekModelSettings
+                    {
+                        Endpoint = migrated.Endpoint,
+                        ModelName = migrated.ModelName ?? modelId,
+                        TimeoutSeconds = migrated.TimeoutSeconds,
+                        MaxTokens = migrated.MaxTokens,
+                        MaxRetries = migrated.MaxRetries,
+                        BaseDelay = migrated.BaseDelay,
+                        MaxDelay = migrated.MaxDelay,
+                        Temperature = migrated.Temperature,
+                        EnableReasoning = migrated.EnableReasoning,
+                        ReasoningLevel = migrated.ReasoningLevel,
+                        ChunkSize = Math.Max(1, Math.Min(caps.ChunkSizeDefault, caps.ChunkSizeCap)),
+                        MaxConcurrentChunks = Math.Max(1, Math.Min(caps.MaxConcurrentChunksDefault, caps.MaxConcurrentChunksCap)),
+                    };
+                });
+
+            // Apply per-user overrides (same clamping)
+            JsonObject? userOverrides = ReadUserOverrides(userId);
+            if (userOverrides != null && userOverrides["DeepSeekModels"] is JsonObject deepSeekModels
+                && deepSeekModels[modelId] is JsonObject userModelOverride)
+            {
+                string json = userModelOverride.ToJsonString();
+                var overrideSettings = JsonSerializer.Deserialize<DeepSeekModelSettings>(json, ReadOptions);
+                if (overrideSettings != null)
+                {
+                    overrideSettings.CopyOnto(modelSettings);
+                    overrideSettings.ChunkSize = modelSettings.ChunkSize;
+                    overrideSettings.MaxConcurrentChunks = modelSettings.MaxConcurrentChunks;
+                }
+            }
+
+            return Task.FromResult(modelSettings);
+        }
+
+        /// <inheritdoc/>
+        public Task SaveGeminiModelSettingsAsync(string modelId, string userId, GeminiModelSettings settings, CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            ArgumentNullException.ThrowIfNull(modelId);
+            ArgumentNullException.ThrowIfNull(settings);
+
+            SaveModelSection(userId, "GeminiModels", modelId, settings);
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public Task SaveOpenAiModelSettingsAsync(string modelId, string userId, OpenAiModelSettings settings, CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            ArgumentNullException.ThrowIfNull(modelId);
+            ArgumentNullException.ThrowIfNull(settings);
+
+            SaveModelSection(userId, "OpenAiModels", modelId, settings);
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public Task SaveDeepSeekModelSettingsAsync(string modelId, string userId, DeepSeekModelSettings settings, CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            ArgumentNullException.ThrowIfNull(modelId);
+            ArgumentNullException.ThrowIfNull(settings);
+
+            SaveModelSection(userId, "DeepSeekModels", modelId, settings);
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public Task<ProcessingSettings> GetProcessingSettingsAsync(CancellationToken ct = default)
+        {
+            var settings = new ProcessingSettings();
+            _configuration.GetSection("Processing").Bind(settings);
+            return Task.FromResult(settings);
+        }
+
+        /// <summary>
+        /// Migrates a legacy provider-level settings section in the per-user file into
+        /// the new per-model section for the requested model, if the user has an old
+        /// <paramref name="legacySectionName"/> entry and no existing per-model override
+        /// for <paramref name="modelId"/>. This preserves prior user customizations by
+        /// seeding the per-model override from the user's previous provider-level settings.
+        /// Migration is idempotent: nothing happens when the model already has an override
+        /// or when the legacy section is absent.
+        /// </summary>
+        /// <typeparam name="TModel">The concrete model settings type (inherits provider type).</typeparam>
+        /// <param name="userId">The user identifier.</param>
+        /// <param name="legacySectionName">The legacy provider section name (e.g., "GeminiSettings").</param>
+        /// <param name="modelsSectionName">The per-model section name (e.g., "GeminiModels").</param>
+        /// <param name="modelId">The model identifier to seed.</param>
+        /// <param name="seed">A factory that produces the model settings from the legacy section data and caps.</param>
+        private void MigrateLegacyProviderToModelSettings<TModel>(
+            string userId,
+            string legacySectionName,
+            string modelsSectionName,
+            string modelId,
+            Func<TModel> seed)
+            where TModel : class
+        {
+            JsonObject? root = ReadUserOverrides(userId);
+            if (root == null)
+            {
+                return; // no user file => nothing to migrate
+            }
+
+            // Skip if this model already has a per-model override.
+            if (root[modelsSectionName] is JsonObject existingModels
+                && existingModels.ContainsKey(modelId))
+            {
+                return;
+            }
+
+            // Skip if there's no legacy provider section to migrate.
+            if (root[legacySectionName] is not JsonObject legacySection)
+            {
+                return;
+            }
+
+            // Seed the model override from the legacy data (preserving user's prior
+            // provider-level preferences) and write it under modelsSectionName[modelId].
+            root[modelsSectionName] ??= new JsonObject();
+            if (root[modelsSectionName] is JsonObject modelsSection)
+            {
+                TModel modelSettings;
+                try
+                {
+                    modelSettings = seed();
+                }
+                catch
+                {
+                    return; // malformed legacy data: skip migration rather than corrupt the file
+                }
+
+                string sectionJson = JsonSerializer.Serialize(modelSettings, WriteOptions);
+                var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
+                modelsSection[modelId] = sectionNode;
+
+                string filePath = GetUserSettingsFilePath(userId);
+                string? directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                File.WriteAllText(filePath, root.ToJsonString(WriteOptions));
+            }
+        }
+
+        private void SaveModelSection<T>(string userId, string modelsSectionName, string modelId, T settings)
+            where T : class
+        {
+            string filePath = GetUserSettingsFilePath(userId);
+            string? directory = Path.GetDirectoryName(filePath);
+
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            JsonObject? rootNode = null;
+
+            if (File.Exists(filePath))
+            {
+                string existingContent = File.ReadAllText(filePath);
+                rootNode = JsonNode.Parse(existingContent) as JsonObject;
+            }
+
+            rootNode ??= new JsonObject();
+
+            // Ensure the models section exists
+            rootNode[modelsSectionName] ??= new JsonObject();
+            if (rootNode[modelsSectionName] is JsonObject modelsSection)
+            {
+                string sectionJson = JsonSerializer.Serialize(settings, WriteOptions);
+                var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
+                modelsSection[modelId] = sectionNode;
+            }
+
+            File.WriteAllText(filePath, rootNode.ToJsonString(WriteOptions));
+        }
     }
 }

@@ -10,6 +10,7 @@ namespace AIFileProcessor.Interfaces
     using System.Threading.Tasks;
     using AIFileProcessor.Configuration;
     using AIFileProcessor.Models;
+    using AIFileProcessor.Response;
 
     /// <summary>
     /// Defines the contract for an AI service that processes text generation prompts.
@@ -44,8 +45,8 @@ namespace AIFileProcessor.Interfaces
         /// <param name="prompt">The user prompt to process.</param>
         /// <param name="data">The string data for the AI model.</param>
         /// <param name="ct">A token to cancel the operation.</param>
-        /// <returns>A task representing the asynchronous operation, containing the generated text response.</returns>
-        Task<string> ProcessTextAsync(string modelId, string prompt, string data, CancellationToken ct = default);
+        /// <returns>A task representing the asynchronous operation, containing the generated text response and its call telemetry.</returns>
+        Task<AiCallResult> ProcessTextAsync(string modelId, string prompt, string data, CancellationToken ct = default);
 
         /// <summary>
         /// Generates text content using the provided per-call settings, allowing
@@ -56,7 +57,7 @@ namespace AIFileProcessor.Interfaces
         /// <param name="data">The string data for the AI model.</param>
         /// <param name="settings">The provider-specific settings instance (e.g., <see cref="GeminiSettings"/>, <see cref="OpenAiSettings"/>, <see cref="DeepSeekSettings"/>).</param>
         /// <param name="ct">A token to cancel the operation.</param>
-        /// <returns>A task representing the asynchronous operation, containing the generated text response.</returns>
-        Task<string> ProcessTextAsync(string modelId, string prompt, string data, object settings, CancellationToken ct = default);
+        /// <returns>A task representing the asynchronous operation, containing the generated text response and its call telemetry.</returns>
+        Task<AiCallResult> ProcessTextAsync(string modelId, string prompt, string data, object settings, CancellationToken ct = default);
     }
 }

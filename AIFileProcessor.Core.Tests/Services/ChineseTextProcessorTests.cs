@@ -1,4 +1,4 @@
-﻿namespace AIFileProcessor.Core.Tests.Services
+namespace AIFileProcessor.Core.Tests.Services
 {
     using System;
     using System.Collections.Generic;
@@ -25,23 +25,23 @@
             _aiServiceMock.Setup(s => s.SupportsModel(ModelId)).Returns(true);
             _aiServiceMock
                 .Setup(s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(ValidJson);
+                .ReturnsAsync(new AIFileProcessor.Response.AiCallResult { Text = ValidJson });
             _aiServiceMock
                 .Setup(s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<object>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(ValidJson);
+                .ReturnsAsync(new AIFileProcessor.Response.AiCallResult { Text = ValidJson });
         }
 
         private ChineseTextProcessor CreateProcessor() =>
             new(_loggerMock.Object, new[] { _aiServiceMock.Object });
 
-        // ─── ProcessChineseTextAsync (4-param overload, providerSettings = null) ─────
+        // --- ProcessChineseTextAsync (4-param overload, providerSettings = null) -----
 
         [Fact]
         public async Task ProcessChineseTextAsync_WithoutSettings_NullData_ReturnsEmptyResponse()
         {
             var processor = CreateProcessor();
 
-            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, null!, CancellationToken.None);
+            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, null!, 40, 3, CancellationToken.None);
 
             Assert.NotNull(result);
             Assert.Equal(string.Empty, result.Scratchpad);
@@ -52,7 +52,7 @@
         {
             var processor = CreateProcessor();
 
-            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, "   ", CancellationToken.None);
+            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, "   ", 40, 3, CancellationToken.None);
 
             Assert.NotNull(result);
             Assert.Equal(string.Empty, result.Scratchpad);
@@ -62,9 +62,9 @@
         public async Task ProcessChineseTextAsync_WithoutSettings_ValidData_CallsDefaultOverload()
         {
             var processor = CreateProcessor();
-            var data = "你好世界";
+            var data = "????";
 
-            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, TestContext.Current.CancellationToken);
+            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, 40, 3, TestContext.Current.CancellationToken);
 
             Assert.NotNull(result);
             _aiServiceMock.Verify(
@@ -79,9 +79,9 @@
         public async Task ProcessChineseTextAsync_WithoutSettings_WithExplicitCancellationToken_Works()
         {
             var processor = CreateProcessor();
-            var data = "你好";
+            var data = "??";
 
-            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, TestContext.Current.CancellationToken);
+            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, 40, 3, TestContext.Current.CancellationToken);
 
             Assert.NotNull(result);
         }
@@ -92,10 +92,10 @@
             var processor = CreateProcessor();
 
             await Assert.ThrowsAsync<NotSupportedException>(
-                () => processor.ProcessChineseTextAsync("unknown-model", Prompt, "data", CancellationToken.None));
+                () => processor.ProcessChineseTextAsync("unknown-model", Prompt, "data", 40, 3, CancellationToken.None));
         }
 
-        // ─── ProcessChineseTextAsync (5-param overload, with providerSettings) ──────
+        // --- ProcessChineseTextAsync (5-param overload, with providerSettings) ------
 
         [Fact]
         public async Task ProcessChineseTextAsync_WithSettings_NullProviderSettings_ThrowsArgumentNullException()
@@ -103,14 +103,14 @@
             var processor = CreateProcessor();
 
             await Assert.ThrowsAsync<ArgumentNullException>(
-                () => processor.ProcessChineseTextAsync(ModelId, Prompt, "data", null!, CancellationToken.None));
+                () => processor.ProcessChineseTextAsync(ModelId, Prompt, "data", null!, 40, 3, CancellationToken.None));
         }
 
         [Fact]
         public async Task ProcessChineseTextAsync_WithSettings_ValidProviderSettings_CallsPerCallOverload()
         {
             var processor = CreateProcessor();
-            var data = "你好世界";
+            var data = "????";
 
             // GetProviderKey uses service.GetType().Name; for a Mock<IAiService> the proxy
             // type name is used as the fallback key, so we use that name as the dictionary key.
@@ -121,9 +121,9 @@
             };
             _aiServiceMock
                 .Setup(s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<object>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(ValidJson);
+                .ReturnsAsync(new AIFileProcessor.Response.AiCallResult { Text = ValidJson });
 
-            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, providerSettings, CancellationToken.None);
+            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, providerSettings, 40, 3, CancellationToken.None);
 
             Assert.NotNull(result);
             _aiServiceMock.Verify(
@@ -137,7 +137,7 @@
             var processor = CreateProcessor();
             var providerSettings = new Dictionary<string, object>();
 
-            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, "  ", providerSettings, CancellationToken.None);
+            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, "  ", providerSettings, 40, 3, CancellationToken.None);
 
             Assert.NotNull(result);
             Assert.Equal(string.Empty, result.Scratchpad);
@@ -148,9 +148,9 @@
         {
             var processor = CreateProcessor();
             var providerSettings = new Dictionary<string, object>();
-            var data = "你好";
+            var data = "??";
 
-            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, providerSettings, TestContext.Current.CancellationToken);
+            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, providerSettings, 40, 3, TestContext.Current.CancellationToken);
 
             Assert.NotNull(result);
         }
@@ -162,7 +162,7 @@
             var providerSettings = new Dictionary<string, object>();
 
             await Assert.ThrowsAsync<NotSupportedException>(
-                () => processor.ProcessChineseTextAsync("unknown-model", Prompt, "data", providerSettings, CancellationToken.None));
+                () => processor.ProcessChineseTextAsync("unknown-model", Prompt, "data", providerSettings, 40, 3, CancellationToken.None));
         }
 
         [Fact]
@@ -174,9 +174,9 @@
             {
                 ["UnknownProvider"] = new { ApiKey = "test" },
             };
-            var data = "你好";
+            var data = "??";
 
-            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, providerSettings, CancellationToken.None);
+            var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, providerSettings, 40, 3, CancellationToken.None);
 
             Assert.NotNull(result);
             _aiServiceMock.Verify(

@@ -163,12 +163,12 @@ public class ResponseVerifierTests
         var response = CreateResponse(CreateRow(
             "我 。",
             Entry("我", "pron"),
-            Entry("。", "punc", "N/A", string.Empty)));
+            Entry("。", "punc", "N/A", "x")));
 
         var violations = ResponseVerifier.Verify(response);
 
         Assert.Single(violations);
-        Assert.Contains(violations, v => v.Contains("marked punc but its Note element is not exactly one ASCII space"));
+        Assert.Contains(violations, v => v.Contains("marked punc but its Note element is not empty or a single ASCII space"));
     }
 
     [Fact]
@@ -178,6 +178,19 @@ public class ResponseVerifierTests
             "我 。",
             Entry("我", "pron"),
             Entry("。", "punc", "N/A", " ")));
+
+        var violations = ResponseVerifier.Verify(response);
+
+        Assert.Empty(violations);
+    }
+
+    [Fact]
+    public void Verify_PuncWithEmptyNote_NoViolation()
+    {
+        var response = CreateResponse(CreateRow(
+            "我 。",
+            Entry("我", "pron"),
+            Entry("。", "punc", "N/A", string.Empty)));
 
         var violations = ResponseVerifier.Verify(response);
 

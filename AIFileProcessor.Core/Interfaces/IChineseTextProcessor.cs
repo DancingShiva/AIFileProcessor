@@ -22,12 +22,16 @@ namespace AIFileProcessor.Interfaces
         /// <param name="modelId">The ID of the AI model to use for processing.</param>
         /// <param name="prompt">The prompt to execute for each chunk of text.</param>
         /// <param name="data">The block of Chinese text to process.</param>
+        /// <param name="chunkSize">The number of lines per API call chunk.</param>
+        /// <param name="maxConcurrentChunks">The maximum number of concurrent API calls (semaphore size).</param>
         /// <param name="ct">Token to cancel the operation.</param>
         /// <returns>A task that represents the asynchronous operation. The task result contains the AI API response.</returns>
         Task<AiApiResponse> ProcessChineseTextAsync(
             string modelId,
             string prompt,
             string data,
+            int chunkSize,
+            int maxConcurrentChunks,
             CancellationToken ct = default);
 
         /// <summary>
@@ -39,6 +43,8 @@ namespace AIFileProcessor.Interfaces
         /// <param name="prompt">The prompt to execute for each chunk of text.</param>
         /// <param name="data">The block of Chinese text to process.</param>
         /// <param name="providerSettings">A dictionary mapping provider names (e.g., "Gemini", "OpenAI", "DeepSeek") to their resolved settings objects.</param>
+        /// <param name="chunkSize">The number of lines per API call chunk.</param>
+        /// <param name="maxConcurrentChunks">The maximum number of concurrent API calls (semaphore size).</param>
         /// <param name="ct">Token to cancel the operation.</param>
         /// <returns>A task that represents the asynchronous operation. The task result contains the AI API response.</returns>
         Task<AiApiResponse> ProcessChineseTextAsync(
@@ -46,6 +52,8 @@ namespace AIFileProcessor.Interfaces
             string prompt,
             string data,
             IDictionary<string, object> providerSettings,
+            int chunkSize,
+            int maxConcurrentChunks,
             CancellationToken ct = default);
     }
 }

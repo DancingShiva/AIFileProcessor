@@ -101,6 +101,107 @@ namespace AIFileProcessor.Web.Configuration
             return Task.CompletedTask;
         }
 
+        /// <inheritdoc/>
+        public Task<GeminiModelSettings> GetGeminiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        {
+            var modelSettings = new GeminiModelSettings();
+            var caps = GetProcessingSettingsAsync(ct).Result;
+
+            _configuration.GetSection("GeminiSettings").Bind(modelSettings);
+            string modelSection = $"GeminiModels:{modelId}";
+            if (_configuration.GetSection(modelSection).Exists())
+            {
+                _configuration.GetSection(modelSection).Bind(modelSettings);
+            }
+
+            modelSettings.ChunkSize = Math.Max(1, Math.Min(modelSettings.ChunkSize ?? caps.ChunkSizeDefault, caps.ChunkSizeCap));
+            modelSettings.MaxConcurrentChunks = Math.Max(1, Math.Min(modelSettings.MaxConcurrentChunks ?? caps.MaxConcurrentChunksDefault, caps.MaxConcurrentChunksCap));
+
+            HttpContext? ctx = _httpContextAccessor.HttpContext;
+            if (ctx != null && ctx.Items.TryGetValue("GeminiPreferences", out var prefsObj) && prefsObj is GeminiSettings prefs)
+            {
+                prefs.CopyOnto(modelSettings);
+            }
+
+            return Task.FromResult(modelSettings);
+        }
+
+        /// <inheritdoc/>
+        public Task<OpenAiModelSettings> GetOpenAiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        {
+            var modelSettings = new OpenAiModelSettings();
+            var caps = GetProcessingSettingsAsync(ct).Result;
+
+            _configuration.GetSection("OpenAiSettings").Bind(modelSettings);
+            string modelSection = $"OpenAiModels:{modelId}";
+            if (_configuration.GetSection(modelSection).Exists())
+            {
+                _configuration.GetSection(modelSection).Bind(modelSettings);
+            }
+
+            modelSettings.ChunkSize = Math.Max(1, Math.Min(modelSettings.ChunkSize ?? caps.ChunkSizeDefault, caps.ChunkSizeCap));
+            modelSettings.MaxConcurrentChunks = Math.Max(1, Math.Min(modelSettings.MaxConcurrentChunks ?? caps.MaxConcurrentChunksDefault, caps.MaxConcurrentChunksCap));
+
+            HttpContext? ctx = _httpContextAccessor.HttpContext;
+            if (ctx != null && ctx.Items.TryGetValue("OpenAiPreferences", out var prefsObj) && prefsObj is OpenAiSettings prefs)
+            {
+                prefs.CopyOnto(modelSettings);
+            }
+
+            return Task.FromResult(modelSettings);
+        }
+
+        /// <inheritdoc/>
+        public Task<DeepSeekModelSettings> GetDeepSeekModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        {
+            var modelSettings = new DeepSeekModelSettings();
+            var caps = GetProcessingSettingsAsync(ct).Result;
+
+            _configuration.GetSection("DeepSeekSettings").Bind(modelSettings);
+            string modelSection = $"DeepSeekModels:{modelId}";
+            if (_configuration.GetSection(modelSection).Exists())
+            {
+                _configuration.GetSection(modelSection).Bind(modelSettings);
+            }
+
+            modelSettings.ChunkSize = Math.Max(1, Math.Min(modelSettings.ChunkSize ?? caps.ChunkSizeDefault, caps.ChunkSizeCap));
+            modelSettings.MaxConcurrentChunks = Math.Max(1, Math.Min(modelSettings.MaxConcurrentChunks ?? caps.MaxConcurrentChunksDefault, caps.MaxConcurrentChunksCap));
+
+            HttpContext? ctx = _httpContextAccessor.HttpContext;
+            if (ctx != null && ctx.Items.TryGetValue("DeepSeekPreferences", out var prefsObj) && prefsObj is DeepSeekSettings prefs)
+            {
+                prefs.CopyOnto(modelSettings);
+            }
+
+            return Task.FromResult(modelSettings);
+        }
+
+        /// <inheritdoc/>
+        public Task SaveGeminiModelSettingsAsync(string modelId, string userId, GeminiModelSettings settings, CancellationToken ct = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public Task SaveOpenAiModelSettingsAsync(string modelId, string userId, OpenAiModelSettings settings, CancellationToken ct = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public Task SaveDeepSeekModelSettingsAsync(string modelId, string userId, DeepSeekModelSettings settings, CancellationToken ct = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public Task<ProcessingSettings> GetProcessingSettingsAsync(CancellationToken ct = default)
+        {
+            var settings = new ProcessingSettings();
+            _configuration.GetSection("Processing").Bind(settings);
+            return Task.FromResult(settings);
+        }
+
         /// <summary>
         /// Overrides settings with non-secret preferences from the current HTTP request.
         /// API keys are never read from the request — they come from server-side

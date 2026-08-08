@@ -83,10 +83,44 @@ namespace AIFileProcessor.Models
         }
 
         /// <summary>
-        /// Gets or sets the complete path to the data file.
+        /// Gets or sets the complete path to the last-loaded response file.
         /// </summary>
-        [JsonIgnore]
         public string ResponsePath { get; set; }
+
+        /// <summary>
+        /// Gets or sets the path where the response RichTextBox content was last saved.
+        /// </summary>
+        public string ResponseSavePath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the path where the formatted output RichTextBox content was last saved.
+        /// </summary>
+        public string FormattedSavePath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the path where the scratchpad RichTextBox content was last saved.
+        /// </summary>
+        public string ScratchpadSavePath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the path where the corrections RichTextBox content was last saved.
+        /// </summary>
+        public string CorrectionsSavePath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the path where the metrics table content was last saved.
+        /// </summary>
+        public string MetricsSavePath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the path where the metrics JSON content was last saved.
+        /// </summary>
+        public string MetricsJsonSavePath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the path where the metrics Gantt chart image was last saved.
+        /// </summary>
+        public string MetricsGraphSavePath { get; set; } = string.Empty;
 
         /// <summary>
         /// Gets or sets the ID of the AI model to use for processing. This is expected to be chosen by the user from a list of supported models, but is separated here for easier testing and flexibility.
@@ -128,5 +162,19 @@ namespace AIFileProcessor.Models
         /// settings. Keys are model IDs (e.g., "gemini-3.5-flash").
         /// </summary>
         public Dictionary<string, int> ModelMaxTokens { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of lines per API call chunk. Set by the orchestrator
+        /// from the resolved model settings before processing.
+        /// </summary>
+        [JsonIgnore]
+        public int ChunkSize { get; set; } = 40;
+
+        /// <summary>
+        /// Gets or sets the maximum number of concurrent API calls (semaphore size).
+        /// Set by the orchestrator from the resolved model settings before processing.
+        /// </summary>
+        [JsonIgnore]
+        public int MaxConcurrentChunks { get; set; } = 3;
     }
 }

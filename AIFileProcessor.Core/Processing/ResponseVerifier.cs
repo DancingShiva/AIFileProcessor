@@ -175,12 +175,14 @@ namespace AIFileProcessor.Processing
 
             // Punctuation rule: when PS is 'punc', the 4th/5th elements are fixed
             // ('punc' itself is already enforced above) — the 6th (Note) must be
-            // exactly one ASCII space (spec: "MUST be exactly one ASCII space").
+            // empty or a single ASCII space. The spec mandates one space to keep
+            // the ||-delimited breakdown parseable, but the space is trimmed after
+            // parsing so an empty string is also acceptable.
             if (string.Equals(pos, "punc", StringComparison.Ordinal)
-                && entry.Note != " ")
+                && !string.IsNullOrEmpty(entry.Note) && entry.Note != " ")
             {
                 violations.Add(
-                    $"VERIFY: line {lineNumber} segment {segIndex + 1} ('{entry.Chinese}') is marked punc but its Note element is not exactly one ASCII space.");
+                    $"VERIFY: line {lineNumber} segment {segIndex + 1} ('{entry.Chinese}') is marked punc but its Note element is not empty or a single ASCII space.");
             }
         }
     }

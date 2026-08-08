@@ -16,6 +16,8 @@ namespace AIFileProcessor.Services
     using AIFileProcessor.Configuration;
     using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
+    using AIFileProcessor.Response;
+    using AIFileProcessor.Telemetry;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using OpenAI;
@@ -103,8 +105,8 @@ namespace AIFileProcessor.Services
         /// <param name="prompt">The user prompt to process.</param>
         /// <param name="data">The string data for the AI model.</param>
         /// <param name="ct">A token to cancel the request.</param>
-        /// <returns>The generated text response.</returns>
-        public Task<string> ProcessTextAsync(
+        /// <returns>The generated text response and telemetry.</returns>
+        public Task<AiCallResult> ProcessTextAsync(
             string modelId,
             string prompt,
             string data,
@@ -121,8 +123,8 @@ namespace AIFileProcessor.Services
         /// <param name="data">The string data for the AI model.</param>
         /// <param name="settings">The per-call settings (must be an <see cref="OpenAiSettings"/>).</param>
         /// <param name="ct">A token to cancel the request.</param>
-        /// <returns>The generated text response.</returns>
-        public Task<string> ProcessTextAsync(
+        /// <returns>The generated text response and telemetry.</returns>
+        public Task<AiCallResult> ProcessTextAsync(
             string modelId,
             string prompt,
             string data,
@@ -173,7 +175,7 @@ namespace AIFileProcessor.Services
         /// Internal implementation that executes the OpenAI API call using the
         /// specified settings, caching clients keyed by a settings fingerprint.
         /// </summary>
-        private async Task<string> ProcessTextAsync(
+        private async Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(
             string modelId,
             string prompt,
             string data,
@@ -234,24 +236,23 @@ namespace AIFileProcessor.Services
 #pragma warning restore OPENAI001
             }
 
+            // Wrap user-supplied data in delimiter tags to defend against prompt injection.
+            string wrappedData = $"<DATA_BEGIN>\n{data}\n<DATA_END>";
+
+            // Initialize telemetry for this call
+            var telemetry = new AIFileProcessor.Telemetry.CallTelemetry { StartUtc = DateTime.UtcNow, Attempts = 1 };
+
             try
             {
-                return await TransientRetryPolicy.ExecuteAsync(
+                var completion = await TransientRetryPolicy.ExecuteAsync(
                     async cancellationToken =>
                     {
                         ClientResult<ChatCompletion> result = await client.CompleteChatAsync(
-                            [
-                                new SystemChatMessage(prompt),
-                                new UserChatMessage(data)
-                            ],
+                            new List<ChatMessage> { new SystemChatMessage(prompt), new UserChatMessage(wrappedData) },
                             chatOptions,
                             cancellationToken).ConfigureAwait(false);
 
-                        ChatCompletion completion = result.Value;
-
-                        return completion.Content.Count > 0
-                            ? completion.Content[0].Text ?? string.Empty
-                            : string.Empty;
+                        return result.Value;
                     },
                     IsTransient,
                     settings.MaxRetries,
@@ -259,7 +260,38 @@ namespace AIFileProcessor.Services
                     settings.MaxDelay,
                     _logger,
                     $"OpenAI model {modelId}",
-                    ct).ConfigureAwait(false);
+                    ct,
+                    onAttempt: attempt => telemetry.Attempts = attempt).ConfigureAwait(false);
+
+                // finalize telemetry and return
+                telemetry.EndUtc = DateTime.UtcNow;
+                telemetry.ElapsedMs = (long)(telemetry.EndUtc - telemetry.StartUtc).TotalMilliseconds;
+
+                // Try to map token counts; guard against SDK shape differences and possible nulls.
+                if (completion != null)
+                {
+                    try
+                    {
+                        if (Telemetry.TelemetryUtils.TryExtractTokens(completion, out var p, out var c))
+                        {
+                            telemetry.PromptTokens = p;
+                            telemetry.CompletionTokens = c;
+                        }
+                    }
+                    catch
+                    {
+                        // best-effort mapping only
+                    }
+                }
+
+                string text = (completion?.Content != null && completion.Content.Count > 0)
+                    ? (completion.Content[0].Text ?? string.Empty)
+                    : string.Empty;
+                return new AIFileProcessor.Response.AiCallResult
+                {
+                    Text = text,
+                    Telemetry = telemetry,
+                };
             }
             catch (OperationCanceledException)
             {

@@ -1,4 +1,4 @@
-﻿namespace AIFileProcessor.Core.Tests.Services;
+namespace AIFileProcessor.Core.Tests.Services;
 
 using System;
 using System.IO;
@@ -57,7 +57,7 @@ public class FileSettingsProviderTests
         }
     }
 
-    // ─── Constructor ──────────────────────────────────────────────────
+    // --- Constructor --------------------------------------------------
 
     [Fact]
     public void Constructor_NullConfiguration_ThrowsArgumentNullException()
@@ -74,7 +74,7 @@ public class FileSettingsProviderTests
         Assert.NotNull(provider);
     }
 
-    // ─── GetGeminiSettingsAsync ───────────────────────────────────────
+    // --- GetGeminiSettingsAsync ---------------------------------------
 
     [Fact]
     public async Task GetGeminiSettingsAsync_NullUserId_ThrowsArgumentNullException()
@@ -101,7 +101,7 @@ public class FileSettingsProviderTests
             Assert.Equal(string.Empty, result.ApiKey);
             Assert.Null(result.Endpoint);
             Assert.Null(result.ModelName);
-            Assert.Equal(30, result.TimeoutSeconds);
+            Assert.Equal(300, result.TimeoutSeconds);
         }
         finally
         {
@@ -199,7 +199,7 @@ public class FileSettingsProviderTests
             // No GeminiSettings override, so defaults should be returned.
             Assert.Null(result.Endpoint);
             Assert.Null(result.ModelName);
-            Assert.Equal(30, result.TimeoutSeconds);
+            Assert.Equal(300, result.TimeoutSeconds);
         }
         finally
         {
@@ -265,7 +265,7 @@ public class FileSettingsProviderTests
         }
     }
 
-    // ─── GetOpenAiSettingsAsync ───────────────────────────────────────
+    // --- GetOpenAiSettingsAsync ---------------------------------------
 
     [Fact]
     public async Task GetOpenAiSettingsAsync_NullUserId_ThrowsArgumentNullException()
@@ -292,7 +292,7 @@ public class FileSettingsProviderTests
             Assert.Equal(string.Empty, result.ApiKey);
             Assert.Equal(string.Empty, result.Endpoint);
             Assert.Equal(string.Empty, result.ModelName);
-            Assert.Equal(30, result.TimeoutSeconds);
+            Assert.Equal(300, result.TimeoutSeconds);
         }
         finally
         {
@@ -388,7 +388,7 @@ public class FileSettingsProviderTests
 
             Assert.Equal(string.Empty, result.Endpoint);
             Assert.Equal(string.Empty, result.ModelName);
-            Assert.Equal(30, result.TimeoutSeconds);
+            Assert.Equal(300, result.TimeoutSeconds);
         }
         finally
         {
@@ -396,7 +396,7 @@ public class FileSettingsProviderTests
         }
     }
 
-    // ─── GetDeepSeekSettingsAsync ─────────────────────────────────────
+    // --- GetDeepSeekSettingsAsync -------------------------------------
 
     [Fact]
     public async Task GetDeepSeekSettingsAsync_NullUserId_ThrowsArgumentNullException()
@@ -422,7 +422,7 @@ public class FileSettingsProviderTests
             Assert.NotNull(result);
             Assert.Equal(string.Empty, result.ApiKey);
             Assert.Equal(string.Empty, result.Endpoint);
-            Assert.Equal(30, result.TimeoutSeconds);
+            Assert.Equal(300, result.TimeoutSeconds);
             Assert.Null(result.ModelName);
         }
         finally
@@ -518,7 +518,7 @@ public class FileSettingsProviderTests
             DeepSeekSettings result = await provider.GetDeepSeekSettingsAsync(userId, CancellationToken.None);
 
             Assert.Equal(string.Empty, result.Endpoint);
-            Assert.Equal(30, result.TimeoutSeconds);
+            Assert.Equal(300, result.TimeoutSeconds);
             Assert.Null(result.ModelName);
         }
         finally
@@ -527,7 +527,7 @@ public class FileSettingsProviderTests
         }
     }
 
-    // ─── SaveGeminiSettingsAsync ──────────────────────────────────────
+    // --- SaveGeminiSettingsAsync --------------------------------------
 
     [Fact]
     public async Task SaveGeminiSettingsAsync_NullUserId_ThrowsArgumentNullException()
@@ -664,7 +664,7 @@ public class FileSettingsProviderTests
         }
     }
 
-    // ─── SaveOpenAiSettingsAsync ─────────────────────────────────────
+    // --- SaveOpenAiSettingsAsync -------------------------------------
 
     [Fact]
     public async Task SaveOpenAiSettingsAsync_NullUserId_ThrowsArgumentNullException()
@@ -798,7 +798,7 @@ public class FileSettingsProviderTests
         }
     }
 
-    // ─── SaveDeepSeekSettingsAsync ───────────────────────────────────
+    // --- SaveDeepSeekSettingsAsync -----------------------------------
 
     [Fact]
     public async Task SaveDeepSeekSettingsAsync_NullUserId_ThrowsArgumentNullException()
@@ -932,7 +932,7 @@ public class FileSettingsProviderTests
         }
     }
 
-    // ─── GetProcessingOptionsAsync ───────────────────────────────────
+    // --- GetProcessingOptionsAsync -----------------------------------
 
     [Fact]
     public async Task GetProcessingOptionsAsync_NullUserId_ThrowsArgumentNullException()
@@ -1044,7 +1044,7 @@ public class FileSettingsProviderTests
         }
     }
 
-    // ─── SaveProcessingOptionsAsync ──────────────────────────────────
+    // --- SaveProcessingOptionsAsync ----------------------------------
 
     [Fact]
     public async Task SaveProcessingOptionsAsync_NullUserId_ThrowsArgumentNullException()

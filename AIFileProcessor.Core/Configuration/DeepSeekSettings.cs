@@ -22,7 +22,7 @@ namespace AIFileProcessor.Configuration
         public string Endpoint { get; set; } = string.Empty;
 
         /// <inheritdoc />
-        public int TimeoutSeconds { get; set; } = 30;
+        public int TimeoutSeconds { get; set; } = 300;
 
         /// <inheritdoc />
         public int? MaxTokens { get; set; }

@@ -29,6 +29,7 @@ namespace AIFileProcessor.Processing
         private readonly ISettingsProvider _settingsProvider;
         private readonly IUserContext _userContext;
         private readonly ILogger<ProcessingOrchestrator> _logger;
+        private readonly IEnumerable<IAiService> _aiServices;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ProcessingOrchestrator"/> class.
@@ -37,21 +38,25 @@ namespace AIFileProcessor.Processing
         /// <param name="settingsProvider">The settings provider for resolving per-user AI service settings.</param>
         /// <param name="userContext">The current user context for per-user settings resolution.</param>
         /// <param name="logger">The logger instance for diagnostic messages.</param>
+        /// <param name="aiServices">All registered AI services, used to determine which provider supports the requested model.</param>
         public ProcessingOrchestrator(
             Func<IChineseTextProcessor> chineseTextProcessorFactory,
             ISettingsProvider settingsProvider,
             IUserContext userContext,
-            ILogger<ProcessingOrchestrator> logger)
+            ILogger<ProcessingOrchestrator> logger,
+            IEnumerable<IAiService> aiServices)
         {
             ArgumentNullException.ThrowIfNull(chineseTextProcessorFactory);
             ArgumentNullException.ThrowIfNull(settingsProvider);
             ArgumentNullException.ThrowIfNull(userContext);
             ArgumentNullException.ThrowIfNull(logger);
+            ArgumentNullException.ThrowIfNull(aiServices);
 
             _chineseTextProcessorFactory = chineseTextProcessorFactory;
             _settingsProvider = settingsProvider;
             _userContext = userContext;
             _logger = logger;
+            _aiServices = aiServices;
         }
 
         /// <summary>
@@ -67,77 +72,126 @@ namespace AIFileProcessor.Processing
         {
             ArgumentNullException.ThrowIfNull(options);
 
-            // Resolve per-user settings for all providers
-            var geminiSettings = await _settingsProvider.GetGeminiSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
-            var openAiSettings = await _settingsProvider.GetOpenAiSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
-            var deepSeekSettings = await _settingsProvider.GetDeepSeekSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
-
-            // Single source of truth for provider keys (matches ChineseTextProcessor.GetProviderKey).
-            var providers = new (string Key, object Settings)[]
+            if (string.IsNullOrWhiteSpace(options.ModelId))
             {
-                ("Gemini", geminiSettings),
-                ("OpenAI", openAiSettings),
-                ("DeepSeek", deepSeekSettings),
-            };
+                throw new ArgumentException("ModelId is required.", nameof(options));
+            }
 
-            // Apply the per-model reasoning level and clamped MaxTokens from processing options
-            // onto each provider's settings. ModelReasoningLevels/ModelMaxTokens are the single
-            // source of truth â€” updated by both MainForm and SettingsForm.
-            if (!string.IsNullOrWhiteSpace(options.ModelId))
+            // Determine which provider supports the requested model
+            string? detectedProviderKey = null;
+            foreach (var service in _aiServices)
             {
-                bool hasReasoningLevel = options.ModelReasoningLevels.TryGetValue(options.ModelId, out var reasoningLevel);
-                bool hasMaxTokens = options.ModelMaxTokens.TryGetValue(options.ModelId, out var maxTokens);
-
-                foreach (var (key, settings) in providers)
+                if (service.SupportsModel(options.ModelId))
                 {
-                    // Clamp to this provider's hard max so out-of-range requests don't fail at the API.
-                    // No per-model value => null, letting the API decide.
-                    int? clampedMaxTokens = hasMaxTokens
-                        ? TokenUtils.ClampRequestedMaxTokens(maxTokens, key, options.ModelId, _logger).ClampedValue
-                        : null;
-
-                    switch (settings)
+                    detectedProviderKey = service.GetType().Name switch
                     {
-                        case Configuration.GeminiSettings g:
-                            if (hasReasoningLevel)
-                            {
-                                g.ReasoningLevel = reasoningLevel;
-                            }
+                        "GeminiService" => "Gemini",
+                        "OpenAiService" => "OpenAI",
+                        "DeepSeekService" => "DeepSeek",
+                        _ => null, // Unknown type (e.g., test mock) — try all providers below
+                    };
+                    break;
+                }
+            }
 
-                            g.MaxTokens = clampedMaxTokens;
-                            break;
+            bool hasReasoningLevel = options.ModelReasoningLevels.TryGetValue(options.ModelId, out var reasoningLevel);
+            bool hasMaxTokens = options.ModelMaxTokens.TryGetValue(options.ModelId, out var maxTokens);
 
-                        case Configuration.OpenAiSettings o:
-                            if (hasReasoningLevel)
-                            {
-                                o.ReasoningLevel = reasoningLevel;
-                            }
+            string providerKey;
+            object providerSettings;
+            int chunkSize;
+            int maxConcurrentChunks;
 
-                            o.MaxTokens = clampedMaxTokens;
-                            break;
-
-                        case Configuration.DeepSeekSettings d:
-                            if (hasReasoningLevel)
-                            {
-                                d.ReasoningLevel = reasoningLevel;
-                            }
-
-                            d.MaxTokens = clampedMaxTokens;
-                            break;
+            if (detectedProviderKey != null)
+            {
+                providerKey = detectedProviderKey;
+                switch (providerKey)
+                {
+                    case "Gemini":
+                    {
+                        var modelSettings = await _settingsProvider.GetGeminiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
+                        providerSettings = modelSettings;
+                        chunkSize = modelSettings.ChunkSize ?? 40;
+                        maxConcurrentChunks = modelSettings.MaxConcurrentChunks ?? 3;
+                        if (hasReasoningLevel) modelSettings.ReasoningLevel = reasoningLevel;
+                        modelSettings.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
+                        break;
+                    }
+                    case "OpenAI":
+                    {
+                        var modelSettings = await _settingsProvider.GetOpenAiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
+                        providerSettings = modelSettings;
+                        chunkSize = modelSettings.ChunkSize ?? 40;
+                        maxConcurrentChunks = modelSettings.MaxConcurrentChunks ?? 3;
+                        if (hasReasoningLevel) modelSettings.ReasoningLevel = reasoningLevel;
+                        modelSettings.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
+                        break;
+                    }
+                    case "DeepSeek":
+                    {
+                        var modelSettings = await _settingsProvider.GetDeepSeekModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
+                        providerSettings = modelSettings;
+                        chunkSize = modelSettings.ChunkSize ?? 40;
+                        maxConcurrentChunks = modelSettings.MaxConcurrentChunks ?? 3;
+                        if (hasReasoningLevel) modelSettings.ReasoningLevel = reasoningLevel;
+                        modelSettings.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
+                        break;
+                    }
+                    default:
+                        throw new NotSupportedException($"No registered IAiService supports the model '{options.ModelId}'.");
+                }
+            }
+            else
+            {
+                // Unknown provider type (e.g., test mock with proxy type name). Try providers in order.
+                // The first _settingsProvider method that doesn't throw provides the resolved settings.
+                try
+                {
+                    providerKey = "Gemini";
+                    var gs = await _settingsProvider.GetGeminiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
+                    providerSettings = gs;
+                    chunkSize = gs.ChunkSize ?? 40;
+                    maxConcurrentChunks = gs.MaxConcurrentChunks ?? 3;
+                    if (hasReasoningLevel) gs.ReasoningLevel = reasoningLevel;
+                    gs.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
+                }
+                catch
+                {
+                    try
+                    {
+                        providerKey = "OpenAI";
+                        var os = await _settingsProvider.GetOpenAiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
+                        providerSettings = os;
+                        chunkSize = os.ChunkSize ?? 40;
+                        maxConcurrentChunks = os.MaxConcurrentChunks ?? 3;
+                        if (hasReasoningLevel) os.ReasoningLevel = reasoningLevel;
+                        os.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
+                    }
+                    catch
+                    {
+                        providerKey = "DeepSeek";
+                        var ds = await _settingsProvider.GetDeepSeekModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
+                        providerSettings = ds;
+                        chunkSize = ds.ChunkSize ?? 40;
+                        maxConcurrentChunks = ds.MaxConcurrentChunks ?? 3;
+                        if (hasReasoningLevel) ds.ReasoningLevel = reasoningLevel;
+                        ds.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
                     }
                 }
             }
 
-            var providerSettings = new Dictionary<string, object>();
-            foreach (var (key, settings) in providers)
+            var providerSettingsMap = new Dictionary<string, object>
             {
-                providerSettings[key] = settings;
-            }
+                [providerKey] = providerSettings,
+            };
+
+            options.ChunkSize = chunkSize;
+            options.MaxConcurrentChunks = maxConcurrentChunks;
 
             var chineseTextProcessor = _chineseTextProcessorFactory();
 
             AiApiResponse results = await chineseTextProcessor.ProcessChineseTextAsync(
-                options.ModelId, options.Prompt, options.Data, providerSettings, ct).ConfigureAwait(false);
+                options.ModelId, options.Prompt, options.Data, providerSettingsMap, chunkSize, maxConcurrentChunks, ct).ConfigureAwait(false);
 
             for (int i = 0; i < results.ProcessedSentenceRows.Count; i++)
             {
@@ -174,6 +228,7 @@ namespace AIFileProcessor.Processing
                 Scratchpad = results.Scratchpad,
                 Corrections = results.Corrections,
                 ProcessedSentenceRows = results.ProcessedSentenceRows,
+                Metrics = results.Metrics,
             };
         }
     }

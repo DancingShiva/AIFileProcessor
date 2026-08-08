@@ -25,7 +25,7 @@ namespace AIFileProcessor.Configuration
         public string ModelName { get; set; } = string.Empty;
 
         /// <inheritdoc />
-        public int TimeoutSeconds { get; set; } = 30;
+        public int TimeoutSeconds { get; set; } = 300;
 
         /// <inheritdoc />
         public string? OrganizationId { get; set; }

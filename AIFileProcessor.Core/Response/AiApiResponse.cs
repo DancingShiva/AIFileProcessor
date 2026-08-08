@@ -59,6 +59,13 @@ namespace AIFileProcessor.Response
         public string Scratchpad { get; set; } = string.Empty;
 
         /// <summary>
+        /// Gets or sets the performance metrics collected by the orchestrator for this response.
+        /// Populated after the AI provider calls complete; not parsed from AI JSON.
+        /// </summary>
+        [JsonIgnore]
+        public Telemetry.ProcessingMetrics? Metrics { get; set; }
+
+        /// <summary>
         /// Gets or Sets the Corrections that the LLM has applied since the LLM is given the freedom to detect and correct common issues that may be caused by OCR errors or other inconsistencies in the input data. This property allows the LLM to return a list of any corrections it has made during processing. These corrections can be used for debugging, auditing, or even to provide feedback to users about potential issues in the original input. The application does not rely on this property for its core functionality, but it can be valuable for understanding how the LLM is interpreting and modifying the data.
         /// </summary>
         [JsonPropertyName("Corrections")]

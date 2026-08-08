@@ -1,4 +1,4 @@
-//-----------------------------------------------------------------------
+﻿//-----------------------------------------------------------------------
 // <copyright file="MainForm.cs" company="Midnight Mission Systems">
 //     Copyright (c) Midnight Mission Systems. All rights reserved.
 // </copyright>
@@ -7,6 +7,8 @@ namespace AIFileProcessor
 {
     using System;
     using System.Collections.Generic;
+    using System.Drawing;
+    using System.Drawing.Imaging;
     using System.IO;
     using System.Linq;
     using System.Threading;
@@ -53,6 +55,11 @@ namespace AIFileProcessor
         /// The final formatted output after processing the raw response.
         /// </summary>
         Formatted,
+
+        /// <summary>
+        /// Display processing metrics: per-chunk table followed by JSON summary.
+        /// </summary>
+        Metrics,
     }
 
     /// <summary>
@@ -60,6 +67,15 @@ namespace AIFileProcessor
     /// </summary>
     public partial class MainForm : Form
     {
+        // Status strings written to the output boxes that do not constitute saved data.
+        private static readonly string[] StatusOnlyTexts =
+        [
+            "Processing in progress.",
+            "Processing cancelled.",
+            "Processing completed but no sentences were returned.",
+            "There were no corrections.",
+        ];
+
         private readonly ILogger<MainForm> _logger;
         private readonly IFileOps _fileOps;
         private readonly Func<SettingsForm> _settingsFormFactory;
@@ -72,6 +88,16 @@ namespace AIFileProcessor
 
         private CancellationTokenSource? _processingCts;
         private bool _isProcessing;
+
+        // The metrics of the last completed run, kept for the Gantt chart paint handler.
+        private Telemetry.ProcessingMetrics? _currentMetrics;
+
+        // The display name of the model used for the last run, shown in the Gantt title.
+        private string? _lastRunModelName;
+
+        // The data file path as of the most recent processing start; used to name the
+        // formatted-output save so it reflects the data that actually produced it.
+        private string? _processingDataPath;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MainForm"/> class with constructor-injected dependencies.
@@ -115,38 +141,14 @@ namespace AIFileProcessor
 
             ddlModel.SelectedIndexChanged += (s, e) => OnModelSelectionChanged();
             ddlReasoning.SelectedIndexChanged += (s, e) => OnReasoningSelectionChanged();
-        }
-
-        /// <summary>
-        /// Saves the text from the specified <paramref name="source"/> RichTextBox to a file.
-        /// If <paramref name="source"/> is null, the response RichTextBox is used.
-        /// </summary>
-        /// <param name="defaultFileName">The default file name for the save dialog.</param>
-        /// <param name="source">The RichTextBox to save from, or null to default to the response box.</param>
-        /// <returns>A task representing the asynchronous save operation.</returns>
-        public async Task SaveTextAsync(string defaultFileName, RichTextBox? source)
-        {
-            source ??= rtbResponse;
-
-            using SaveFileDialog saveFileDialog = new()
-            {
-                Filter = "Text files (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|All files (*.*)|*.*",
-                FileName = defaultFileName,
-                Title = "Save Response",
-                DefaultExt = "txt",
-            };
-
-            if (saveFileDialog.ShowDialog() == DialogResult.OK)
-            {
-                if (saveFileDialog.FilterIndex == 2)
-                {
-                    source.SaveFile(saveFileDialog.FileName, RichTextBoxStreamType.RichText);
-                }
-                else
-                {
-                    await _fileOps.SaveFileAsync(saveFileDialog.FileName, source.Text);
-                }
-            }
+            pnlMetricsGraph.Paint += panelMetricsGraph_Paint;
+            tabMetrics.SelectedIndexChanged += (s, e) => UpdateSaveState();
+            rtbResponse.TextChanged += (s, e) => UpdateSaveState();
+            rtbFormatted.TextChanged += (s, e) => UpdateSaveState();
+            rtbScratchpad.TextChanged += (s, e) => UpdateSaveState();
+            rtbCorrections.TextChanged += (s, e) => UpdateSaveState();
+            rtbMetrics.TextChanged += (s, e) => UpdateSaveState();
+            rtbMetricsJson.TextChanged += (s, e) => UpdateSaveState();
         }
 
         public async Task LoadTextAsync(DisplayMode source, RichTextBox destination)
@@ -176,10 +178,18 @@ namespace AIFileProcessor
                     {
                         openFileDialog.InitialDirectory = dir;
                     }
+
+                    // If the saved path contains a filename, pre-populate the dialog so it
+                    // defaults to the previously used file for Prompt/Data/Response.
+                    string? fileName = Path.GetFileName(savedPath);
+                    if (!string.IsNullOrWhiteSpace(fileName))
+                    {
+                        openFileDialog.FileName = fileName;
+                    }
                 }
                 catch
                 {
-                    // Ignore invalid path � fall back to default directory
+                    // Ignore invalid path — fall back to default directory
                 }
             }
 
@@ -230,6 +240,102 @@ namespace AIFileProcessor
         }
 
         /// <summary>
+        /// Saves the text from the specified <paramref name="source"/> RichTextBox to a file.
+        /// If <paramref name="source"/> is null, the response RichTextBox is used.
+        /// The dialog defaults to the last path the user saved that box to (per-user), and
+        /// the newly chosen path is persisted as the default for the next save.
+        /// </summary>
+        /// <param name="defaultFileName">The fallback file name when no previous save path exists.</param>
+        /// <param name="source">The RichTextBox to save from, or null to default to the response box.</param>
+        /// <returns>A task representing the asynchronous save operation.</returns>
+        public async Task SaveTextAsync(string defaultFileName, RichTextBox? source)
+        {
+            source ??= rtbResponse;
+
+            string? savedPath = GetLastSavePath(source);
+            string initialDir = string.Empty;
+            string fileName = defaultFileName;
+
+            if (!string.IsNullOrWhiteSpace(savedPath))
+            {
+                try
+                {
+                    // Only reuse the directory of the last save; the file name always
+                    // comes from the caller's computed default so it reflects the
+                    // current data/response rather than a stale earlier file.
+                    initialDir = Path.GetDirectoryName(savedPath) ?? string.Empty;
+                }
+                catch
+                {
+                    // Ignore invalid persisted path and fall back to the default directory.
+                    initialDir = string.Empty;
+                }
+            }
+
+            using SaveFileDialog saveFileDialog = new()
+            {
+                Filter = "Text files (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|All files (*.*)|*.*",
+                FileName = fileName,
+                Title = "Save Response",
+                DefaultExt = "txt",
+            };
+
+            if (!string.IsNullOrWhiteSpace(initialDir) && Directory.Exists(initialDir))
+            {
+                saveFileDialog.InitialDirectory = initialDir;
+            }
+
+            if (saveFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                if (saveFileDialog.FilterIndex == 2)
+                {
+                    source.SaveFile(saveFileDialog.FileName, RichTextBoxStreamType.RichText);
+                }
+                else
+                {
+                    bool verified = await _fileOps.SaveFileWithVerificationAsync(saveFileDialog.FileName, source.Text);
+                    if (!verified)
+                    {
+                        MessageBox.Show(
+                            "The file was saved, but reading it back did not return the expected content. " +
+                            "If this file is in a synced folder (e.g., OneDrive), the content may still be syncing and " +
+                            "could temporarily appear as an older version. Please re-check the file in a moment.",
+                            "Save verification",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
+                        return;
+                    }
+                }
+
+                // Persist the chosen path so this box defaults to it next time (per user).
+                SetLastSavePath(source, saveFileDialog.FileName);
+                SaveProcessingOptions();
+            }
+        }
+
+        /// <summary>
+        /// True when the box holds text that is not empty and not just a status message.
+        /// </summary>
+        private static bool HasSavableText(RichTextBox box)
+        {
+            string text = box.Text.Trim();
+            if (text.Length == 0)
+            {
+                return false;
+            }
+
+            foreach (var status in StatusOnlyTexts)
+            {
+                if (string.Equals(text, status, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// Displays all validation errors in a single dialog and focuses the control
         /// for the first one. Used so the user sees every problem at once rather than
         /// re-clicking Process per missing field.
@@ -237,6 +343,86 @@ namespace AIFileProcessor
         private static void ShowErrors(List<string> errors)
         {
             MessageBox.Show(string.Join(Environment.NewLine, errors), "Please fix the following:", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        /// <summary>
+        /// Gets the persisted last-save path for the given RichTextBox, or null if none exists.
+        /// </summary>
+        private string? GetLastSavePath(RichTextBox control)
+        {
+            if (control == rtbPrompt)
+            {
+                return _options.PromptPath;
+            }
+            else if (control == rtbData)
+            {
+                return _options.DataPath;
+            }
+            else if (control == rtbScratchpad)
+            {
+                return _options.ScratchpadSavePath;
+            }
+            else if (control == rtbCorrections)
+            {
+                return _options.CorrectionsSavePath;
+            }
+            else if (control == rtbFormatted)
+            {
+                return _options.FormattedSavePath;
+            }
+            else if (control == rtbMetrics)
+            {
+                return _options.MetricsSavePath;
+            }
+            else if (control == rtbMetricsJson)
+            {
+                return _options.MetricsJsonSavePath;
+            }
+            else if (control == rtbResponse)
+            {
+                return !string.IsNullOrWhiteSpace(_options.ResponseSavePath) ? _options.ResponseSavePath : _options.ResponsePath;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Records the path the user just saved the given RichTextBox to.
+        /// </summary>
+        private void SetLastSavePath(RichTextBox control, string path)
+        {
+            if (control == rtbPrompt)
+            {
+                _options.PromptPath = path;
+            }
+            else if (control == rtbData)
+            {
+                _options.DataPath = path;
+            }
+            else if (control == rtbScratchpad)
+            {
+                _options.ScratchpadSavePath = path;
+            }
+            else if (control == rtbCorrections)
+            {
+                _options.CorrectionsSavePath = path;
+            }
+            else if (control == rtbFormatted)
+            {
+                _options.FormattedSavePath = path;
+            }
+            else if (control == rtbMetrics)
+            {
+                _options.MetricsSavePath = path;
+            }
+            else if (control == rtbMetricsJson)
+            {
+                _options.MetricsJsonSavePath = path;
+            }
+            else if (control == rtbResponse)
+            {
+                _options.ResponseSavePath = path;
+            }
         }
 
         /// <summary>
@@ -281,50 +467,37 @@ namespace AIFileProcessor
             switch (source)
             {
                 case DisplayMode.Prompt:
-                    this.Text = $"AI File Processor � Prompt: {(text ?? string.Empty).Length:n0} chars";
+                    this.Text = $"AI File Processor — Prompt: {(text ?? string.Empty).Length:n0} chars";
                     break;
 
                 case DisplayMode.Data:
                     int lines = string.IsNullOrEmpty(text) ? 0 : text.Split('\n').Length;
                     int chunks = (int)System.Math.Ceiling(lines / 40.0);
-                    this.Text = $"AI File Processor � Data: {lines:n0} lines, ~{chunks} chunk{(chunks == 1 ? string.Empty : "s")}";
+                    this.Text = $"AI File Processor — Data: {lines:n0} lines, ~{chunks} chunk{(chunks == 1 ? string.Empty : "s")}";
                     break;
             }
         }
 
-        // Stage 2: parse rtbResponse, format breakdowns, and populate rtbFormatted
-        private async void btnFormatResponse_Click(object sender, EventArgs e)
+        /// <summary>
+        /// Parses the current raw response text and writes the formatted output into
+        /// the given RichTextBox. Leaves <paramref name="target"/> untouched when no
+        /// parseable rows exist unless <paramref name="showMessageOnEmpty"/> is set,
+        /// so processing can chain into this without flickering a message box.
+        /// </summary>
+        private void FormatResponseInto(RichTextBox target, bool showMessageOnEmpty)
         {
-            try
+            var rows = ResponseParser.Parse(rtbResponse.Text);
+            if (rows.Count == 0)
             {
-                string textToParse = rtbResponse.Text;
-                btnFormatResponse.Enabled = false;
-
-                var (parsedRows, formattedText) = await Task.Run(() =>
-                {
-                    var rows = ResponseParser.Parse(textToParse);
-                    var formatted = rows.Count > 0 ? ResponseFormatter.FormatRows(rows) : string.Empty;
-                    return (rows, formatted);
-                });
-
-                if (parsedRows.Count == 0)
+                if (showMessageOnEmpty)
                 {
                     MessageBox.Show("No parseable response rows to format.");
-                    return;
                 }
 
-                rtbFormatted.Text = formattedText;
+                return;
+            }
 
-                UpdateDisplay(DisplayMode.Formatted);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Formatting failed: {ex.Message}");
-            }
-            finally
-            {
-                btnFormatResponse.Enabled = true;
-            }
+            target.Text = ResponseFormatter.FormatRows(rows);
         }
 
         private async void btnOpenPrompt_Click(object sender, EventArgs e)
@@ -353,8 +526,9 @@ namespace AIFileProcessor
             }
         }
 
-        // Stage 1: call AI API and prepare raw text for rtbResponse
-        private async void btnProcess_Click(object sender, EventArgs e)
+        // Stage 1 + 2: call the AI API, populate rtbResponse with the raw text, then
+        // parse and format it into rtbFormatted.
+        private async void btnProcessFormat_Click(object sender, EventArgs e)
         {
             if (_isProcessing)
             {
@@ -378,8 +552,17 @@ namespace AIFileProcessor
                 _isProcessing = true;
                 btnProcess.Text = "Cancel";
 
-                UpdateDisplay(DisplayMode.Response);
+                // The formatted box is the primary view during processing; status
+                // messages are mirrored into both boxes until the real data returns.
+                UpdateDisplay(DisplayMode.Formatted);
                 rtbResponse.Text = "Processing in progress.";
+                rtbFormatted.Text = "Processing in progress.";
+
+                // Re-read the Prompt/Data text windows so edits made directly in the
+                // UI are honored; these are otherwise only captured when a file is opened.
+                _options.Prompt = rtbPrompt.Text;
+                _options.Data = rtbData.Text;
+                _processingDataPath = _options.DataPath;
 
                 if (!FillOptionsFromUI())
                 {
@@ -401,6 +584,7 @@ namespace AIFileProcessor
                 {
                     _logger.LogInformation("Processing was cancelled by the user.");
                     rtbResponse.Text = "Processing cancelled.";
+                    rtbFormatted.Text = "Processing cancelled.";
                     return;
                 }
                 catch (Exception ex)
@@ -424,22 +608,96 @@ namespace AIFileProcessor
                 {
                     _logger.LogWarning("ProcessAsync completed with no sentence rows.");
                     rtbResponse.Text = "Processing completed but no sentences were returned.";
+                    rtbFormatted.Text = "Processing completed but no sentences were returned.";
                     return;
                 }
 
                 rtbScratchpad.Text = result.Scratchpad;
 
-                rtbCorrections.Text = result.Corrections == null || result.Corrections.Count == 0
+                rtbCorrections.Text = result.Corrections.Count == 0
                     ? "There were no corrections."
                     : string.Join(System.Environment.NewLine, result.Corrections);
 
                 rtbResponse.Text = result.RawResponse;
 
-                UpdateDisplay(DisplayMode.Response);
+                // Display metrics across three tabs (table, JSON, graph) if present
+                if (result.Metrics != null)
+                {
+                    var m = result.Metrics;
+
+                    // Build a descriptive title that matches the Gantt chart
+                    var modelName = _lastRunModelName ?? (ddlModel.SelectedItem as AiModelInfo)?.ModelName ?? _options.ModelId ?? "Unknown model";
+                    var title = $"Chunk processing timeline" + (string.IsNullOrEmpty(modelName) ? string.Empty : $" — {modelName}") + $" · {m.ChunkCount} chunk" + (m.ChunkCount == 1 ? string.Empty : "s") + $" · {m.ElapsedMs / 1000.0:n1} s";
+
+                    // Table: human-readable summary plus per-chunk table
+                    var table = new System.Text.StringBuilder();
+                    table.AppendLine(title);
+                    table.AppendLine();
+                    table.AppendLine($"Elapsed: {m.ElapsedMs} ms    Chunks: {m.ChunkCount}    Succeeded: {m.Succeeded}    Failed: {m.Failed}");
+                    table.AppendLine($"Total Prompt Tokens: {m.TotalPromptTokens?.ToString() ?? "-"}    Total Completion Tokens: {m.TotalCompletionTokens?.ToString() ?? "-"}");
+                    table.AppendLine();
+                    table.AppendLine("Chunk\tStartLine\tEndLine\tElapsedMs\tTTFBms\tPromptTokens\tCompletionTokens");
+                    foreach (var c in m.Chunks)
+                    {
+                        table.AppendLine($"{c.ChunkIndex}\t{c.StartLine}\t{c.EndLine}\t{c.Telemetry.ElapsedMs}\t{c.Telemetry.TimeToFirstByteMs?.ToString() ?? "-"}\t{c.Telemetry.PromptTokens?.ToString() ?? "-"}\t{c.Telemetry.CompletionTokens?.ToString() ?? "-"}");
+                    }
+
+                    rtbMetrics.Text = table.ToString();
+
+                    // Compute line-level success/failure from the input data and chunk results.
+                    // LineCount = total source lines (regardless of success or failure).
+                    // LinesSuccessful = lines in chunks whose API call returned output.
+                    // LinesFailed = lines for which no output was returned by the API.
+                    int lineCount = rtbData.TextLength > 0
+                        ? rtbData.Text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None).Length
+                        : 0;
+
+                    var chunkLineRanges = m.Chunks
+                        .Select(c => new { c.StartLine, c.EndLine, c.Telemetry.Status })
+                        .ToList();
+
+                    int linesSuccessful = chunkLineRanges
+                        .Where(c => string.Equals(c.Status, "Success", StringComparison.OrdinalIgnoreCase))
+                        .Sum(c => c.EndLine - c.StartLine + 1);
+
+                    int linesFailed = Math.Max(0, lineCount - linesSuccessful);
+
+                    // JSON: envelope the metrics with run metadata (title, model, counts, times)
+                    var envelope = new
+                    {
+                        RunInfo = new
+                        {
+                            Title = title,
+                            Model = modelName,
+                            ChunkCount = m.ChunkCount,
+                            LineCount = lineCount,
+                            LinesSuccessful = linesSuccessful,
+                            LinesFailed = linesFailed,
+                            ElapsedMs = m.ElapsedMs,
+                            StartUtc = m.StartUtc,
+                            EndUtc = m.EndUtc,
+                        },
+                        Metrics = m,
+                    };
+
+                    rtbMetricsJson.Text = System.Text.Json.JsonSerializer.Serialize(envelope, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+
+                    // Graph: store metrics for the paint handler and trigger repaint
+                    _currentMetrics = m;
+                    pnlMetricsGraph.Invalidate();
+                }
+
+                // Chain formatting: parse the fresh raw response and fill rtbFormatted.
+                FormatResponseInto(rtbFormatted, showMessageOnEmpty: false);
+
+                // Remember which model produced this run for the Gantt chart title.
+                _lastRunModelName = (ddlModel.SelectedItem as AiModelInfo)?.ModelName;
+
+                UpdateDisplay(DisplayMode.Formatted);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred in btnProcess_Click: {Message}", ex.Message);
+                _logger.LogError(ex, "Error occurred in btnProcessFormat_Click: {Message}", ex.Message);
                 MessageBox.Show($"An error occurred: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
@@ -447,16 +705,160 @@ namespace AIFileProcessor
                 _isProcessing = false;
                 btnProcess.Text = "Process";
                 btnProcess.Enabled = true;
+                UpdateSaveState();
             }
         }
 
-        private async void btnSaveResponse_Click(object sender, EventArgs e)
+        private async void btnOpenResponse_Click(object sender, EventArgs e)
         {
             try
             {
-                if (_options.DataPath.Length > 0)
+                await LoadTextAsync(DisplayMode.Response, rtbResponse);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error in btnOpenResponse_Click.");
+                MessageBox.Show($"An unexpected error occurred: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void panelMetricsGraph_Paint(object? sender, PaintEventArgs e)
+        {
+            if (_currentMetrics == null || _currentMetrics.Chunks.Count == 0)
+            {
+                return;
+            }
+
+            ChunkTimelineGanttRenderer.Draw(e.Graphics, _currentMetrics, pnlMetricsGraph.ClientRectangle, _lastRunModelName);
+        }
+
+        /// <summary>
+        /// Renders the current metrics Gantt chart to a PNG chosen by the user.
+        /// Defaults to the last location the user saved the graph to (per-user).
+        /// </summary>
+        private void SaveMetricsGraphPng()
+        {
+            var metrics = _currentMetrics;
+            if (metrics == null)
+            {
+                return;
+            }
+
+            string initialDir = string.Empty;
+            string fileName = "Metrics Graph.png";
+            if (!string.IsNullOrWhiteSpace(_options.MetricsGraphSavePath))
+            {
+                try
                 {
-                    await SaveTextAsync(string.Format("{0}{1}", _options.DataPath.Replace(".txt", string.Empty), " Response.txt"), rtbResponse);
+                    initialDir = Path.GetDirectoryName(_options.MetricsGraphSavePath) ?? string.Empty;
+                    string? name = Path.GetFileName(_options.MetricsGraphSavePath);
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        fileName = name;
+                    }
+                }
+                catch
+                {
+                    initialDir = string.Empty;
+                }
+            }
+
+            using SaveFileDialog saveFileDialog = new()
+            {
+                Filter = "PNG image (*.png)|*.png",
+                FileName = fileName,
+                Title = "Save Metrics Graph",
+                DefaultExt = "png",
+            };
+
+            if (!string.IsNullOrWhiteSpace(initialDir) && Directory.Exists(initialDir))
+            {
+                saveFileDialog.InitialDirectory = initialDir;
+            }
+
+            if (saveFileDialog.ShowDialog() != DialogResult.OK)
+            {
+                return;
+            }
+
+            var size = ChunkTimelineGanttRenderer.GetRequiredSize(metrics);
+            using var bitmap = new Bitmap(Math.Max(1, size.Width), Math.Max(1, size.Height));
+            using (var g = Graphics.FromImage(bitmap))
+            {
+                ChunkTimelineGanttRenderer.Draw(g, metrics, new Rectangle(0, 0, bitmap.Width, bitmap.Height), _lastRunModelName);
+            }
+
+            bitmap.Save(saveFileDialog.FileName, ImageFormat.Png);
+
+            _options.MetricsGraphSavePath = saveFileDialog.FileName;
+            SaveProcessingOptions();
+        }
+
+        private void btnClose_Click(object sender, EventArgs e)
+        {
+            Close();
+        }
+
+        private async void openDataToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                await LoadTextAsync(DisplayMode.Data, rtbData);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error in openDataToolStripMenuItem_Click.");
+                MessageBox.Show($"An unexpected error occurred: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async void saveToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Save whichever RichTextBox view is currently visible, using each
+                // box's persisted last-save path as the dialog default.
+                if (rtbPrompt.Visible)
+                {
+                    await SaveTextAsync(Path.GetFileName(_options.PromptPath) is { Length: > 0 } p ? p : "Prompt.txt", rtbPrompt);
+                }
+                else if (rtbData.Visible)
+                {
+                    await SaveTextAsync(Path.GetFileName(_options.DataPath) is { Length: > 0 } d ? d : "Data.txt", rtbData);
+                }
+                else if (rtbScratchpad.Visible)
+                {
+                    await SaveTextAsync("Scratchpad.txt", rtbScratchpad);
+                }
+                else if (rtbCorrections.Visible)
+                {
+                    await SaveTextAsync("Corrections.txt", rtbCorrections);
+                }
+                else if (rtbFormatted.Visible)
+                {
+                    string formattedDefault = Path.GetFileNameWithoutExtension(_processingDataPath) is { Length: > 0 } dataName
+                        ? $"{dataName} Import.txt"
+                        : Path.GetFileNameWithoutExtension(_options.DataPath) is { Length: > 0 } fallbackName
+                            ? $"{fallbackName} Import.txt"
+                            : "Response Import.txt";
+                    await SaveTextAsync(formattedDefault, rtbFormatted);
+                }
+                else if (tabMetrics.Visible)
+                {
+                    // Save according to the active metrics tab: table text, raw JSON,
+                    // or the Gantt graph as PNG.
+                    if (tabMetrics.SelectedTab == tpMetricsJson)
+                    {
+                        await SaveTextAsync("Metrics.json", rtbMetricsJson);
+                    }
+                    else if (tabMetrics.SelectedTab == tpMetricsGraph)
+                    {
+                        SaveMetricsGraphPng();
+                    }
+                    else
+                    {
+                        await SaveTextAsync("Metrics.txt", rtbMetrics);
+                    }
                 }
                 else
                 {
@@ -465,34 +867,28 @@ namespace AIFileProcessor
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error in btnSaveResponse_Click.");
+                _logger.LogError(ex, "Unexpected error in saveToolStripMenuItem_Click.");
                 MessageBox.Show($"An unexpected error occurred: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private async void btnSaveFormatted_Click(object sender, EventArgs e)
+        private void saveMetricsGraphToolStripMenuItem_Click(object sender, EventArgs e)
         {
             try
             {
-                if (_options.DataPath.Length > 0)
+                if (_currentMetrics == null)
                 {
-                    await SaveTextAsync(string.Format("{0}{1}", _options.DataPath.Replace(".txt", string.Empty), " Import.txt"), rtbFormatted);
+                    MessageBox.Show("There are no metrics to save. Process a file first.", "Metrics Graph", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
                 }
-                else
-                {
-                    await SaveTextAsync("Response Import.txt", rtbFormatted);
-                }
+
+                SaveMetricsGraphPng();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error in btnSaveFormatted_Click.");
+                _logger.LogError(ex, "Unexpected error in saveMetricsGraphToolStripMenuItem_Click.");
                 MessageBox.Show($"An unexpected error occurred: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        private void btnClose_Click(object sender, EventArgs e)
-        {
-            Close();
         }
 
         private async void openToolStripMenuItem_Click(object sender, EventArgs e)
@@ -639,6 +1035,20 @@ namespace AIFileProcessor
             {
                 var saved = _settingsProvider.GetProcessingOptionsAsync(_userContext.UserId).GetAwaiter().GetResult();
 
+                // Restore file paths so LoadTextAsync can default to the last-used file
+                _options.PromptPath = saved.PromptPath ?? string.Empty;
+                _options.DataPath = saved.DataPath ?? string.Empty;
+                _options.ResponsePath = saved.ResponsePath ?? string.Empty;
+
+                // Restore per-RichTextBox last-save paths and the graph save path.
+                _options.ResponseSavePath = saved.ResponseSavePath ?? string.Empty;
+                _options.FormattedSavePath = saved.FormattedSavePath ?? string.Empty;
+                _options.ScratchpadSavePath = saved.ScratchpadSavePath ?? string.Empty;
+                _options.CorrectionsSavePath = saved.CorrectionsSavePath ?? string.Empty;
+                _options.MetricsSavePath = saved.MetricsSavePath ?? string.Empty;
+                _options.MetricsJsonSavePath = saved.MetricsJsonSavePath ?? string.Empty;
+                _options.MetricsGraphSavePath = saved.MetricsGraphSavePath ?? string.Empty;
+
                 // Copy the saved per-model reasoning levels into the live options
                 if (saved.ModelReasoningLevels != null)
                 {
@@ -777,6 +1187,14 @@ namespace AIFileProcessor
             }
         }
 
+        private void rdoMetrics_CheckedChanged(object sender, EventArgs e)
+        {
+            if (rdoMetrics.Checked)
+            {
+                UpdateDisplay(DisplayMode.Metrics);
+            }
+        }
+
         private void rdoPrompt_CheckedChanged(object sender, EventArgs e)
         {
             if (rdoPrompt.Checked)
@@ -820,6 +1238,96 @@ namespace AIFileProcessor
 
             rtbFormatted.Visible = show == DisplayMode.Formatted;
             rdoFormatted.Checked = show == DisplayMode.Formatted;
+
+            // The metrics view is the tab control. rtbMetrics lives inside the
+            // Table tab page so its visibility is managed by the tab control.
+            tabMetrics.Visible = show == DisplayMode.Metrics;
+            tabMetrics.BringToFront();
+            rdoMetrics.Checked = show == DisplayMode.Metrics;
+
+            UpdateSaveState();
+        }
+
+        /// <summary>
+        /// Enables or disables the File ? Save item based on whether the currently
+        /// visible output view contains real user/API data (as opposed to being empty
+        /// or holding only a status message).
+        /// </summary>
+        private void UpdateSaveState()
+        {
+            bool savable = ComputeCurrentViewSavable();
+            tsmiSave.Enabled = savable;
+            btnSave.Enabled = savable;
+        }
+
+        /// <summary>
+        /// Determines whether the currently visible view has content worth saving.
+        /// For the metrics view the result depends on the active tab.
+        /// </summary>
+        private bool ComputeCurrentViewSavable()
+        {
+            if (tabMetrics.Visible)
+            {
+                if (tabMetrics.SelectedTab == tpMetricsGraph)
+                {
+                    return _currentMetrics != null && _currentMetrics.Chunks.Count > 0;
+                }
+
+                if (tabMetrics.SelectedTab == tpMetricsJson)
+                {
+                    return HasSavableText(rtbMetricsJson);
+                }
+
+                return HasMetricsTableData();
+            }
+
+            if (rtbScratchpad.Visible)
+            {
+                return !string.IsNullOrWhiteSpace(rtbScratchpad.Text);
+            }
+
+            if (rtbCorrections.Visible)
+            {
+                return HasSavableText(rtbCorrections);
+            }
+
+            if (rtbResponse.Visible)
+            {
+                return HasSavableText(rtbResponse);
+            }
+
+            if (rtbFormatted.Visible)
+            {
+                return HasSavableText(rtbFormatted);
+            }
+
+            // Prompt and Data are user-supplied inputs, not generated output — saving
+            // them through the unified Save item is not supported.
+            return false;
+        }
+
+        /// <summary>
+        /// True when the metrics table contains at least one chunk row beneath the
+        /// generated summary/header block.
+        /// </summary>
+        private bool HasMetricsTableData()
+        {
+            foreach (var rawLine in rtbMetrics.Text.Split('\n'))
+            {
+                string line = rawLine.Trim();
+                if (line.Length == 0
+                    || line.StartsWith("Elapsed:", StringComparison.Ordinal)
+                    || line.StartsWith("Total Prompt Tokens:", StringComparison.Ordinal)
+                    || line.StartsWith("Chunk\t", StringComparison.Ordinal)
+                    || line.StartsWith("Chunk processing timeline", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                return true;
+            }
+
+            return false;
         }
     }
 }

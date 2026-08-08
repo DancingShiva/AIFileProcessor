@@ -103,5 +103,33 @@ namespace AIFileProcessor.Services
                 throw;
             }
         }
+
+        public async Task<bool> SaveFileWithVerificationAsync(string pathOfFile, string data, int maxAttempts = 3, int delayBetweenAttemptsMs = 500)
+        {
+            await SaveFileAsync(pathOfFile, data).ConfigureAwait(false);
+
+            int attempts = Math.Max(1, maxAttempts);
+            for (int attempt = 1; attempt <= attempts; attempt++)
+            {
+                string persisted = await LoadFileAsync(pathOfFile).ConfigureAwait(false);
+                if (string.Equals(persisted, data, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+
+                _logger.LogWarning(
+                    "Save verification mismatch on attempt {Attempt}/{Attempts} for {FileName}; the file may be served stale by a sync client.",
+                    attempt,
+                    attempts,
+                    pathOfFile);
+
+                if (attempt < attempts && delayBetweenAttemptsMs > 0)
+                {
+                    await Task.Delay(delayBetweenAttemptsMs).ConfigureAwait(false);
+                }
+            }
+
+            return false;
+        }
     }
 }

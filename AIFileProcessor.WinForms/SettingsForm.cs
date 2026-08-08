@@ -28,6 +28,10 @@ namespace AIFileProcessor
         private readonly IUserContext _userContext;
         private Dictionary<string, ReasoningLevel> _modelReasoningLevels = new();
         private Dictionary<string, int> _modelMaxTokens = new();
+        private Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> _geminiModelChunking = new();
+        private Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> _openAiModelChunking = new();
+        private Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> _deepSeekModelChunking = new();
+        private ProcessingSettings _processingSettings = new();
 
         public SettingsForm(
             IEnumerable<IAiService> aiServices,
@@ -49,18 +53,21 @@ namespace AIFileProcessor
                 UpdateGeminiMaxTokensLimit();
                 UpdateGeminiReasoningLevels();
                 UpdateGeminiMaxTokensValue();
+                UpdateGeminiChunkingValue();
             };
             this.ddlOpenAiModel.SelectedIndexChanged += (s, e) =>
             {
                 UpdateOpenAiMaxTokensLimit();
                 UpdateOpenAiReasoningLevels();
                 UpdateOpenAiMaxTokensValue();
+                UpdateOpenAiChunkingValue();
             };
             this.ddlDeepSeekModel.SelectedIndexChanged += (s, e) =>
             {
                 UpdateDeepSeekMaxTokensLimit();
                 UpdateDeepSeekReasoningLevels();
                 UpdateDeepSeekMaxTokensValue();
+                UpdateDeepSeekChunkingValue();
             };
         }
 
@@ -183,6 +190,43 @@ namespace AIFileProcessor
             UpdateMaxTokensForModel(nudDeepSeekMaxTokens, chkDeepSeekMaxTokensNull, GetModelId(ddlDeepSeekModel));
         }
 
+        private void UpdateChunkingForModel(NumericUpDown nudChunkSize, NumericUpDown nudMaxConcurrent, Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> store, string? modelId)
+        {
+            if (!string.IsNullOrWhiteSpace(modelId) && store.TryGetValue(modelId, out var values))
+            {
+                nudChunkSize.Value = Math.Clamp(values.ChunkSize, (int)nudChunkSize.Minimum, (int)nudChunkSize.Maximum);
+                nudMaxConcurrent.Value = Math.Clamp(values.MaxConcurrentChunks, (int)nudMaxConcurrent.Minimum, (int)nudMaxConcurrent.Maximum);
+            }
+            else
+            {
+                nudChunkSize.Value = Math.Min(_processingSettings.ChunkSizeDefault, nudChunkSize.Maximum);
+                nudMaxConcurrent.Value = Math.Min(_processingSettings.MaxConcurrentChunksDefault, nudMaxConcurrent.Maximum);
+            }
+        }
+
+        private void SaveChunkingForModel(NumericUpDown nudChunkSize, NumericUpDown nudMaxConcurrent, Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> store, string? modelId)
+        {
+            if (!string.IsNullOrWhiteSpace(modelId))
+            {
+                store[modelId] = ((int)nudChunkSize.Value, (int)nudMaxConcurrent.Value);
+            }
+        }
+
+        private void UpdateGeminiChunkingValue()
+        {
+            UpdateChunkingForModel(nudGeminiChunkSize, nudGeminiMaxConcurrentChunks, _geminiModelChunking, GetModelId(ddlGeminiModel));
+        }
+
+        private void UpdateOpenAiChunkingValue()
+        {
+            UpdateChunkingForModel(nudOpenAiChunkSize, nudOpenAiMaxConcurrentChunks, _openAiModelChunking, GetModelId(ddlOpenAiModel));
+        }
+
+        private void UpdateDeepSeekChunkingValue()
+        {
+            UpdateChunkingForModel(nudDeepSeekChunkSize, nudDeepSeekMaxConcurrentChunks, _deepSeekModelChunking, GetModelId(ddlDeepSeekModel));
+        }
+
         private void PopulateModelDropdowns(IEnumerable<IAiService> aiServices)
         {
             foreach (var service in aiServices)
@@ -236,6 +280,15 @@ namespace AIFileProcessor
         {
             try
             {
+                // Load global processing settings (defaults + caps) and bound the per-model controls.
+                _processingSettings = await _settingsProvider.GetProcessingSettingsAsync().ConfigureAwait(true);
+                nudGeminiChunkSize.Maximum = Math.Max(nudGeminiChunkSize.Maximum, _processingSettings.ChunkSizeCap);
+                nudGeminiMaxConcurrentChunks.Maximum = Math.Max(nudGeminiMaxConcurrentChunks.Maximum, _processingSettings.MaxConcurrentChunksCap);
+                nudOpenAiChunkSize.Maximum = Math.Max(nudOpenAiChunkSize.Maximum, _processingSettings.ChunkSizeCap);
+                nudOpenAiMaxConcurrentChunks.Maximum = Math.Max(nudOpenAiMaxConcurrentChunks.Maximum, _processingSettings.MaxConcurrentChunksCap);
+                nudDeepSeekChunkSize.Maximum = Math.Max(nudDeepSeekChunkSize.Maximum, _processingSettings.ChunkSizeCap);
+                nudDeepSeekMaxConcurrentChunks.Maximum = Math.Max(nudDeepSeekMaxConcurrentChunks.Maximum, _processingSettings.MaxConcurrentChunksCap);
+
                 // Load per-model reasoning levels and MaxTokens from ProcessingOptions (single source of truth)
                 var processingOptions = await _settingsProvider.GetProcessingOptionsAsync(_userContext.UserId).ConfigureAwait(true);
                 if (processingOptions.ModelReasoningLevels != null)
@@ -276,6 +329,15 @@ namespace AIFileProcessor
                 chkGeminiUseManagedIdentity.Checked = gemini.UseManagedIdentity;
                 txtGeminiCredentialType.Text = gemini.CredentialType ?? string.Empty;
 
+                // Load per-model chunking for the selected Gemini model
+                var geminiModelId = GetModelId(ddlGeminiModel);
+                if (!string.IsNullOrWhiteSpace(geminiModelId))
+                {
+                    var gm = await _settingsProvider.GetGeminiModelSettingsAsync(geminiModelId, _userContext.UserId).ConfigureAwait(true);
+                    _geminiModelChunking[geminiModelId] = (gm.ChunkSize ?? _processingSettings.ChunkSizeDefault, gm.MaxConcurrentChunks ?? _processingSettings.MaxConcurrentChunksDefault);
+                    UpdateGeminiChunkingValue();
+                }
+
                 // Load OpenAI Settings
                 var openAi = await _settingsProvider.GetOpenAiSettingsAsync(_userContext.UserId).ConfigureAwait(true);
                 txtOpenAiEndpoint.Text = openAi.Endpoint ?? string.Empty;
@@ -289,6 +351,15 @@ namespace AIFileProcessor
                 nudOpenAiTemp.Value = (decimal)(openAi.Temperature ?? 0.0);
                 chkOpenAiTempNull.Checked = !openAi.Temperature.HasValue;
 
+                // Load per-model chunking for the selected OpenAI model
+                var openAiModelId = GetModelId(ddlOpenAiModel);
+                if (!string.IsNullOrWhiteSpace(openAiModelId))
+                {
+                    var om = await _settingsProvider.GetOpenAiModelSettingsAsync(openAiModelId, _userContext.UserId).ConfigureAwait(true);
+                    _openAiModelChunking[openAiModelId] = (om.ChunkSize ?? _processingSettings.ChunkSizeDefault, om.MaxConcurrentChunks ?? _processingSettings.MaxConcurrentChunksDefault);
+                    UpdateOpenAiChunkingValue();
+                }
+
                 // Load DeepSeek Settings
                 var deepSeek = await _settingsProvider.GetDeepSeekSettingsAsync(_userContext.UserId).ConfigureAwait(true);
                 SelectModelByModelId(ddlDeepSeekModel, deepSeek.ModelName);
@@ -301,6 +372,15 @@ namespace AIFileProcessor
                 nudDeepSeekTemp.Value = (decimal)(deepSeek.Temperature ?? 0.0);
                 chkDeepSeekTempNull.Checked = !deepSeek.Temperature.HasValue;
                 chkDeepSeekReasoning.Checked = deepSeek.EnableReasoning;
+
+                // Load per-model chunking for the selected DeepSeek model
+                var deepSeekModelId = GetModelId(ddlDeepSeekModel);
+                if (!string.IsNullOrWhiteSpace(deepSeekModelId))
+                {
+                    var dm = await _settingsProvider.GetDeepSeekModelSettingsAsync(deepSeekModelId, _userContext.UserId).ConfigureAwait(true);
+                    _deepSeekModelChunking[deepSeekModelId] = (dm.ChunkSize ?? _processingSettings.ChunkSizeDefault, dm.MaxConcurrentChunks ?? _processingSettings.MaxConcurrentChunksDefault);
+                    UpdateDeepSeekChunkingValue();
+                }
             }
             catch (Exception ex)
             {
@@ -334,6 +414,18 @@ namespace AIFileProcessor
                 };
                 await _settingsProvider.SaveGeminiSettingsAsync(_userContext.UserId, gemini).ConfigureAwait(true);
 
+                // Save per-model Gemini chunking for the currently selected model
+                var geminiModelId = GetModelId(ddlGeminiModel);
+                if (!string.IsNullOrWhiteSpace(geminiModelId))
+                {
+                    SaveChunkingForModel(nudGeminiChunkSize, nudGeminiMaxConcurrentChunks, _geminiModelChunking, geminiModelId);
+                    if (_geminiModelChunking.TryGetValue(geminiModelId, out var gchunk))
+                    {
+                        var gm = new GeminiModelSettings { ChunkSize = gchunk.ChunkSize, MaxConcurrentChunks = gchunk.MaxConcurrentChunks };
+                        await _settingsProvider.SaveGeminiModelSettingsAsync(geminiModelId, _userContext.UserId, gm).ConfigureAwait(true);
+                    }
+                }
+
                 // Save OpenAI Settings (ApiKey is not included — it comes from environment variables)
                 var openAi = new OpenAiSettings
                 {
@@ -345,6 +437,18 @@ namespace AIFileProcessor
                 };
                 await _settingsProvider.SaveOpenAiSettingsAsync(_userContext.UserId, openAi).ConfigureAwait(true);
 
+                // Save per-model OpenAI chunking for the currently selected model
+                var openAiModelId = GetModelId(ddlOpenAiModel);
+                if (!string.IsNullOrWhiteSpace(openAiModelId))
+                {
+                    SaveChunkingForModel(nudOpenAiChunkSize, nudOpenAiMaxConcurrentChunks, _openAiModelChunking, openAiModelId);
+                    if (_openAiModelChunking.TryGetValue(openAiModelId, out var ochunk))
+                    {
+                        var om = new OpenAiModelSettings { ChunkSize = ochunk.ChunkSize, MaxConcurrentChunks = ochunk.MaxConcurrentChunks };
+                        await _settingsProvider.SaveOpenAiModelSettingsAsync(openAiModelId, _userContext.UserId, om).ConfigureAwait(true);
+                    }
+                }
+
                 // Save DeepSeek Settings (ApiKey is not included — it comes from enviro
                 var deepSeek = new DeepSeekSettings
                 {
@@ -355,6 +459,18 @@ namespace AIFileProcessor
                     EnableReasoning = chkDeepSeekReasoning.Checked
                 };
                 await _settingsProvider.SaveDeepSeekSettingsAsync(_userContext.UserId, deepSeek).ConfigureAwait(true);
+
+                // Save per-model DeepSeek chunking for the currently selected model
+                var deepSeekModelId = GetModelId(ddlDeepSeekModel);
+                if (!string.IsNullOrWhiteSpace(deepSeekModelId))
+                {
+                    SaveChunkingForModel(nudDeepSeekChunkSize, nudDeepSeekMaxConcurrentChunks, _deepSeekModelChunking, deepSeekModelId);
+                    if (_deepSeekModelChunking.TryGetValue(deepSeekModelId, out var dchunk))
+                    {
+                        var dm = new DeepSeekModelSettings { ChunkSize = dchunk.ChunkSize, MaxConcurrentChunks = dchunk.MaxConcurrentChunks };
+                        await _settingsProvider.SaveDeepSeekModelSettingsAsync(deepSeekModelId, _userContext.UserId, dm).ConfigureAwait(true);
+                    }
+                }
 
                 // Save per-model reasoning levels and MaxTokens to ProcessingOptions (single source of truth)
                 SaveReasoningLevelForModel(ddlGeminiReasoning, GetModelId(ddlGeminiModel));

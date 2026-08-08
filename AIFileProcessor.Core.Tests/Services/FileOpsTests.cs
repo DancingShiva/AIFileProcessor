@@ -181,4 +181,66 @@ public class FileOpsTests
             }
         }
     }
+
+    [Fact]
+    public async Task SaveFileWithVerificationAsync_ValidPathAndData_ReturnsTrueAndWritesFile()
+    {
+        // Arrange
+        string tempFile = Path.Combine(Path.GetTempPath(), $"save_verify_test_{Guid.NewGuid()}.txt");
+        string data = "Test content for save verification";
+
+        try
+        {
+            // Act
+            bool result = await _fileOps.SaveFileWithVerificationAsync(tempFile, data);
+
+            // Assert
+            Assert.True(result);
+            Assert.True(File.Exists(tempFile));
+            string writtenContent = await File.ReadAllTextAsync(tempFile, TestContext.Current.CancellationToken);
+            Assert.Equal(data, writtenContent);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task SaveFileWithVerificationAsync_CreatesDirectoryIfNotExists_ReturnsTrue()
+    {
+        // Arrange
+        string tempDir = Path.Combine(Path.GetTempPath(), $"save_verify_dir_test_{Guid.NewGuid()}");
+        string filePath = Path.Combine(tempDir, "testfile.txt");
+        string data = "Content in new directory";
+
+        try
+        {
+            // Act
+            bool result = await _fileOps.SaveFileWithVerificationAsync(filePath, data, maxAttempts: 2, delayBetweenAttemptsMs: 1);
+
+            // Assert
+            Assert.True(result);
+            Assert.True(File.Exists(filePath));
+            string writtenContent = await File.ReadAllTextAsync(filePath, TestContext.Current.CancellationToken);
+            Assert.Equal(data, writtenContent);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task SaveFileWithVerificationAsync_NullPath_ThrowsArgumentException()
+    {
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => _fileOps.SaveFileWithVerificationAsync(null!, "data"));
+    }
 }

@@ -1,6 +1,6 @@
 <Solution>
   <Folder Name="/Prompt/">
-    <File Path="Prompt/Chinese Processing Prompt.txt" />
+    <File Path="Prompt/ChineseProcessingPrompt.txt" />
   </Folder>
   <Project Path="AIFileProcessor.Core.Tests/AIFileProcessor.Core.Tests.csproj" />
   <Project Path="AIFileProcessor.Core/AIFileProcessor.Core.csproj" />
