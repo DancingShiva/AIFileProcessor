@@ -186,86 +186,6 @@ namespace AIFileProcessor.Services
             return Task.CompletedTask;
         }
 
-        /// <summary>
-        /// Returns the directory path for the specified user's settings.
-        /// </summary>
-        /// <param name="userId">The user identifier.</param>
-        /// <returns>The full path to the user's settings directory.</returns>
-        private static string GetUserSettingsDirectory(string userId)
-        {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            return Path.Combine(appData, AppFolderName, userId);
-        }
-
-        /// <summary>
-        /// Returns the full path to the specified user's settings file.
-        /// </summary>
-        /// <param name="userId">The user identifier.</param>
-        /// <returns>The full path to the user's settings JSON file.</returns>
-        private static string GetUserSettingsFilePath(string userId)
-        {
-            return Path.Combine(GetUserSettingsDirectory(userId), SettingsFileName);
-        }
-
-        /// <summary>
-        /// Reads the per-user override file if it exists, returning the root
-        /// JSON object or <c>null</c> if the file is not present.
-        /// </summary>
-        /// <param name="userId">The user identifier.</param>
-        /// <returns>The parsed root <see cref="JsonObject"/>, or <c>null</c>.</returns>
-        private static JsonObject? ReadUserOverrides(string userId)
-        {
-            string filePath = GetUserSettingsFilePath(userId);
-            if (!File.Exists(filePath))
-            {
-                return null;
-            }
-
-            string jsonContent = File.ReadAllText(filePath);
-            return JsonNode.Parse(jsonContent) as JsonObject;
-        }
-
-        /// <summary>
-        /// Saves a settings section to the per-user override file. The
-        /// <c>ApiKey</c> field is always stripped before saving — per-user
-        /// files contain only non-secret preferences. API keys are sourced
-        /// from machine-level <see cref="IConfiguration"/> at read time.
-        /// </summary>
-        /// <typeparam name="T">The settings type to serialize.</typeparam>
-        /// <param name="userId">The user identifier.</param>
-        /// <param name="sectionName">The JSON section name (e.g., "GeminiSettings").</param>
-        /// <param name="settings">The settings instance to save.</param>
-        private static void SaveSection<T>(string userId, string sectionName, T settings)
-            where T : class
-        {
-            string filePath = GetUserSettingsFilePath(userId);
-            string? directory = Path.GetDirectoryName(filePath);
-
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            JsonObject? rootNode = null;
-
-            if (File.Exists(filePath))
-            {
-                string existingContent = File.ReadAllText(filePath);
-                rootNode = JsonNode.Parse(existingContent) as JsonObject;
-            }
-
-            rootNode ??= new JsonObject();
-
-            string sectionJson = JsonSerializer.Serialize(settings, WriteOptions);
-            var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
-
-            // ApiKey is [JsonIgnore] on the settings models, so it is never
-            // present in the serialized JSON — no manual stripping needed.
-            rootNode[sectionName] = sectionNode;
-
-            File.WriteAllText(filePath, rootNode.ToJsonString(WriteOptions));
-        }
-
         /// <inheritdoc/>
         public Task<GeminiModelSettings> GetGeminiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
         {
@@ -291,12 +211,14 @@ namespace AIFileProcessor.Services
             {
                 modelSettings.ChunkSize = Math.Max(1, Math.Min(modelSettings.ChunkSize.Value, caps.ChunkSizeCap));
             }
+
             modelSettings.ChunkSize ??= caps.ChunkSizeDefault;
 
             if (modelSettings.MaxConcurrentChunks.HasValue)
             {
                 modelSettings.MaxConcurrentChunks = Math.Max(1, Math.Min(modelSettings.MaxConcurrentChunks.Value, caps.MaxConcurrentChunksCap));
             }
+
             modelSettings.MaxConcurrentChunks ??= caps.MaxConcurrentChunksDefault;
 
             // Migrate legacy "GeminiSettings" user override into "GeminiModels:{modelId}" if needed.
@@ -391,12 +313,14 @@ namespace AIFileProcessor.Services
             {
                 modelSettings.ChunkSize = Math.Max(1, Math.Min(modelSettings.ChunkSize.Value, caps.ChunkSizeCap));
             }
+
             modelSettings.ChunkSize ??= caps.ChunkSizeDefault;
 
             if (modelSettings.MaxConcurrentChunks.HasValue)
             {
                 modelSettings.MaxConcurrentChunks = Math.Max(1, Math.Min(modelSettings.MaxConcurrentChunks.Value, caps.MaxConcurrentChunksCap));
             }
+
             modelSettings.MaxConcurrentChunks ??= caps.MaxConcurrentChunksDefault;
 
             // Migrate legacy "OpenAiSettings" user override into "OpenAiModels:{modelId}" if needed.
@@ -481,12 +405,14 @@ namespace AIFileProcessor.Services
             {
                 modelSettings.ChunkSize = Math.Max(1, Math.Min(modelSettings.ChunkSize.Value, caps.ChunkSizeCap));
             }
+
             modelSettings.ChunkSize ??= caps.ChunkSizeDefault;
 
             if (modelSettings.MaxConcurrentChunks.HasValue)
             {
                 modelSettings.MaxConcurrentChunks = Math.Max(1, Math.Min(modelSettings.MaxConcurrentChunks.Value, caps.MaxConcurrentChunksCap));
             }
+
             modelSettings.MaxConcurrentChunks ??= caps.MaxConcurrentChunksDefault;
 
             // Migrate legacy "DeepSeekSettings" user override into "DeepSeekModels:{modelId}" if needed.
@@ -585,6 +511,86 @@ namespace AIFileProcessor.Services
             var settings = new ProcessingSettings();
             _configuration.GetSection("Processing").Bind(settings);
             return Task.FromResult(settings);
+        }
+
+        /// <summary>
+        /// Returns the directory path for the specified user's settings.
+        /// </summary>
+        /// <param name="userId">The user identifier.</param>
+        /// <returns>The full path to the user's settings directory.</returns>
+        private static string GetUserSettingsDirectory(string userId)
+        {
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            return Path.Combine(appData, AppFolderName, userId);
+        }
+
+        /// <summary>
+        /// Returns the full path to the specified user's settings file.
+        /// </summary>
+        /// <param name="userId">The user identifier.</param>
+        /// <returns>The full path to the user's settings JSON file.</returns>
+        private static string GetUserSettingsFilePath(string userId)
+        {
+            return Path.Combine(GetUserSettingsDirectory(userId), SettingsFileName);
+        }
+
+        /// <summary>
+        /// Reads the per-user override file if it exists, returning the root
+        /// JSON object or <c>null</c> if the file is not present.
+        /// </summary>
+        /// <param name="userId">The user identifier.</param>
+        /// <returns>The parsed root <see cref="JsonObject"/>, or <c>null</c>.</returns>
+        private static JsonObject? ReadUserOverrides(string userId)
+        {
+            string filePath = GetUserSettingsFilePath(userId);
+            if (!File.Exists(filePath))
+            {
+                return null;
+            }
+
+            string jsonContent = File.ReadAllText(filePath);
+            return JsonNode.Parse(jsonContent) as JsonObject;
+        }
+
+        /// <summary>
+        /// Saves a settings section to the per-user override file. The
+        /// <c>ApiKey</c> field is always stripped before saving — per-user
+        /// files contain only non-secret preferences. API keys are sourced
+        /// from machine-level <see cref="IConfiguration"/> at read time.
+        /// </summary>
+        /// <typeparam name="T">The settings type to serialize.</typeparam>
+        /// <param name="userId">The user identifier.</param>
+        /// <param name="sectionName">The JSON section name (e.g., "GeminiSettings").</param>
+        /// <param name="settings">The settings instance to save.</param>
+        private static void SaveSection<T>(string userId, string sectionName, T settings)
+            where T : class
+        {
+            string filePath = GetUserSettingsFilePath(userId);
+            string? directory = Path.GetDirectoryName(filePath);
+
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            JsonObject? rootNode = null;
+
+            if (File.Exists(filePath))
+            {
+                string existingContent = File.ReadAllText(filePath);
+                rootNode = JsonNode.Parse(existingContent) as JsonObject;
+            }
+
+            rootNode ??= new JsonObject();
+
+            string sectionJson = JsonSerializer.Serialize(settings, WriteOptions);
+            var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
+
+            // ApiKey is [JsonIgnore] on the settings models, so it is never
+            // present in the serialized JSON — no manual stripping needed.
+            rootNode[sectionName] = sectionNode;
+
+            File.WriteAllText(filePath, rootNode.ToJsonString(WriteOptions));
         }
 
         /// <summary>

@@ -152,6 +152,12 @@ namespace AIFileProcessor.Web.Controllers
                 _logger.LogWarning("API key missing for model {ModelId}.", request.ModelId);
                 return BadRequest(ex.Message);
             }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("injection", StringComparison.OrdinalIgnoreCase)
+                && ex.Message.Contains("aborted", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning(ex, "Processing aborted for model {ModelId} due to prompt-injection detection.", request.ModelId);
+                return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+            }
             catch (NotSupportedException ex)
             {
                 _logger.LogWarning("Unsupported model {ModelId}: {Message}.", request.ModelId, ex.Message);

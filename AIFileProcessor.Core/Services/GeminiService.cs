@@ -208,11 +208,19 @@ namespace AIFileProcessor.Services
 
             var schema = BuildResponseSchema();
 
+            // Append the data-boundary instruction to the system instruction so the
+            // model understands the data boundary before receiving the user message.
+            var systemText = $"""
+                {prompt}
+
+                {PromptInjectionGuard.DataBoundaryInstruction}
+                """;
+
             var config = new GenerateContentConfig
             {
                 SystemInstruction = new Content
                 {
-                    Parts = new List<Part> { new Part { Text = prompt } }
+                    Parts = new List<Part> { new Part { Text = systemText } }
                 },
                 ResponseMimeType = "application/json",
                 ResponseSchema = schema,
@@ -236,8 +244,9 @@ namespace AIFileProcessor.Services
                 };
             }
 
-            // Wrap user-supplied data in delimiter tags to defend against prompt injection.
-            string wrappedData = $"<DATA_BEGIN>\n{data}\n<DATA_END>";
+            // Wrap user-supplied data in cryptographically random per-request delimiter
+            // tags to defend against prompt injection (tag unpredictability + leak detection).
+            string wrappedData = PromptInjectionGuard.WrapData(data).WrappedData;
 
             string targetModel = modelId;
 

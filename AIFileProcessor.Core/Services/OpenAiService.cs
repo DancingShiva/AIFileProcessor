@@ -210,6 +210,9 @@ namespace AIFileProcessor.Services
 
             var chatOptions = new ChatCompletionOptions();
 
+            // Enforce JSON output to constrain the model to the expected schema.
+            chatOptions.ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat();
+
             if (settings.MaxTokens.HasValue)
             {
                 chatOptions.MaxOutputTokenCount = settings.MaxTokens.Value;
@@ -236,8 +239,9 @@ namespace AIFileProcessor.Services
 #pragma warning restore OPENAI001
             }
 
-            // Wrap user-supplied data in delimiter tags to defend against prompt injection.
-            string wrappedData = $"<DATA_BEGIN>\n{data}\n<DATA_END>";
+            // Wrap user-supplied data in cryptographically random per-request delimiter
+            // tags to defend against prompt injection (tag unpredictability + leak detection).
+            string wrappedData = PromptInjectionGuard.WrapData(data).WrappedData;
 
             // Initialize telemetry for this call
             var telemetry = new AIFileProcessor.Telemetry.CallTelemetry { StartUtc = DateTime.UtcNow, Attempts = 1 };
@@ -248,7 +252,12 @@ namespace AIFileProcessor.Services
                     async cancellationToken =>
                     {
                         ClientResult<ChatCompletion> result = await client.CompleteChatAsync(
-                            new List<ChatMessage> { new SystemChatMessage(prompt), new UserChatMessage(wrappedData) },
+                            new List<ChatMessage>
+                            {
+                                new SystemChatMessage(prompt),
+                                new SystemChatMessage(PromptInjectionGuard.DataBoundaryInstruction),
+                                new UserChatMessage(wrappedData),
+                            },
                             chatOptions,
                             cancellationToken).ConfigureAwait(false);
 

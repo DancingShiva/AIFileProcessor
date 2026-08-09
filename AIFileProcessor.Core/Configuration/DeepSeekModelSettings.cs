@@ -20,8 +20,5 @@ namespace AIFileProcessor.Configuration
 
         /// <summary>Gets or sets the maximum reasoning level supported by this model.</summary>
         public Models.ReasoningLevel? MaxReasoningLevel { get; set; }
-
-        /// <summary>Gets or sets the maximum output token count supported by this model.</summary>
-        public int? MaxTokens { get; set; }
     }
 }

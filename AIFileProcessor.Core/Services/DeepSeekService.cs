@@ -179,6 +179,9 @@ namespace AIFileProcessor.Services
 
             var chatOptions = new ChatCompletionOptions();
 
+            // Enforce JSON output to constrain the model to the expected schema.
+            chatOptions.ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat();
+
             if (settings.MaxTokens.HasValue)
             {
                 chatOptions.MaxOutputTokenCount = settings.MaxTokens.Value;
@@ -209,8 +212,9 @@ namespace AIFileProcessor.Services
 #pragma warning restore OPENAI001
             }
 
-            // Wrap user-supplied data in delimiter tags to defend against prompt injection.
-            string wrappedData = $"<DATA_BEGIN>\n{data}\n<DATA_END>";
+            // Wrap user-supplied data in cryptographically random per-request delimiter
+            // tags to defend against prompt injection (tag unpredictability + leak detection).
+            string wrappedData = PromptInjectionGuard.WrapData(data).WrappedData;
 
             try
             {
@@ -220,16 +224,27 @@ namespace AIFileProcessor.Services
                 if (settings.EnableReasoning)
                 {
                     // A gentle, non-sensitive instruction that encourages step-by-step reasoning.
-                    var reasoningInstruction = new SystemChatMessage(
-                        "When answering, please show your chain-of-thought reasoning step-by-step, then provide a concise final answer. " +
-                        "If the model supports explicit reasoning configuration, that will be used instead.");
+                        var reasoningInstruction = new SystemChatMessage(
+                            "When answering, please show your chain-of-thought reasoning step-by-step, then provide a concise final answer. " +
+                            "If the model supports explicit reasoning configuration, that will be used instead.");
 
-                    messages = new List<ChatMessage> { reasoningInstruction, new SystemChatMessage(prompt), new UserChatMessage(wrappedData) };
-                }
-                else
-                {
-                    messages = new List<ChatMessage> { new SystemChatMessage(prompt), new UserChatMessage(wrappedData) };
-                }
+                        messages = new List<ChatMessage>
+                        {
+                            reasoningInstruction,
+                            new SystemChatMessage(prompt),
+                            new SystemChatMessage(PromptInjectionGuard.DataBoundaryInstruction),
+                            new UserChatMessage(wrappedData),
+                        };
+                    }
+                    else
+                    {
+                        messages = new List<ChatMessage>
+                        {
+                            new SystemChatMessage(prompt),
+                            new SystemChatMessage(PromptInjectionGuard.DataBoundaryInstruction),
+                            new UserChatMessage(wrappedData),
+                        };
+                    }
 
                 // Initialize telemetry before the API call so the retry hook can update Attempts.
                 var localTelemetry = new AIFileProcessor.Telemetry.CallTelemetry { StartUtc = DateTime.UtcNow, Attempts = 1 };

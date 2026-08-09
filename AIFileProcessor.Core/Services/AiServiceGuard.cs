@@ -38,6 +38,8 @@ namespace AIFileProcessor.Services
             {
                 throw new ArgumentException("Data is required.", nameof(data));
             }
+
+            PromptInjectionGuard.RequireSafeData(data);
         }
 
         /// <summary>

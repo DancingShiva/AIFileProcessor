@@ -91,38 +91,67 @@ namespace AIFileProcessor.Interfaces
         /// Gets the resolved per-model Gemini settings for the specified user and model,
         /// merging defaults → per-model default → per-user override, capped by global limits.
         /// </summary>
+        /// <param name="modelId">The model identifier whose settings to resolve.</param>
+        /// <param name="userId">The user identifier whose settings to retrieve.</param>
+        /// <param name="ct">A token to cancel the operation.</param>
+        /// <returns>The resolved per-model Gemini settings.</returns>
         Task<GeminiModelSettings> GetGeminiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default);
 
         /// <summary>
         /// Gets the resolved per-model OpenAI settings for the specified user and model,
         /// merging defaults → per-model default → per-user override, capped by global limits.
         /// </summary>
+        /// <param name="modelId">The model identifier whose settings to resolve.</param>
+        /// <param name="userId">The user identifier whose settings to retrieve.</param>
+        /// <param name="ct">A token to cancel the operation.</param>
+        /// <returns>The resolved per-model OpenAI settings.</returns>
         Task<OpenAiModelSettings> GetOpenAiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default);
 
         /// <summary>
         /// Gets the resolved per-model DeepSeek settings for the specified user and model,
         /// merging defaults → per-model default → per-user override, capped by global limits.
         /// </summary>
+        /// <param name="modelId">The model identifier whose settings to resolve.</param>
+        /// <param name="userId">The user identifier whose settings to retrieve.</param>
+        /// <param name="ct">A token to cancel the operation.</param>
+        /// <returns>The resolved per-model DeepSeek settings.</returns>
         Task<DeepSeekModelSettings> GetDeepSeekModelSettingsAsync(string modelId, string userId, CancellationToken ct = default);
 
         /// <summary>
         /// Persists the specified per-model Gemini settings as per-user overrides.
         /// </summary>
+        /// <param name="modelId">The model identifier whose settings to save.</param>
+        /// <param name="userId">The user identifier whose settings to persist.</param>
+        /// <param name="settings">The per-model Gemini settings to save.</param>
+        /// <param name="ct">A token to cancel the operation.</param>
+        /// <returns>A task representing the asynchronous save operation.</returns>
         Task SaveGeminiModelSettingsAsync(string modelId, string userId, GeminiModelSettings settings, CancellationToken ct = default);
 
         /// <summary>
         /// Persists the specified per-model OpenAI settings as per-user overrides.
         /// </summary>
+        /// <param name="modelId">The model identifier whose settings to save.</param>
+        /// <param name="userId">The user identifier whose settings to persist.</param>
+        /// <param name="settings">The per-model OpenAI settings to save.</param>
+        /// <param name="ct">A token to cancel the operation.</param>
+        /// <returns>A task representing the asynchronous save operation.</returns>
         Task SaveOpenAiModelSettingsAsync(string modelId, string userId, OpenAiModelSettings settings, CancellationToken ct = default);
 
         /// <summary>
         /// Persists the specified per-model DeepSeek settings as per-user overrides.
         /// </summary>
+        /// <param name="modelId">The model identifier whose settings to save.</param>
+        /// <param name="userId">The user identifier whose settings to persist.</param>
+        /// <param name="settings">The per-model DeepSeek settings to save.</param>
+        /// <param name="ct">A token to cancel the operation.</param>
+        /// <returns>A task representing the asynchronous save operation.</returns>
         Task SaveDeepSeekModelSettingsAsync(string modelId, string userId, DeepSeekModelSettings settings, CancellationToken ct = default);
 
         /// <summary>
         /// Gets the global processing settings (defaults and caps) for the current machine.
         /// </summary>
+        /// <param name="ct">A token to cancel the operation.</param>
+        /// <returns>The global processing settings containing defaults and caps.</returns>
         Task<ProcessingSettings> GetProcessingSettingsAsync(CancellationToken ct = default);
     }
 }

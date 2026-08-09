@@ -7,6 +7,7 @@ namespace AIFileProcessor.Processing
 {
     using System;
     using System.Collections.Generic;
+    using System.Net;
     using System.Text;
     using AIFileProcessor.Response;
 
@@ -53,12 +54,12 @@ namespace AIFileProcessor.Processing
             foreach (var entry in row.Breakdown)
             {
                 sb.Append("<tr>");
-                sb.Append($"<td>{entry.Chinese}</td><td>&nbsp;&nbsp;</td>");
-                sb.Append($"<td>{entry.Pinyin}</td><td>&nbsp;&nbsp;</td>");
-                sb.Append($"<td>{entry.Gloss}</td><td>&nbsp;&nbsp;</td>");
-                sb.Append($"<td>{entry.DisplayPartOfSpeech}</td><td>&nbsp;&nbsp;</td>");
-                sb.Append($"<td>{entry.DisplayHskLevel}</td><td>&nbsp;&nbsp;</td>");
-                sb.Append($"<td>{entry.Note}</td>");
+                sb.Append($"<td>{WebUtility.HtmlEncode(entry.Chinese)}</td><td>&nbsp;&nbsp;</td>");
+                sb.Append($"<td>{WebUtility.HtmlEncode(entry.Pinyin)}</td><td>&nbsp;&nbsp;</td>");
+                sb.Append($"<td>{WebUtility.HtmlEncode(entry.Gloss)}</td><td>&nbsp;&nbsp;</td>");
+                sb.Append($"<td>{WebUtility.HtmlEncode(entry.DisplayPartOfSpeech)}</td><td>&nbsp;&nbsp;</td>");
+                sb.Append($"<td>{WebUtility.HtmlEncode(entry.DisplayHskLevel)}</td><td>&nbsp;&nbsp;</td>");
+                sb.Append($"<td>{WebUtility.HtmlEncode(entry.Note)}</td>");
                 sb.Append("</tr>");
             }
 

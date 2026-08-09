@@ -8,6 +8,7 @@ namespace AIFileProcessor.Processing
     using System;
     using System.Collections.Generic;
     using AIFileProcessor.Response;
+    using AIFileProcessor.Services;
 
     /// <summary>
     /// Deterministic, always-on post-generation verifier for the headless
@@ -15,10 +16,18 @@ namespace AIFileProcessor.Processing
     /// that are mechanically checkable (POS whitelist, HSK range, punctuation
     /// format, segment-count alignment) without calling the AI again. Sandhi-safe:
     /// only rules that hold regardless of tone state are checked, because the
-    /// pipeline transforms pinyin client-side after parsing.
+    /// pipeline transforms pinyin client-side after parsing. Also detects
+    /// prompt-injection aftermath — injection patterns or data-delimiter tags
+    /// that leaked into the model's output fields.
     /// </summary>
     public static class ResponseVerifier
     {
+        /// <summary>
+        /// Maximum length for any single AI-generated string field. Fields beyond
+        /// this are treated as injection attempts and rejected.
+        /// </summary>
+        internal const int MaxFieldLength = 10_000;
+
         private const int SentenceTokenEstimateMax = 256;
 
         // Mirrors the PartOfSpeech whitelist the spec defines for the PS element.
@@ -48,22 +57,211 @@ namespace AIFileProcessor.Processing
             for (int rowIndex = 0; rowIndex < response.ProcessedSentenceRows.Count; rowIndex++)
             {
                 ProcessedSentenceRow row = response.ProcessedSentenceRows[rowIndex];
+                int lineNumber = rowIndex + 1; // 1-based, matches the Corrections log convention
+
+                // Injection-aftermath checks run on every row regardless of
+                // whether Breakdown is present — the C and E fields are always populated.
+                VerifyFieldContent(row.Chinese, "Chinese", lineNumber, violations);
+                VerifyFieldContent(row.English, "English", lineNumber, violations);
+                VerifyDataTagLeak(row.Chinese, "Chinese", lineNumber, violations);
+                VerifyDataTagLeak(row.English, "English", lineNumber, violations);
+
+                // Structural and size checks (Gaps 2 and 3) run before Breakdown
+                // enumeration so that malformed rows are caught even when the
+                // Breakdown list is null or empty.
+                ValidateStructuralIntegrity(row, rowIndex, violations);
+
                 if (row.Breakdown == null || row.Breakdown.Count == 0)
                 {
                     continue;
                 }
-
-                int lineNumber = rowIndex + 1; // 1-based, matches the Corrections log convention
 
                 VerifySegmentCount(row, lineNumber, violations);
 
                 for (int segIndex = 0; segIndex < row.Breakdown.Count; segIndex++)
                 {
                     VerifyEntry(row.Breakdown[segIndex], lineNumber, segIndex, violations);
+                    VerifyFieldContent(row.Breakdown[segIndex].Gloss, "Gloss", lineNumber, segIndex, violations);
+                    VerifyDataTagLeak(row.Breakdown[segIndex].Gloss, "Gloss", lineNumber, segIndex, violations);
+                }
+            }
+
+            // Response-level injection checks (not per-row)
+            VerifyFieldContent(response.Scratchpad, "Scratchpad", violations);
+            VerifyDataTagLeak(response.Scratchpad, "Scratchpad", violations);
+
+            if (response.Corrections != null)
+            {
+                for (int i = 0; i < response.Corrections.Count; i++)
+                {
+                    VerifyFieldContent(response.Corrections[i], $"Correction[{i}]", violations);
+                    VerifyDataTagLeak(response.Corrections[i], $"Correction[{i}]", violations);
                 }
             }
 
             return violations;
+        }
+
+        /// <summary>
+        /// Throws <see cref="InvalidOperationException"/> if any violations contain
+        /// an INJECTION marker, indicating prompt-injection aftermath. When injection
+        /// is detected the entire processing run must be aborted — all returned data
+        /// is untrusted.
+        /// </summary>
+        /// <param name="violations">The violation list produced by <see cref="Verify"/>.</param>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when at least one violation message contains <c>INJECTION</c>.
+        /// </exception>
+        public static void AbortOnInjectionViolations(IReadOnlyList<string> violations)
+        {
+            ArgumentNullException.ThrowIfNull(violations);
+
+            bool hasInjection = false;
+            foreach (string v in violations)
+            {
+                if (v.Contains("INJECTION", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasInjection = true;
+                    break;
+                }
+            }
+
+            if (hasInjection)
+            {
+                throw new InvalidOperationException(
+                    "Processing aborted: prompt-injection aftermath detected in AI response. " +
+                    "One or more output fields contained injection patterns or data-delimiter tags.");
+            }
+        }
+
+        /// <summary>
+        /// Sanitizes all string fields on the parsed response by stripping detected
+        /// injection patterns and data-delimiter tags. Call after any INJECTION
+        /// findings to ensure downstream consumers receive clean data.
+        /// </summary>
+        /// <param name="response">The parsed AI response to sanitize in place.</param>
+        public static void SanitizeResponse(AiApiResponse response)
+        {
+            ArgumentNullException.ThrowIfNull(response);
+
+            if (response.ProcessedSentenceRows == null)
+            {
+                return;
+            }
+
+            foreach (ProcessedSentenceRow row in response.ProcessedSentenceRows)
+            {
+                row.Chinese = PromptInjectionGuard.SanitizeField(row.Chinese) ?? string.Empty;
+                row.English = PromptInjectionGuard.SanitizeField(row.English) ?? string.Empty;
+                row.Pinyin = PromptInjectionGuard.SanitizeField(row.Pinyin) ?? string.Empty;
+
+                if (row.Breakdown != null)
+                {
+                    foreach (BreakdownEntry entry in row.Breakdown)
+                    {
+                        entry.Chinese = PromptInjectionGuard.SanitizeField(entry.Chinese) ?? string.Empty;
+                        entry.Pinyin = PromptInjectionGuard.SanitizeField(entry.Pinyin) ?? string.Empty;
+                        entry.Gloss = PromptInjectionGuard.SanitizeField(entry.Gloss) ?? string.Empty;
+                        entry.PartOfSpeech = PromptInjectionGuard.SanitizeField(entry.PartOfSpeech) ?? string.Empty;
+                        entry.HskLevel = PromptInjectionGuard.SanitizeField(entry.HskLevel) ?? string.Empty;
+                        entry.Note = PromptInjectionGuard.SanitizeField(entry.Note) ?? string.Empty;
+                    }
+                }
+            }
+
+            response.Scratchpad = PromptInjectionGuard.SanitizeField(response.Scratchpad) ?? string.Empty;
+
+            if (response.Corrections != null)
+            {
+                for (int i = 0; i < response.Corrections.Count; i++)
+                {
+                    response.Corrections[i] = PromptInjectionGuard.SanitizeField(response.Corrections[i]) ?? string.Empty;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Structural integrity and size ceiling checks that run before any
+        /// semantic rule evaluation. These catch injection attempts that try to
+        /// break the tab-delimited format or flood fields with oversized content.
+        /// </summary>
+        private static void ValidateStructuralIntegrity(ProcessedSentenceRow row, int rowIndex, List<string> violations)
+        {
+            int lineNumber = rowIndex + 1;
+
+            // Gap 2: field length ceiling. Applies to C, P, E, L, Id.
+            ValidateFieldLength(row.Id, "Id", lineNumber, violations);
+            ValidateFieldLength(row.Chinese, "Chinese", lineNumber, violations);
+            ValidateFieldLength(row.Pinyin, "Pinyin", lineNumber, violations);
+            ValidateFieldLength(row.English, "English", lineNumber, violations);
+            ValidateFieldLength(row.Length, "Length", lineNumber, violations);
+
+            // Gap 3: tab-delimited structural integrity. The pipe delimiter '|' must
+            // never appear inside a tab-delimited column, and tabs/newlines are
+            // structural boundaries that must not be present in field content.
+            if (row.Chinese.Contains('\t'))
+            {
+                violations.Add($"VERIFY: line {lineNumber} Chinese contains a structural tab character.");
+            }
+
+            if (row.Pinyin.Contains('\t'))
+            {
+                violations.Add($"VERIFY: line {lineNumber} Pinyin contains a structural tab character.");
+            }
+
+            if (row.English.Contains('\t'))
+            {
+                violations.Add($"VERIFY: line {lineNumber} English contains a structural tab character.");
+            }
+
+            if (row.Length.Contains('\t'))
+            {
+                violations.Add($"VERIFY: line {lineNumber} Length contains a structural tab character.");
+            }
+
+            // Breakdown fields: validate '||' delimiters and structural integrity.
+            if (row.Breakdown != null)
+            {
+                for (int i = 0; i < row.Breakdown.Count; i++)
+                {
+                    BreakdownEntry entry = row.Breakdown[i];
+                    int segIndex = i + 1;
+
+                    ValidateFieldLength(entry.Chinese, $"segment {segIndex} Chinese", lineNumber, violations);
+                    ValidateFieldLength(entry.Pinyin, $"segment {segIndex} Pinyin", lineNumber, violations);
+                    ValidateFieldLength(entry.Gloss, $"segment {segIndex} Gloss", lineNumber, violations);
+                    ValidateFieldLength(entry.PartOfSpeech, $"segment {segIndex} PartOfSpeech", lineNumber, violations);
+                    ValidateFieldLength(entry.HskLevel, $"segment {segIndex} HskLevel", lineNumber, violations);
+                    ValidateFieldLength(entry.Note, $"segment {segIndex} Note", lineNumber, violations);
+
+                    // The Breakdown column is pipe-delimited; raw '||' in a field is a
+                    // structural violation (the field should contain single '|' only).
+                    if (entry.Gloss.Contains("||", StringComparison.Ordinal))
+                    {
+                        violations.Add($"VERIFY: line {lineNumber} segment {segIndex} Gloss contains structural '||' delimiter.");
+                    }
+
+                    // Tab/newline characters are structural boundaries that belong
+                    // to the outer tab-delimited format, not inside breakdown fields.
+                    if (entry.Chinese.Contains('\t') || entry.Pinyin.Contains('\t') ||
+                        entry.Gloss.Contains('\t') || entry.PartOfSpeech.Contains('\t') ||
+                        entry.HskLevel.Contains('\t') || entry.Note.Contains('\t'))
+                    {
+                        violations.Add($"VERIFY: line {lineNumber} segment {segIndex} contains a structural tab character in a breakdown field.");
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Checks that a single field does not exceed the maximum length ceiling.
+        /// </summary>
+        private static void ValidateFieldLength(string? field, string fieldName, int lineNumber, List<string> violations)
+        {
+            if (field != null && field.Length > MaxFieldLength)
+            {
+                violations.Add($"VERIFY: line {lineNumber} {fieldName} exceeds maximum length of {MaxFieldLength} characters ({field.Length}).");
+            }
         }
 
         /// <summary>
@@ -183,6 +381,84 @@ namespace AIFileProcessor.Processing
             {
                 violations.Add(
                     $"VERIFY: line {lineNumber} segment {segIndex + 1} ('{entry.Chinese}') is marked punc but its Note element is not empty or a single ASCII space.");
+            }
+        }
+
+        /// <summary>
+        /// Checks a per-row output field for known prompt-injection patterns.
+        /// </summary>
+        private static void VerifyFieldContent(string? field, string fieldName, int lineNumber, List<string> violations)
+        {
+            string? pattern = PromptInjectionGuard.FindInjectionPattern(field);
+            if (pattern != null)
+            {
+                violations.Add(
+                    $"VERIFY: line {lineNumber} INJECTION: {fieldName} field contains injection pattern '{pattern}'.");
+            }
+        }
+
+        /// <summary>
+        /// Checks a per-row output field for data-delimiter tag leaks.
+        /// </summary>
+        private static void VerifyDataTagLeak(string? field, string fieldName, int lineNumber, List<string> violations)
+        {
+            string? tag = PromptInjectionGuard.FindDataTagLeak(field);
+            if (tag != null)
+            {
+                violations.Add(
+                    $"VERIFY: line {lineNumber} INJECTION: {tag} tag leaked into {fieldName} field — model may have confused data with instructions.");
+            }
+        }
+
+        /// <summary>
+        /// Checks a per-segment output field (e.g. Gloss) for known prompt-injection patterns.
+        /// </summary>
+        private static void VerifyFieldContent(string? field, string fieldName, int lineNumber, int segIndex, List<string> violations)
+        {
+            string? pattern = PromptInjectionGuard.FindInjectionPattern(field);
+            if (pattern != null)
+            {
+                violations.Add(
+                    $"VERIFY: line {lineNumber} segment {segIndex + 1} INJECTION: {fieldName} field contains injection pattern '{pattern}'.");
+            }
+        }
+
+        /// <summary>
+        /// Checks a per-segment output field (e.g. Gloss) for data-delimiter tag leaks.
+        /// </summary>
+        private static void VerifyDataTagLeak(string? field, string fieldName, int lineNumber, int segIndex, List<string> violations)
+        {
+            string? tag = PromptInjectionGuard.FindDataTagLeak(field);
+            if (tag != null)
+            {
+                violations.Add(
+                    $"VERIFY: line {lineNumber} segment {segIndex + 1} INJECTION: {tag} tag leaked into {fieldName} field — model may have confused data with instructions.");
+            }
+        }
+
+        /// <summary>
+        /// Checks a response-level output field (e.g. Scratchpad, Corrections) for injection patterns.
+        /// </summary>
+        private static void VerifyFieldContent(string? field, string fieldName, List<string> violations)
+        {
+            string? pattern = PromptInjectionGuard.FindInjectionPattern(field);
+            if (pattern != null)
+            {
+                violations.Add(
+                    $"VERIFY: INJECTION: {fieldName} contains injection pattern '{pattern}'.");
+            }
+        }
+
+        /// <summary>
+        /// Checks a response-level output field for data-delimiter tag leaks.
+        /// </summary>
+        private static void VerifyDataTagLeak(string? field, string fieldName, List<string> violations)
+        {
+            string? tag = PromptInjectionGuard.FindDataTagLeak(field);
+            if (tag != null)
+            {
+                violations.Add(
+                    $"VERIFY: INJECTION: {tag} tag leaked into {fieldName} — model may have confused data with instructions.");
             }
         }
     }

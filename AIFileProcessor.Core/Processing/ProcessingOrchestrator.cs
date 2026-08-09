@@ -113,30 +113,45 @@ namespace AIFileProcessor.Processing
                         providerSettings = modelSettings;
                         chunkSize = modelSettings.ChunkSize ?? 40;
                         maxConcurrentChunks = modelSettings.MaxConcurrentChunks ?? 3;
-                        if (hasReasoningLevel) modelSettings.ReasoningLevel = reasoningLevel;
+                        if (hasReasoningLevel)
+                        {
+                            modelSettings.ReasoningLevel = reasoningLevel;
+                        }
+
                         modelSettings.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
                         break;
                     }
+
                     case "OpenAI":
                     {
                         var modelSettings = await _settingsProvider.GetOpenAiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
                         providerSettings = modelSettings;
                         chunkSize = modelSettings.ChunkSize ?? 40;
                         maxConcurrentChunks = modelSettings.MaxConcurrentChunks ?? 3;
-                        if (hasReasoningLevel) modelSettings.ReasoningLevel = reasoningLevel;
+                        if (hasReasoningLevel)
+                        {
+                            modelSettings.ReasoningLevel = reasoningLevel;
+                        }
+
                         modelSettings.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
                         break;
                     }
+
                     case "DeepSeek":
                     {
                         var modelSettings = await _settingsProvider.GetDeepSeekModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
                         providerSettings = modelSettings;
                         chunkSize = modelSettings.ChunkSize ?? 40;
                         maxConcurrentChunks = modelSettings.MaxConcurrentChunks ?? 3;
-                        if (hasReasoningLevel) modelSettings.ReasoningLevel = reasoningLevel;
+                        if (hasReasoningLevel)
+                        {
+                            modelSettings.ReasoningLevel = reasoningLevel;
+                        }
+
                         modelSettings.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
                         break;
                     }
+
                     default:
                         throw new NotSupportedException($"No registered IAiService supports the model '{options.ModelId}'.");
                 }
@@ -152,7 +167,11 @@ namespace AIFileProcessor.Processing
                     providerSettings = gs;
                     chunkSize = gs.ChunkSize ?? 40;
                     maxConcurrentChunks = gs.MaxConcurrentChunks ?? 3;
-                    if (hasReasoningLevel) gs.ReasoningLevel = reasoningLevel;
+                    if (hasReasoningLevel)
+                    {
+                        gs.ReasoningLevel = reasoningLevel;
+                    }
+
                     gs.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
                 }
                 catch
@@ -164,7 +183,11 @@ namespace AIFileProcessor.Processing
                         providerSettings = os;
                         chunkSize = os.ChunkSize ?? 40;
                         maxConcurrentChunks = os.MaxConcurrentChunks ?? 3;
-                        if (hasReasoningLevel) os.ReasoningLevel = reasoningLevel;
+                        if (hasReasoningLevel)
+                        {
+                            os.ReasoningLevel = reasoningLevel;
+                        }
+
                         os.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
                     }
                     catch
@@ -174,7 +197,11 @@ namespace AIFileProcessor.Processing
                         providerSettings = ds;
                         chunkSize = ds.ChunkSize ?? 40;
                         maxConcurrentChunks = ds.MaxConcurrentChunks ?? 3;
-                        if (hasReasoningLevel) ds.ReasoningLevel = reasoningLevel;
+                        if (hasReasoningLevel)
+                        {
+                            ds.ReasoningLevel = reasoningLevel;
+                        }
+
                         ds.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
                     }
                 }
@@ -207,10 +234,42 @@ namespace AIFileProcessor.Processing
 
             // Always-on deterministic verification (no API cost). Findings are
             // appended to Corrections alongside the model-reported corrections.
-            foreach (string finding in ResponseVerifier.Verify(results))
+            IReadOnlyList<string> violations = ResponseVerifier.Verify(results);
+            foreach (string finding in violations)
             {
                 results.Corrections ??= [];
                 results.Corrections.Add(finding);
+            }
+
+            // Gap 4: if any violation is an INJECTION finding, abort the entire
+            // processing run immediately — all returned data is untrusted. Sanitize
+            // the response first so Corrections contain the full diagnostic details,
+            // then throw so that no ProcessingResult is ever returned to callers.
+            try
+            {
+                ResponseVerifier.AbortOnInjectionViolations(violations);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Sanitize so the Corrections log carries the full details before
+                // the run is torn down (Gap 1).
+                ResponseVerifier.SanitizeResponse(results);
+                _logger.LogError(
+                    ex,
+                    "Processing aborted for model {ModelId}: {InjectionCount} injection finding(s) among {TotalViolations} violation(s).",
+                    options.ModelId,
+                    violations.Count(static v => v.Contains("INJECTION", StringComparison.OrdinalIgnoreCase)),
+                    violations.Count);
+
+                // Forensic log: record the sanitized injection findings so operators
+                // can review what triggered the abort without handling raw content.
+                foreach (string finding in violations.Where(
+                    static v => v.Contains("INJECTION", StringComparison.OrdinalIgnoreCase)).Take(3))
+                {
+                    _logger.LogWarning("Injection finding (sanitized): {Finding}", finding);
+                }
+
+                throw;
             }
 
             string rawResponse = string.Join(
