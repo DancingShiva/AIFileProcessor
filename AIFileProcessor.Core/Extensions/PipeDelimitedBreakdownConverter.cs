@@ -10,7 +10,6 @@ namespace AIFileProcessor.Extensions
     using System.Text.Json;
     using System.Text.Json.Serialization;
     using AIFileProcessor.Response;
-    using Google.GenAI.Types;
 
     public class PipeDelimitedBreakdownConverter : JsonConverter<List<BreakdownEntry>>
     {
@@ -33,6 +32,13 @@ namespace AIFileProcessor.Extensions
             var list = new List<BreakdownEntry>();
 
             if (string.IsNullOrWhiteSpace(rawValue))
+            {
+                return list;
+            }
+
+            // INVALID lines have B set to "N/A" per the spec; return an empty list
+            // instead of trying to parse "N/A" as a pipe-delimited breakdown entry.
+            if (rawValue.Trim().Equals("N/A", StringComparison.OrdinalIgnoreCase))
             {
                 return list;
             }

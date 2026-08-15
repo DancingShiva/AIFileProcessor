@@ -1,13 +1,21 @@
 # NOTE: Requires **VS2019 16.3** or later
 
 # New Rule Set
-# Description:  
+# Description: Global StyleCop and analyzer configuration for all projects.
+#
+# C# Member Ordering (SA1201/SA1202/SA1204 — enabled, not suppressed):
+#   1. By element type (global): constructors -> properties -> methods -> fields
+#   2. Within each element type, by access modifier: public -> protected -> internal -> private
+#   3. Within each access group: static before instance
+#   4. Within each group: alphabetical order by name
+# See .github/copilot-instructions.md for the full standard.
 
 # Code files
 [*.{cs,vb}]
 dotnet_diagnostic.CA1873.severity = none    # CA1873: Avoid potentially expensive logging
 dotnet_diagnostic.IDE1006.severity = none   # IDE1006: Naming rule violation: These words must begin with upper case characters
 dotnet_diagnostic.SA1000.severity = none    # SA1000: Keywords must be spaced correctly
+dotnet_diagnostic.SA1009.severity = none    # SA1009: Closing parenthesis should be spaced correctly (incompatible with C# 12 primary constructors)
 dotnet_diagnostic.SA1010.severity = none    # SA1010: Opening square brackets must be spaced correctly
 dotnet_diagnostic.SA1101.severity = none    # SA1101: Prefix local calls with this
 dotnet_diagnostic.SA1300.severity = none    # SA1300: Element must begin with upper-case letter

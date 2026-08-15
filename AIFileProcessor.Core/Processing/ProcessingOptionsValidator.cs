@@ -7,6 +7,7 @@ namespace AIFileProcessor.Processing
 {
     using System.Collections.Generic;
     using AIFileProcessor.Models;
+    using AIFileProcessor.Services;
 
     /// <summary>
     /// Validates <see cref="ProcessingOptions"/> and returns a list of validation errors.
@@ -65,6 +66,10 @@ namespace AIFileProcessor.Processing
                 // headless generator can only emit hallucinated rows for such input, so
                 // the call is blocked before any tokens are spent.
                 errors.Add("The data file contains no Chinese text to process.");
+            }
+            else if (options.Data.Length > ProcessingLimits.MaxInputSize)
+            {
+                errors.Add($"The data file exceeds the maximum allowed size of {ProcessingLimits.MaxInputSize:N0} characters.");
             }
 
             return errors;

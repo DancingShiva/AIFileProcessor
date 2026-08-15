@@ -35,15 +35,18 @@ front-end (WinForms, Web) is a thin shell that wires it up with its own composit
 ### Roles
 
 - **`ProcessingOrchestrator`** — entry point for a processing request. Resolves the three providers'
-  `*Settings` from `ISettingsProvider` for the current `IUserContext.UserId`, applies the selected
-  model's reasoning level and a clamped `MaxTokens`, builds the `providerSettings` dictionary, calls
-  the text processor, assigns IDs and cleaned length counts, and assembles the output. Front-end-agnostic.
-- **`ChineseTextProcessor` (`IChineseTextProcessor`)** — splits the data into 40-line chunks, runs up to
-  `MaxConcurrentChunks = 3` concurrently (semaphore), preserves ordering by index, **fails fast** if any
-  chunk fails (data-loss avoidance), and merges scratchpad/corrections/rows.
-- **`IAiService` implementations** (`GeminiService`, `OpenAiService`, `DeepSeekService`) — one per
-  provider. Own the model catalog, client caching, retry, and the provider-specific request/response
-  mapping. Registered as `IEnumerable<IAiService>` and the first one `SupportsModel(modelId)` wins.
+  `*ModelSettings` from `ISettingsProvider` for the current `IUserContext.UserId`, applies the selected
+  model's reasoning level and a clamped `MaxTokens`, bundles chunk/concurrency settings into a `ChunkingOptions`,
+  builds the `IDictionary<string, IAiServiceSettings>` provider-settings map, calls the text processor, assigns
+  IDs and cleaned length counts, and assembles the output. Front-end-agnostic.
+- **`ChineseTextProcessor` (`IChineseTextProcessor`)** — splits the data into chunks (size from `ChunkingOptions`,
+  default 40 lines), runs up to `MaxConcurrentChunks` concurrently (default 3, semaphore), preserves ordering
+  by index, **fails fast** if any chunk fails (data-loss avoidance), and merges scratchpad/corrections/rows.
+- **`IAiService` implementations** (`GeminiService`, `OpenAiService`, `DeepSeekService`) — one per provider.
+  All inherit from `AiServiceBase<TSettings>`, which provides the shared shell: constructor pattern, model
+  catalog lookups, the two `ProcessTextAsync` overloads, transient-exception detection, request validation,
+  and telemetry helpers. Each derived class implements only the SDK-specific `ProcessTextCoreAsync` and
+  `IsProviderTransient`. Registered as `IEnumerable<IAiService>` and the first one `SupportsModel(modelId)` wins.
 - **`ISettingsProvider`** — resolves per-user settings. Two implementations:
   - `FileSettingsProvider` (desktop/terminal): defaults from `IConfiguration` + per-user override
 	JSON at `%APPDATA%\AIFileProcessor\{userId}\settings.json`.
@@ -54,12 +57,12 @@ front-end (WinForms, Web) is a thin shell that wires it up with its own composit
 
 ## Shared static helpers
 
-Pure, stateless logic is kept out of DI as `internal static` helpers (no base classes):
+Pure, stateless logic is kept out of DI as `internal static` helpers:
 
 | Helper | Responsibility |
 |---|---|
-| `AiModelCatalog` | Model lookup — `SupportsModel` / `GetReasoningLevels` over a provider's `SupportedModels`. |
-| `AiServiceGuard` | Shared request-argument validation + `object settings` → typed-settings cast guard. |
+| `AiModelCatalog` | Model lookup — `SupportsModel` / `GetReasoningLevels` over a provider's `SupportedModels`, plus `GetProviderKey` to map an `IAiService` instance to its provider key string. |
+| `AiServiceGuard` | Shared request-argument validation (non-null model ID, prompt, data + prompt-injection scan). |
 | `TransientRetryPolicy` | `ExecuteAsync<T>` — transient retry with exponential backoff; caller supplies its `isTransient` predicate. |
 | `TokenUtils` / `ModelTokenLimits` | Clamp requested `MaxTokens` to a provider/model hard max. |
 
@@ -86,10 +89,11 @@ a cached client, avoiding cross-user credential bleed while still reusing client
 ```
 UI/API request
    └─> ProcessingOrchestrator.ProcessAsync(options, ct)
-		├─ ISettingsProvider.Get{Gemini|OpenAi|DeepSeek}SettingsAsync(userId)
+		├─ ISettingsProvider.Get{Gemini|OpenAi|DeepSeek}ModelSettingsAsync(modelId, userId)
 		├─ apply reasoning level + clamp MaxTokens (TokenUtils/ModelTokenLimits)
-		├─ ChineseTextProcessor.ProcessChineseTextAsync(modelId, prompt, data, providerSettings, ct)
-		│     ├─ split data into chunks (40 lines)
+		├─ bundle chunk/concurrency settings into ChunkingOptions
+		├─ ChineseTextProcessor.ProcessChineseTextAsync(modelId, prompt, data, providerSettings, chunking, ct)
+		│     ├─ split data into chunks (ChunkingOptions.ChunkSize, default 40)
 		│     ├─ pick IAiService where SupportsModel(modelId)
 		│     ├─ per chunk: IAiService.ProcessTextAsync(...)  [TransientRetryPolicy retry]
 		│     ├─ parse each chunk's JSON → AiApiResponse (span-based)
@@ -105,3 +109,7 @@ UI/API request
 - **API keys are type-level secrets** — `[JsonIgnore]`, `init`-only; machine-config only.
 - **Pure logic is not in DI** — static helpers; services hold only what must be injected
   (`ILogger`, `IConfiguration`/`IOptions`, `HttpClient`, provider settings provider).
+- **Type-safe settings boundary** — `IAiServiceSettings` marker interface replaces `object` on the
+  `IAiService.ProcessTextAsync` overload; `AiServiceBase<TSettings>` performs the type-safe cast.
+- **Chunking bundled** — `ChunkingOptions` carries `ChunkSize` + `MaxConcurrentChunks` through the
+  pipeline instead of two loose `int` parameters.

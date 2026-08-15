@@ -12,7 +12,7 @@ namespace AIFileProcessor.Interfaces
     /// <summary>
     /// Configuration settings specific to the Google Gemini API.
     /// </summary>
-    public interface IGeminiSettings
+    public interface IGeminiSettings : IAiServiceSettings
     {
         /// <summary>
         /// Gets the API key or credential used to authenticate with the Gemini service.

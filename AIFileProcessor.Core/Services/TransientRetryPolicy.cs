@@ -19,6 +19,8 @@ namespace AIFileProcessor.Services
     /// </summary>
     internal static class TransientRetryPolicy
     {
+        private static readonly Random _jitterRandom = new();
+
         /// <summary>
         /// Executes <paramref name="action"/>, retrying transient failures with
         /// exponential backoff (<c>baseDelaySeconds * 2^attempt</c>, capped at
@@ -67,14 +69,20 @@ namespace AIFileProcessor.Services
                 }
                 catch (Exception ex) when (attempt < retries && isTransient(ex))
                 {
-                    int delaySeconds = Math.Min(baseDelay * (int)Math.Pow(2, attempt), maxDelay);
+                    int computedBaseDelay = Math.Min(baseDelay * (int)Math.Pow(2, attempt), maxDelay);
+                    int jitterSeconds = ProcessingLimits.RetryJitterSeconds > 0
+                        ? _jitterRandom.Next(0, ProcessingLimits.RetryJitterSeconds + 1)
+                        : 0;
+                    int delaySeconds = computedBaseDelay + jitterSeconds;
                     logger.LogWarning(
                         ex,
-                        "Transient failure on attempt {Attempt}/{MaxRetries} for {OperationName}. Retrying in {DelaySeconds}s.",
+                        "Transient failure on attempt {Attempt}/{MaxRetries} for {OperationName}. Retrying in {DelaySeconds}s (base {BaseDelay}s + jitter {JitterSeconds}s).",
                         attempt + 1,
                         retries,
                         operationName,
-                        delaySeconds);
+                        delaySeconds,
+                        computedBaseDelay,
+                        jitterSeconds);
                     await Task.Delay(TimeSpan.FromSeconds(delaySeconds), ct).ConfigureAwait(false);
                 }
             }

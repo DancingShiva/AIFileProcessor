@@ -10,7 +10,7 @@ namespace AIFileProcessor.Configuration
     /// Per-model Gemini settings: inherits all provider-level <see cref="GeminiSettings"/>
     /// properties and adds chunking and concurrency overrides for this specific model.
     /// </summary>
-    public class GeminiModelSettings : GeminiSettings
+    public class GeminiModelSettings : GeminiSettings, IModelProcessingSettings
     {
         /// <summary>Gets or sets the number of lines per API call chunk for this model.</summary>
         public int? ChunkSize { get; set; }

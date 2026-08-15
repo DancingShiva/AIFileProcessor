@@ -10,6 +10,7 @@ namespace AIFileProcessor.Processing
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using AIFileProcessor.Configuration;
     using AIFileProcessor.Extensions;
     using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
@@ -83,13 +84,13 @@ namespace AIFileProcessor.Processing
             {
                 if (service.SupportsModel(options.ModelId))
                 {
-                    detectedProviderKey = service.GetType().Name switch
+                    detectedProviderKey = AiModelCatalog.GetProviderKey(service);
+                    if (detectedProviderKey != null)
                     {
-                        "GeminiService" => "Gemini",
-                        "OpenAiService" => "OpenAI",
-                        "DeepSeekService" => "DeepSeek",
-                        _ => null, // Unknown type (e.g., test mock) — try all providers below
-                    };
+                        break;
+                    }
+
+                    // Unknown type (e.g., test mock) â€” try all providers below.
                     break;
                 }
             }
@@ -97,128 +98,104 @@ namespace AIFileProcessor.Processing
             bool hasReasoningLevel = options.ModelReasoningLevels.TryGetValue(options.ModelId, out var reasoningLevel);
             bool hasMaxTokens = options.ModelMaxTokens.TryGetValue(options.ModelId, out var maxTokens);
 
-            string providerKey;
-            object providerSettings;
-            int chunkSize;
-            int maxConcurrentChunks;
+            string providerKey = string.Empty;
+            IModelProcessingSettings modelProcessingSettings = null!;
 
             if (detectedProviderKey != null)
             {
                 providerKey = detectedProviderKey;
-                switch (providerKey)
+                modelProcessingSettings = providerKey switch
                 {
-                    case "Gemini":
-                    {
-                        var modelSettings = await _settingsProvider.GetGeminiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
-                        providerSettings = modelSettings;
-                        chunkSize = modelSettings.ChunkSize ?? 40;
-                        maxConcurrentChunks = modelSettings.MaxConcurrentChunks ?? 3;
-                        if (hasReasoningLevel)
-                        {
-                            modelSettings.ReasoningLevel = reasoningLevel;
-                        }
-
-                        modelSettings.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
-                        break;
-                    }
-
-                    case "OpenAI":
-                    {
-                        var modelSettings = await _settingsProvider.GetOpenAiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
-                        providerSettings = modelSettings;
-                        chunkSize = modelSettings.ChunkSize ?? 40;
-                        maxConcurrentChunks = modelSettings.MaxConcurrentChunks ?? 3;
-                        if (hasReasoningLevel)
-                        {
-                            modelSettings.ReasoningLevel = reasoningLevel;
-                        }
-
-                        modelSettings.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
-                        break;
-                    }
-
-                    case "DeepSeek":
-                    {
-                        var modelSettings = await _settingsProvider.GetDeepSeekModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
-                        providerSettings = modelSettings;
-                        chunkSize = modelSettings.ChunkSize ?? 40;
-                        maxConcurrentChunks = modelSettings.MaxConcurrentChunks ?? 3;
-                        if (hasReasoningLevel)
-                        {
-                            modelSettings.ReasoningLevel = reasoningLevel;
-                        }
-
-                        modelSettings.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
-                        break;
-                    }
-
-                    default:
-                        throw new NotSupportedException($"No registered IAiService supports the model '{options.ModelId}'.");
-                }
+                    "Gemini" => await _settingsProvider.GetGeminiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false),
+                    "OpenAI" => await _settingsProvider.GetOpenAiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false),
+                    "DeepSeek" => await _settingsProvider.GetDeepSeekModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false),
+                    _ => throw new NotSupportedException($"No registered IAiService supports the model '{options.ModelId}'."),
+                };
             }
             else
             {
                 // Unknown provider type (e.g., test mock with proxy type name). Try providers in order.
                 // The first _settingsProvider method that doesn't throw provides the resolved settings.
+                Exception? lastException = null;
+
                 try
                 {
                     providerKey = "Gemini";
-                    var gs = await _settingsProvider.GetGeminiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
-                    providerSettings = gs;
-                    chunkSize = gs.ChunkSize ?? 40;
-                    maxConcurrentChunks = gs.MaxConcurrentChunks ?? 3;
-                    if (hasReasoningLevel)
-                    {
-                        gs.ReasoningLevel = reasoningLevel;
-                    }
-
-                    gs.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
+                    modelProcessingSettings = await _settingsProvider.GetGeminiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
                 }
-                catch
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                    _logger.LogWarning(ex, "Fallback: Gemini settings resolution failed for model {ModelId}.", options.ModelId);
+                }
+
+                if (lastException != null)
                 {
                     try
                     {
                         providerKey = "OpenAI";
-                        var os = await _settingsProvider.GetOpenAiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
-                        providerSettings = os;
-                        chunkSize = os.ChunkSize ?? 40;
-                        maxConcurrentChunks = os.MaxConcurrentChunks ?? 3;
-                        if (hasReasoningLevel)
-                        {
-                            os.ReasoningLevel = reasoningLevel;
-                        }
-
-                        os.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
+                        modelProcessingSettings = await _settingsProvider.GetOpenAiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
+                        lastException = null;
                     }
-                    catch
+                    catch (Exception ex)
+                    {
+                        lastException = ex;
+                        _logger.LogWarning(ex, "Fallback: OpenAI settings resolution failed for model {ModelId}.", options.ModelId);
+                    }
+                }
+
+                if (lastException != null)
+                {
+                    try
                     {
                         providerKey = "DeepSeek";
-                        var ds = await _settingsProvider.GetDeepSeekModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
-                        providerSettings = ds;
-                        chunkSize = ds.ChunkSize ?? 40;
-                        maxConcurrentChunks = ds.MaxConcurrentChunks ?? 3;
-                        if (hasReasoningLevel)
-                        {
-                            ds.ReasoningLevel = reasoningLevel;
-                        }
-
-                        ds.MaxTokens = hasMaxTokens ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue : null;
+                        modelProcessingSettings = await _settingsProvider.GetDeepSeekModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
+                        lastException = null;
                     }
+                    catch (Exception ex)
+                    {
+                        lastException = ex;
+                        _logger.LogWarning(ex, "Fallback: DeepSeek settings resolution failed for model {ModelId}.", options.ModelId);
+                    }
+                }
+
+                if (lastException != null)
+                {
+                    throw new InvalidOperationException(
+                        $"All providers failed to resolve settings for model '{options.ModelId}'. See inner exception for the last failure.",
+                        lastException);
                 }
             }
 
-            var providerSettingsMap = new Dictionary<string, object>
+            // Shared provider-agnostic settings resolution: chunking, concurrency,
+            // reasoning level, and token clamping are identical across all providers.
+            var chunking = new ChunkingOptions
+            {
+                ChunkSize = modelProcessingSettings.ChunkSize ?? 40,
+                MaxConcurrentChunks = modelProcessingSettings.MaxConcurrentChunks ?? 3,
+            };
+            if (hasReasoningLevel)
+            {
+                modelProcessingSettings.ReasoningLevel = reasoningLevel;
+            }
+
+            modelProcessingSettings.MaxTokens = hasMaxTokens
+                ? TokenUtils.ClampRequestedMaxTokens(maxTokens, providerKey, options.ModelId, _logger).ClampedValue
+                : null;
+
+            IAiServiceSettings providerSettings = modelProcessingSettings;
+
+            var providerSettingsMap = new Dictionary<string, IAiServiceSettings>
             {
                 [providerKey] = providerSettings,
             };
 
-            options.ChunkSize = chunkSize;
-            options.MaxConcurrentChunks = maxConcurrentChunks;
+            options.Chunking = chunking;
 
             var chineseTextProcessor = _chineseTextProcessorFactory();
 
             AiApiResponse results = await chineseTextProcessor.ProcessChineseTextAsync(
-                options.ModelId, options.Prompt, options.Data, providerSettingsMap, chunkSize, maxConcurrentChunks, ct).ConfigureAwait(false);
+                options.ModelId, options.Prompt, options.Data, providerSettingsMap, chunking, ct).ConfigureAwait(false);
 
             for (int i = 0; i < results.ProcessedSentenceRows.Count; i++)
             {
@@ -241,8 +218,8 @@ namespace AIFileProcessor.Processing
                 results.Corrections.Add(finding);
             }
 
-            // Gap 4: if any violation is an INJECTION finding, abort the entire
-            // processing run immediately — all returned data is untrusted. Sanitize
+            // If any violation is an INJECTION finding, abort the entire
+            // processing run immediately â€” all returned data is untrusted. Sanitize
             // the response first so Corrections contain the full diagnostic details,
             // then throw so that no ProcessingResult is ever returned to callers.
             try
@@ -252,7 +229,7 @@ namespace AIFileProcessor.Processing
             catch (InvalidOperationException ex)
             {
                 // Sanitize so the Corrections log carries the full details before
-                // the run is torn down (Gap 1).
+                // the run is torn down.
                 ResponseVerifier.SanitizeResponse(results);
                 _logger.LogError(
                     ex,
@@ -272,14 +249,7 @@ namespace AIFileProcessor.Processing
                 throw;
             }
 
-            string rawResponse = string.Join(
-                System.Environment.NewLine,
-                results.ProcessedSentenceRows.Select(r =>
-                {
-                    string breakdownStr = string.Join("||", r.Breakdown.Select(b =>
-                        $"{b.Chinese}|{b.Pinyin}|{b.Gloss}|{b.DisplayPartOfSpeech}|{b.DisplayHskLevel}|{(string.IsNullOrWhiteSpace(b.Note) ? " " : b.Note)}"));
-                    return $"{r.Id}\t{r.Chinese}\t{r.Pinyin}\t{breakdownStr}\t{string.Join("||", r.AudioReordering.Select(a => $"{a.VisualString}|{a.StartIndex},{a.EndIndex}"))}\t{r.English}\t{r.Length}";
-                }));
+            string rawResponse = ResponseFormatter.FormatRawRows(results.ProcessedSentenceRows);
 
             return new ProcessingResult
             {

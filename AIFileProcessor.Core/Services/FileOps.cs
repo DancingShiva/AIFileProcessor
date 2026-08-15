@@ -17,6 +17,7 @@ namespace AIFileProcessor.Services
 
         public FileOps(ILogger<FileOps> logger)
         {
+            ArgumentNullException.ThrowIfNull(logger);
             _logger = logger;
         }
 

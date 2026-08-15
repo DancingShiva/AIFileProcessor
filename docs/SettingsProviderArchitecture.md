@@ -5,12 +5,14 @@
 All three AI services capture `IOptions<TSettings>` in their constructors as a **read-only snapshot** at DI resolution time:
 
 ```csharp
-// GeminiService — line 50-53
+// GeminiService — delegates to AiServiceBase<TSettings>
 public GeminiService(ILogger<GeminiService> logger, IOptions<GeminiSettings> settings, HttpClient httpClient)
+	: base(logger, settings?.Value ?? throw ..., httpClient)
 {
-	_settings = settings?.Value ?? ...;  // frozen snapshot — never refreshed
 }
 ```
+
+The `AiServiceBase<TSettings>` base class stores the snapshot in `DefaultSettings`.
 
 This means:
 

@@ -7,6 +7,7 @@ namespace AIFileProcessor.Services
 {
     using System;
     using System.Collections.Generic;
+    using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
 
     /// <summary>
@@ -18,6 +19,13 @@ namespace AIFileProcessor.Services
     /// </summary>
     internal static class AiModelCatalog
     {
+        /// <summary>
+        /// The set of recognized provider key strings. When a new provider is
+        /// added, add its key here and to the <see cref="GetProviderKey"/> switch.
+        /// </summary>
+        internal static readonly HashSet<string> KnownProviderKeys =
+            ["Gemini", "OpenAI", "DeepSeek"];
+
         /// <summary>
         /// Determines whether any model in <paramref name="models"/> matches the
         /// given name or ID. The query and both <see cref="AiModelInfo.ModelId"/>
@@ -74,6 +82,27 @@ namespace AIFileProcessor.Services
             }
 
             return [];
+        }
+
+        /// <summary>
+        /// Maps an <see cref="IAiService"/> instance to its provider key
+        /// (e.g., "Gemini", "OpenAI", "DeepSeek") for looking up per-user
+        /// settings in the provider settings dictionary. Returns <c>null</c>
+        /// for unknown service types (e.g., test mocks).
+        /// </summary>
+        /// <param name="service">The AI service to identify.</param>
+        /// <returns>The provider key string, or <c>null</c> if unrecognized.</returns>
+        public static string? GetProviderKey(IAiService service)
+        {
+            ArgumentNullException.ThrowIfNull(service);
+
+            return service.GetType().Name switch
+            {
+                "GeminiService" => "Gemini",
+                "OpenAiService" => "OpenAI",
+                "DeepSeekService" => "DeepSeek",
+                _ => null,
+            };
         }
     }
 }

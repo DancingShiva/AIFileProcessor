@@ -9,9 +9,8 @@ namespace AIFileProcessor.Response
 
     /// <summary>
     /// The result of a single AI provider request: the generated text plus the
-    /// telemetry captured for that call. Replaces the bare string previously returned
-    /// by <see cref="Interfaces.IAiService.ProcessTextAsync(string, string, string, System.Threading.CancellationToken)"/>
-    /// so callers can record performance metrics without provider-specific knowledge.
+    /// telemetry captured for that call. Callers use this to record performance
+    /// metrics without provider-specific knowledge.
     /// </summary>
     public class AiCallResult
     {
@@ -19,6 +18,6 @@ namespace AIFileProcessor.Response
         public string Text { get; set; } = string.Empty;
 
         /// <summary>Gets or sets the telemetry captured for the call.</summary>
-        public CallTelemetry Telemetry { get; set; } = new CallTelemetry();
+        public CallTelemetry Telemetry { get; set; } = new();
     }
 }

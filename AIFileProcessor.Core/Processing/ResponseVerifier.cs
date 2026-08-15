@@ -22,12 +22,6 @@ namespace AIFileProcessor.Processing
     /// </summary>
     public static class ResponseVerifier
     {
-        /// <summary>
-        /// Maximum length for any single AI-generated string field. Fields beyond
-        /// this are treated as injection attempts and rejected.
-        /// </summary>
-        internal const int MaxFieldLength = 10_000;
-
         private const int SentenceTokenEstimateMax = 256;
 
         // Mirrors the PartOfSpeech whitelist the spec defines for the PS element.
@@ -38,6 +32,13 @@ namespace AIFileProcessor.Processing
             "n", "v", "adj", "pron", "num", "mw", "adv", "prep", "conj",
             "part", "int", "loc", "t", "pn", "id", "punc",
         };
+
+        /// <summary>
+        /// Gets the maximum length for any single AI-generated string field. Fields
+        /// beyond this are treated as injection attempts and rejected. Configured
+        /// from the "Processing:MaxOutputFieldSize" setting in appsettings.json.
+        /// </summary>
+        internal static int MaxFieldLength => ProcessingLimits.MaxOutputFieldSize;
 
         /// <summary>
         /// Verifies the response and returns a list of formatted violation messages,
@@ -70,6 +71,10 @@ namespace AIFileProcessor.Processing
                 // enumeration so that malformed rows are caught even when the
                 // Breakdown list is null or empty.
                 ValidateStructuralIntegrity(row, rowIndex, violations);
+
+                // INVALID line consistency: if P is "N/A", then B and R must also
+                // be "N/A" (empty breakdown, no audio reordering entries).
+                VerifyInvalidLineConsistency(row, lineNumber, violations);
 
                 if (row.Breakdown == null || row.Breakdown.Count == 0)
                 {
@@ -189,14 +194,14 @@ namespace AIFileProcessor.Processing
         {
             int lineNumber = rowIndex + 1;
 
-            // Gap 2: field length ceiling. Applies to C, P, E, L, Id.
+            // Field length ceiling. Applies to C, P, E, L, Id.
             ValidateFieldLength(row.Id, "Id", lineNumber, violations);
             ValidateFieldLength(row.Chinese, "Chinese", lineNumber, violations);
             ValidateFieldLength(row.Pinyin, "Pinyin", lineNumber, violations);
             ValidateFieldLength(row.English, "English", lineNumber, violations);
             ValidateFieldLength(row.Length, "Length", lineNumber, violations);
 
-            // Gap 3: tab-delimited structural integrity. The pipe delimiter '|' must
+            // Tab-delimited structural integrity. The pipe delimiter '|' must
             // never appear inside a tab-delimited column, and tabs/newlines are
             // structural boundaries that must not be present in field content.
             if (row.Chinese.Contains('\t'))
@@ -433,6 +438,32 @@ namespace AIFileProcessor.Processing
             {
                 violations.Add(
                     $"VERIFY: line {lineNumber} segment {segIndex + 1} INJECTION: {tag} tag leaked into {fieldName} field — model may have confused data with instructions.");
+            }
+        }
+
+        /// <summary>
+        /// Checks that an INVALID line (P == "N/A") has the correct sentinel
+        /// pattern: B must be empty (no breakdown entries) and R must have no
+        /// audio reordering entries. The spec requires that INVALID lines emit
+        /// P/B/R/E all set to "N/A".
+        /// </summary>
+        private static void VerifyInvalidLineConsistency(ProcessedSentenceRow row, int lineNumber, List<string> violations)
+        {
+            if (!string.Equals(row.Pinyin, "N/A", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (row.Breakdown != null && row.Breakdown.Count > 0)
+            {
+                violations.Add(
+                    $"VERIFY: line {lineNumber} P is 'N/A' (INVALID line) but B has {row.Breakdown.Count} breakdown entry/entries — expected none.");
+            }
+
+            if (row.AudioReordering != null && row.AudioReordering.Count > 0)
+            {
+                violations.Add(
+                    $"VERIFY: line {lineNumber} P is 'N/A' (INVALID line) but R has {row.AudioReordering.Count} audio reordering entry/entries — expected none.");
             }
         }
 

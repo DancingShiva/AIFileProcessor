@@ -13,6 +13,7 @@ namespace AIFileProcessor.Services
     using System.Threading;
     using System.Threading.Tasks;
     using AIFileProcessor.Interfaces;
+    using AIFileProcessor.Models;
     using AIFileProcessor.Response;
     using Microsoft.Extensions.Logging;
 
@@ -21,9 +22,7 @@ namespace AIFileProcessor.Services
     /// </summary>
     /// <param name="logger">The logger instance for logging information and errors.</param>
     /// <param name="aiServices">The AI services to execute prompts against.</param>
-#pragma warning disable SA1009 // Closing parenthesis should be spaced correctly
     public class ChineseTextProcessor(ILogger<ChineseTextProcessor> logger, IEnumerable<IAiService> aiServices) : IChineseTextProcessor
-#pragma warning restore SA1009 // Closing parenthesis should be spaced correctly
     {
         // Define the separators as a static readonly field
         private static readonly string[] _lineSeparators = ["\r\n", "\r", "\n"];
@@ -32,7 +31,8 @@ namespace AIFileProcessor.Services
         {
             PropertyNameCaseInsensitive = true,
             AllowTrailingCommas = true,
-            ReadCommentHandling = JsonCommentHandling.Skip
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            MaxDepth = ProcessingLimits.MaxJsonDepth,
         };
 
         /// <summary>
@@ -42,13 +42,12 @@ namespace AIFileProcessor.Services
         /// <param name="modelId">The ID of the AI model to use for processing.</param>
         /// <param name="prompt">The prompt to execute for each chunk of text.</param>
         /// <param name="data">The block of Chinese text to process.</param>
-        /// <param name="chunkSize">The number of lines per API call chunk.</param>
-        /// <param name="maxConcurrentChunks">The maximum number of concurrent API calls (semaphore size).</param>
+        /// <param name="chunking">The chunking configuration (lines per chunk and max concurrency).</param>
         /// <param name="ct">Token to cancel the operation.</param>
         /// <returns>A merged AiApiResponse containing the combined results from all chunks.</returns>
-        public async Task<AiApiResponse> ProcessChineseTextAsync(string modelId, string prompt, string data, int chunkSize, int maxConcurrentChunks, CancellationToken ct = default)
+        public async Task<AiApiResponse> ProcessChineseTextAsync(string modelId, string prompt, string data, ChunkingOptions chunking, CancellationToken ct = default)
         {
-            return await ProcessInternalAsync(modelId, prompt, data, providerSettings: null, chunkSize, maxConcurrentChunks, ct).ConfigureAwait(false);
+            return await ProcessInternalAsync(modelId, prompt, data, providerSettings: null, chunking, ct).ConfigureAwait(false);
         }
 
         /// <inheritdoc/>
@@ -56,43 +55,26 @@ namespace AIFileProcessor.Services
             string modelId,
             string prompt,
             string data,
-            IDictionary<string, object> providerSettings,
-            int chunkSize,
-            int maxConcurrentChunks,
+            IDictionary<string, IAiServiceSettings> providerSettings,
+            ChunkingOptions chunking,
             CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(providerSettings);
-            return await ProcessInternalAsync(modelId, prompt, data, providerSettings, chunkSize, maxConcurrentChunks, ct).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Maps an <see cref="IAiService"/> instance to its provider key
-        /// for looking up per-user settings in the provider settings dictionary.
-        /// </summary>
-        private static string GetProviderKey(IAiService service)
-        {
-            return service.GetType().Name switch
-            {
-                "GeminiService" => "Gemini",
-                "OpenAiService" => "OpenAI",
-                "DeepSeekService" => "DeepSeek",
-                _ => service.GetType().Name,
-            };
+            return await ProcessInternalAsync(modelId, prompt, data, providerSettings, chunking, ct).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Internal implementation that handles chunking, parallel execution,
         /// and merging. When <paramref name="providerSettings"/> is non-null,
-        /// the per-call settings overload of <see cref="IAiService.ProcessTextAsync(string, string, string, object, CancellationToken)"/>
+        /// the per-call settings overload of <see cref="IAiService.ProcessTextAsync(string, string, string, IAiServiceSettings, CancellationToken)"/>
         /// is used; otherwise the default (constructor-injected) overload is used.
         /// </summary>
         private async Task<AiApiResponse> ProcessInternalAsync(
             string modelId,
             string prompt,
             string data,
-            IDictionary<string, object>? providerSettings,
-            int chunkSize,
-            int maxConcurrentChunks,
+            IDictionary<string, IAiServiceSettings>? providerSettings,
+            ChunkingOptions chunking,
             CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(data))
@@ -112,7 +94,7 @@ namespace AIFileProcessor.Services
                 if (service.SupportsModel(modelId))
                 {
                     aiService = service;
-                    providerKey = GetProviderKey(service);
+                    providerKey = AiModelCatalog.GetProviderKey(service);
                     break;
                 }
             }
@@ -123,7 +105,7 @@ namespace AIFileProcessor.Services
             }
 
             // Resolve per-call settings for this provider, if available
-            object? perCallSettings = null;
+            IAiServiceSettings? perCallSettings = null;
             if (providerSettings != null && providerKey != null && providerSettings.TryGetValue(providerKey, out var settingsObj))
             {
                 perCallSettings = settingsObj;
@@ -135,11 +117,11 @@ namespace AIFileProcessor.Services
             // 2. Break down into chunks of chunkSize lines and associate each with its original index
             var chunks = new List<(int Index, string Text)>();
 
-            for (int i = 0; i < lines.Length; i += chunkSize)
+            for (int i = 0; i < lines.Length; i += chunking.ChunkSize)
             {
-                var chunkLines = lines.Skip(i).Take(chunkSize);
-                string chunkText = string.Join(Environment.NewLine, chunkLines);
-                chunks.Add((Index: i / chunkSize, Text: chunkText));
+                int end = Math.Min(i + chunking.ChunkSize, lines.Length);
+                string chunkText = string.Join(Environment.NewLine, lines[i..end]);
+                chunks.Add((Index: i / chunking.ChunkSize, Text: chunkText));
             }
 
             // 3. Configure JsonSerializerOptions (Mapping "SP" to "Scratchpad" and "Sentences" to "ProcessedSentenceRows")
@@ -147,7 +129,7 @@ namespace AIFileProcessor.Services
 
             // Use a semaphore to limit concurrency, preventing rate-limit violations
             // and connection pool exhaustion when processing many chunks.
-            using var semaphore = new SemaphoreSlim(maxConcurrentChunks, maxConcurrentChunks);
+            using var semaphore = new SemaphoreSlim(chunking.MaxConcurrentChunks, chunking.MaxConcurrentChunks);
 
             // Capture run start for aggregate metrics
             var runStart = DateTime.UtcNow;
@@ -172,8 +154,8 @@ namespace AIFileProcessor.Services
                     var response = new AiApiResponse(aiResult.Text, serializerOptions);
 
                     // Compute this chunk's line range
-                    int startLine = (chunk.Index * chunkSize) + 1;
-                    int endLine = Math.Min(lines.Length, (chunk.Index + 1) * chunkSize);
+                    int startLine = (chunk.Index * chunking.ChunkSize) + 1;
+                    int endLine = Math.Min(lines.Length, (chunk.Index + 1) * chunking.ChunkSize);
 
                     // Record per-chunk metrics (telemetry object may be null)
                     var cm = new Telemetry.ChunkMetrics
@@ -216,8 +198,8 @@ namespace AIFileProcessor.Services
             if (failedResults.Any())
             {
                 var firstFailure = failedResults[0];
-                int startLine = (firstFailure.Index * chunkSize) + 1;
-                int endLine = Math.Min(lines.Length, (firstFailure.Index + 1) * chunkSize);
+                int startLine = (firstFailure.Index * chunking.ChunkSize) + 1;
+                int endLine = Math.Min(lines.Length, (firstFailure.Index + 1) * chunking.ChunkSize);
 
                 throw new InvalidOperationException(
                     $"Processing failed for lines {startLine}-{endLine} of the file. Details: {firstFailure.Exception!.Message}",

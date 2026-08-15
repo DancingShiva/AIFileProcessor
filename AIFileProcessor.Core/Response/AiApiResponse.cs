@@ -7,13 +7,18 @@ namespace AIFileProcessor.Response
 {
     using System;
     using System.Collections.Generic;
-    using System.Diagnostics;
     using System.Text.Json;
     using System.Text.Json.Serialization;
     using AIFileProcessor.Extensions;
+    using AIFileProcessor.Services;
 
     /// <summary>
-    ///  This is a class to handle the response from the AI API. It is designed to be flexible and robust, capable of parsing JSON responses that may vary in structure or formatting. The class includes properties for scratchpad data, corrections made by the AI, and processed sentence rows. It also provides methods to populate its properties from a JSON string, handling various edge cases such as markdown code blocks and trailing commas.
+    /// Handles the response from the AI API. Parses JSON responses that may vary
+    /// in structure or formatting, including markdown code blocks and trailing
+    /// commas. Includes properties for scratchpad data, corrections, and processed
+    /// sentence rows. The <see cref="FillFromJsonResponse"/> method populates these
+    /// properties from a JSON string and applies Mandarin tone sandhi
+    /// transformations to pinyin fields via <see cref="Processing.SandhiProcessor"/>.
     /// </summary>
     public class AiApiResponse
     {
@@ -21,7 +26,8 @@ namespace AIFileProcessor.Response
         {
             PropertyNameCaseInsensitive = true,
             AllowTrailingCommas = true,
-            ReadCommentHandling = JsonCommentHandling.Skip
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            MaxDepth = ProcessingLimits.MaxJsonDepth,
         };
 
         /// <summary>
@@ -53,7 +59,7 @@ namespace AIFileProcessor.Response
         }
 
         /// <summary>
-        /// Gets or sets the value of the scratch pad that Gemini keeps to track the pinyin sandhi rules. This is used to help Gemini keep track of the changes that it has made to the pinyin in order to apply the correct sandhi rules. It is not used by the application, but it is included in the response for debugging purposes.
+        /// Gets or sets the value of the scratch pad that the model keeps to track the pinyin it generates. It is not used by the application, but it is included in the response for debugging purposes.
         /// </summary>
         [JsonPropertyName("SP")]
         public string Scratchpad { get; set; } = string.Empty;
@@ -151,12 +157,12 @@ namespace AIFileProcessor.Response
                     return true;
                 }
             }
-            catch (JsonException ex)
+            catch (JsonException)
             {
-                // Issue #11: Removed Debug.Fail which showed a modal dialog in debug builds.
-                // Debug.WriteLine is sufficient for development diagnostics without
-                // interrupting the application with a modal dialog.
-                Debug.WriteLine($"JSON Deserialization failed: {ex.Message}. Response: {json.ToString()}");
+                // Let the exception propagate to the caller, which has a logger
+                // (ChineseTextProcessor.ProcessInternalAsync) and will log it
+                // via ILogger.LogError with chunk context.
+                throw;
             }
 
             return false;

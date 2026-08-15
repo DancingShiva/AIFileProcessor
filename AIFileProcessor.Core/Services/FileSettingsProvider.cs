@@ -36,12 +36,14 @@ namespace AIFileProcessor.Services
             PropertyNameCaseInsensitive = true,
             AllowTrailingCommas = true,
             ReadCommentHandling = JsonCommentHandling.Skip,
+            MaxDepth = ProcessingLimits.MaxJsonDepth,
         };
 
         private static readonly JsonSerializerOptions WriteOptions = new()
         {
             WriteIndented = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            MaxDepth = ProcessingLimits.MaxJsonDepth,
         };
 
         private readonly IConfiguration _configuration;
@@ -187,13 +189,13 @@ namespace AIFileProcessor.Services
         }
 
         /// <inheritdoc/>
-        public Task<GeminiModelSettings> GetGeminiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        public async Task<GeminiModelSettings> GetGeminiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(userId);
             ArgumentNullException.ThrowIfNull(modelId);
 
             var modelSettings = new GeminiModelSettings();
-            var processing = GetProcessingSettingsAsync(ct).Result;
+            var processing = await GetProcessingSettingsAsync(ct).ConfigureAwait(false);
 
             // Start with provider-level defaults
             _configuration.GetSection("GeminiSettings").Bind(modelSettings);
@@ -285,17 +287,17 @@ namespace AIFileProcessor.Services
                 }
             }
 
-            return Task.FromResult(modelSettings);
+            return modelSettings;
         }
 
         /// <inheritdoc/>
-        public Task<OpenAiModelSettings> GetOpenAiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        public async Task<OpenAiModelSettings> GetOpenAiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(userId);
             ArgumentNullException.ThrowIfNull(modelId);
 
             var modelSettings = new OpenAiModelSettings();
-            var processing = GetProcessingSettingsAsync(ct).Result;
+            var processing = await GetProcessingSettingsAsync(ct).ConfigureAwait(false);
 
             // Start with provider-level defaults
             _configuration.GetSection("OpenAiSettings").Bind(modelSettings);
@@ -377,17 +379,17 @@ namespace AIFileProcessor.Services
                 }
             }
 
-            return Task.FromResult(modelSettings);
+            return modelSettings;
         }
 
         /// <inheritdoc/>
-        public Task<DeepSeekModelSettings> GetDeepSeekModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        public async Task<DeepSeekModelSettings> GetDeepSeekModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(userId);
             ArgumentNullException.ThrowIfNull(modelId);
 
             var modelSettings = new DeepSeekModelSettings();
-            var processing = GetProcessingSettingsAsync(ct).Result;
+            var processing = await GetProcessingSettingsAsync(ct).ConfigureAwait(false);
 
             // Start with provider-level defaults
             _configuration.GetSection("DeepSeekSettings").Bind(modelSettings);
@@ -469,7 +471,7 @@ namespace AIFileProcessor.Services
                 }
             }
 
-            return Task.FromResult(modelSettings);
+            return modelSettings;
         }
 
         /// <inheritdoc/>
@@ -515,13 +517,16 @@ namespace AIFileProcessor.Services
 
         /// <summary>
         /// Returns the directory path for the specified user's settings.
+        /// The userId is sanitized to prevent path traversal: path separators,
+        /// parent-directory sequences, and invalid filename characters are stripped.
         /// </summary>
         /// <param name="userId">The user identifier.</param>
         /// <returns>The full path to the user's settings directory.</returns>
         private static string GetUserSettingsDirectory(string userId)
         {
+            string safeUserId = SanitizeUserId(userId);
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            return Path.Combine(appData, AppFolderName, userId);
+            return Path.Combine(appData, AppFolderName, safeUserId);
         }
 
         /// <summary>
@@ -532,6 +537,43 @@ namespace AIFileProcessor.Services
         private static string GetUserSettingsFilePath(string userId)
         {
             return Path.Combine(GetUserSettingsDirectory(userId), SettingsFileName);
+        }
+
+        /// <summary>
+        /// Sanitizes a user identifier for safe use as a directory name. Strips
+        /// path separators, parent-directory sequences, and invalid filename
+        /// characters to prevent path traversal attacks.
+        /// </summary>
+        /// <param name="userId">The raw user identifier.</param>
+        /// <returns>A sanitized string safe for use as a directory name.</returns>
+        private static string SanitizeUserId(string userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return "unknown";
+            }
+
+            // Strip path separators and parent-directory sequences.
+            string sanitized = userId;
+            sanitized = sanitized.Replace("..", string.Empty, StringComparison.Ordinal);
+            sanitized = sanitized.Replace('/', '_');
+            sanitized = sanitized.Replace('\\', '_');
+
+            // Strip any remaining invalid filename characters.
+            char[] invalidChars = Path.GetInvalidFileNameChars();
+            foreach (char c in invalidChars)
+            {
+                sanitized = sanitized.Replace(c, '_');
+            }
+
+            // Trim and truncate to a reasonable length.
+            sanitized = sanitized.Trim();
+            if (sanitized.Length > 128)
+            {
+                sanitized = sanitized[..128];
+            }
+
+            return string.IsNullOrWhiteSpace(sanitized) ? "unknown" : sanitized;
         }
 
         /// <summary>

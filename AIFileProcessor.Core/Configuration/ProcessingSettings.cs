@@ -37,5 +37,32 @@ namespace AIFileProcessor.Configuration
         /// to their hard maximum token count. Keys are matched case-insensitively.
         /// </summary>
         public Dictionary<string, int> ModelTokenLimitsMap { get; set; } = new();
+
+        /// <summary>
+        /// Gets or sets the maximum allowed size (in characters) of the input data
+        /// sent for processing. Input exceeding this is rejected before any API
+        /// calls are made. Default is 32,768.
+        /// </summary>
+        public int MaxInputSize { get; set; } = 32_768;
+
+        /// <summary>
+        /// Gets or sets the maximum allowed size (in characters) of any single
+        /// output field returned by the AI model. Fields exceeding this are
+        /// flagged as violations by the ResponseVerifier. Default is 32,768.
+        /// </summary>
+        public int MaxOutputFieldSize { get; set; } = 32_768;
+
+        /// <summary>
+        /// Gets or sets the maximum jitter (in seconds) added to each retry delay
+        /// to prevent thundering-herd retry storms. The actual jitter is a random
+        /// value between 0 and this setting. Default is 5 seconds.
+        /// </summary>
+        public int RetryJitterSeconds { get; set; } = 5;
+
+        /// <summary>
+        /// Gets or sets the maximum JSON serialization/deserialization depth for
+        /// all JsonSerializerOptions instances in the application. Default is 16.
+        /// </summary>
+        public int MaxJsonDepth { get; set; } = 16;
     }
 }

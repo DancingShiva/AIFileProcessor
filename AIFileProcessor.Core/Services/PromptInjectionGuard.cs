@@ -131,7 +131,9 @@ namespace AIFileProcessor.Services
         {
             ArgumentNullException.ThrowIfNull(data);
 
-            byte[] tagBytes = RandomNumberGenerator.GetBytes(6);
+            // 3 bytes → 6 hex characters (e.g., "f3a9b2") — 16^6 ≈ 16M possibilities,
+            // sufficient unpredictability for per-request delimiter tags.
+            byte[] tagBytes = RandomNumberGenerator.GetBytes(3);
             string tag = Convert.ToHexStringLower(tagBytes);
 
             string beginTag = $"<DATA_BEGIN_{tag}>";
@@ -209,7 +211,7 @@ namespace AIFileProcessor.Services
         /// <c>DATA_END</c> prefix up to the closing angle bracket.
         /// </summary>
         /// <param name="text">The text to scan.</param>
-        /// <returns>The matched tag (e.g., <c>DATA_BEGIN</c> or a dynamic variant like <c>DATA_BEGIN_f3a9</c>), or <c>null</c> when no tag is present.</returns>
+        /// <returns>The matched tag (e.g., <c>DATA_BEGIN</c> or a dynamic variant like <c>DATA_BEGIN_f3a9b2</c>), or <c>null</c> when no tag is present.</returns>
         internal static string? FindDataTagLeak(string? text)
         {
             if (string.IsNullOrEmpty(text))

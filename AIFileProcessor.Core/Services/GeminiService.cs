@@ -15,8 +15,9 @@ namespace AIFileProcessor.Services
     using System.Threading;
     using System.Threading.Tasks;
     using AIFileProcessor.Configuration;
-    using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
+    using AIFileProcessor.Response;
+    using AIFileProcessor.Telemetry;
     using Google.GenAI.Types;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
@@ -24,9 +25,9 @@ namespace AIFileProcessor.Services
     /// <summary>
     /// Service that executes requests against the Google Gemini API using the official Google.GenAI SDK.
     /// </summary>
-    public class GeminiService : IAiService
+    public class GeminiService : AiServiceBase<GeminiSettings>
     {
-        private static readonly IReadOnlyList<AiModelInfo> SupportedModels =
+        private static readonly IReadOnlyList<AiModelInfo> SupportedModelsList =
         [
             new AiModelInfo(
                 "Gemini 3 Flash",
@@ -44,11 +45,12 @@ namespace AIFileProcessor.Services
                 "Gemini 3.6 Flash",
                 "gemini-3.6-flash",
                 [ReasoningLevel.Minimal, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High]),
+            new AiModelInfo(
+                "Gemini 3.7 Flash",
+                "gemini-3.7-flash",
+                [ReasoningLevel.Minimal, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High]),
         ];
 
-        private readonly GeminiSettings _defaultSettings;
-        private readonly ILogger _logger;
-        private readonly HttpClient _httpClient;
         private readonly ConcurrentDictionary<string, Google.GenAI.Client> _clients = new();
 
         /// <summary>
@@ -58,69 +60,16 @@ namespace AIFileProcessor.Services
         /// <param name="settings">The default Gemini settings (from <c>IOptions&lt;T&gt;</c>).</param>
         /// <param name="httpClient">The HTTP client for making requests, managed by IHttpClientFactory.</param>
         public GeminiService(ILogger<GeminiService> logger, IOptions<GeminiSettings> settings, HttpClient httpClient)
+            : base(logger, settings?.Value ?? throw new ArgumentNullException(nameof(settings)), httpClient)
         {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _defaultSettings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
-            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         }
 
-        public IEnumerable<AiModelInfo> GetSupportedModels() => SupportedModels;
+        protected override IReadOnlyList<AiModelInfo> SupportedModels => SupportedModelsList;
 
-        public bool SupportsModel(string modelNameOrId)
+        protected override string ProviderName => "Gemini";
+
+        protected override bool IsProviderTransient(Exception ex)
         {
-            return AiModelCatalog.SupportsModel(SupportedModels, modelNameOrId);
-        }
-
-        public IReadOnlyList<ReasoningLevel> GetSupportedReasoningLevels(string modelId)
-        {
-            return AiModelCatalog.GetReasoningLevels(SupportedModels, modelId);
-        }
-
-        /// <summary>
-        /// Generates content using the default (constructor-injected) Gemini settings.
-        /// </summary>
-        /// <param name="modelId">The model to use for processing.</param>
-        /// <param name="prompt">The user prompt to process.</param>
-        /// <param name="data">The string data for the AI model.</param>
-        /// <param name="ct">A token to cancel the request.</param>
-        /// <returns>The generated text response and telemetry.</returns>
-        public Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(string modelId, string prompt, string data, CancellationToken ct = default)
-        {
-            return ProcessTextAsync(modelId, prompt, data, _defaultSettings, ct);
-        }
-
-        /// <summary>
-        /// Generates content using the provided per-call Gemini settings.
-        /// </summary>
-        /// <param name="modelId">The model to use for processing.</param>
-        /// <param name="prompt">The user prompt to process.</param>
-        /// <param name="data">The string data for the AI model.</param>
-        /// <param name="settings">The per-call settings (must be a <see cref="GeminiSettings"/>).</param>
-        /// <param name="ct">A token to cancel the request.</param>
-        /// <returns>The generated text response and telemetry.</returns>
-        public Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(string modelId, string prompt, string data, object settings, CancellationToken ct = default)
-        {
-            GeminiSettings geminiSettings = AiServiceGuard.RequireSettings<GeminiSettings>(settings);
-            return ProcessTextAsync(modelId, prompt, data, geminiSettings, ct);
-        }
-
-        /// <summary>
-        /// Builds a fingerprint string for client caching, ensuring that users
-        /// with different API keys, endpoints, projects, or locations get separate
-        /// cached <see cref="Google.GenAI.Client"/> instances.
-        /// </summary>
-        private static string GetClientFingerprint(GeminiSettings settings)
-        {
-            return $"{settings.ApiKey}:{settings.Endpoint}:{settings.ProjectId}:{settings.Location}";
-        }
-
-        private static bool IsTransient(Exception ex)
-        {
-            if (ex is HttpRequestException hre)
-            {
-                return hre.StatusCode is null or HttpStatusCode.TooManyRequests or >= HttpStatusCode.InternalServerError;
-            }
-
             // Google.GenAI.ClientError wraps HTTP errors; check for transient status codes.
             if (ex is Google.GenAI.ClientError ce)
             {
@@ -128,75 +77,29 @@ namespace AIFileProcessor.Services
                 return code == (int)HttpStatusCode.TooManyRequests || code >= (int)HttpStatusCode.InternalServerError;
             }
 
-            // Timeout exceptions are transient.
-            if (ex is TimeoutException or TaskCanceledException)
-            {
-                return true;
-            }
-
             return false;
-        }
-
-        private static Schema BuildResponseSchema()
-        {
-            Schema sentenceSchema = new()
-            {
-                Type = Google.GenAI.Types.Type.Object,
-                Properties = new()
-                    {
-                        { "C", new() { Type = Google.GenAI.Types.Type.String } },
-                        { "P", new() { Type = Google.GenAI.Types.Type.String } },
-                        { "B", new() { Type = Google.GenAI.Types.Type.String } },
-                        { "R", new() { Type = Google.GenAI.Types.Type.String } },
-                        { "E", new() { Type = Google.GenAI.Types.Type.String } }
-                    },
-                Required = new System.Collections.Generic.List<string> { "C", "P", "B", "R", "E" }
-            };
-
-            return new()
-            {
-                Type = Google.GenAI.Types.Type.Object,
-                Properties = new()
-                {
-                    { "SP", new() { Type = Google.GenAI.Types.Type.String } },
-                    {
-                        "Corrections", new()
-                        {
-                            Type = Google.GenAI.Types.Type.Array,
-                            Items = new() { Type = Google.GenAI.Types.Type.String }
-                        }
-                    },
-                    {
-                        "Sentences", new()
-                        {
-                            Type = Google.GenAI.Types.Type.Array,
-                            Items = sentenceSchema
-                        }
-                    }
-                },
-                Required = new System.Collections.Generic.List<string> { "SP", "Sentences" }
-            };
         }
 
         /// <summary>
         /// Internal implementation that executes the Gemini API call using the
         /// specified settings, caching clients keyed by a settings fingerprint.
         /// </summary>
-        private async Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(string modelId, string prompt, string data, GeminiSettings settings, CancellationToken ct)
+        /// <param name="modelId">The model to use for processing.</param>
+        /// <param name="prompt">The user prompt to process.</param>
+        /// <param name="data">The string data for the AI model.</param>
+        /// <param name="settings">The Gemini-specific settings.</param>
+        /// <param name="ct">A token to cancel the request.</param>
+        /// <returns>The generated text response and telemetry.</returns>
+        protected override async Task<AiCallResult> ProcessTextCoreAsync(string modelId, string prompt, string data, GeminiSettings settings, CancellationToken ct)
         {
-            AiServiceGuard.RequireValidRequest(modelId, prompt, data);
-
-            if (string.IsNullOrWhiteSpace(settings.ApiKey))
-            {
-                throw new InvalidOperationException("Gemini API key is not configured.");
-            }
+            ValidateRequest(modelId, prompt, data, settings.ApiKey);
 
             string fingerprint = GetClientFingerprint(settings);
             var client = _clients.GetOrAdd(fingerprint, _ =>
             {
                 var options = new ClientOptions
                 {
-                    HttpClientFactory = () => _httpClient
+                    HttpClientFactory = () => HttpClient
                 };
 
                 return new Google.GenAI.Client(
@@ -246,12 +149,12 @@ namespace AIFileProcessor.Services
 
             // Wrap user-supplied data in cryptographically random per-request delimiter
             // tags to defend against prompt injection (tag unpredictability + leak detection).
-            string wrappedData = PromptInjectionGuard.WrapData(data).WrappedData;
+            string wrappedData = WrapData(data);
 
             string targetModel = modelId;
 
             // Initialize telemetry for this call
-            var telemetry = new AIFileProcessor.Telemetry.CallTelemetry { StartUtc = DateTime.UtcNow, Attempts = 1 };
+            var telemetry = CreateTelemetry();
 
             if (settings.StreamingEnabled)
             {
@@ -285,13 +188,12 @@ namespace AIFileProcessor.Services
 
                             if (settings.EnableLogging)
                             {
-                                _logger.LogInformation("{Chunk}", chunk.Text);
+                                Logger.LogInformation("{Chunk}", chunk.Text);
                             }
                         }
                     }
 
-                    telemetry.EndUtc = DateTime.UtcNow;
-                    telemetry.ElapsedMs = (long)(telemetry.EndUtc - telemetry.StartUtc).TotalMilliseconds;
+                    FinalizeTelemetry(telemetry);
 
                     // Map token counts from the usage metadata carried by the final streamed chunk.
                     try
@@ -302,17 +204,17 @@ namespace AIFileProcessor.Services
                             telemetry.CompletionTokens = streamUsage.CandidatesTokenCount;
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // best-effort only
+                        Logger.LogWarning(ex, "Gemini streaming: failed to extract token counts from usage metadata.");
                     }
 
                     // Return AiCallResult carrying the concatenated text and telemetry
-                    return new AIFileProcessor.Response.AiCallResult { Text = writer.ToString(), Telemetry = telemetry };
+                    return new AiCallResult { Text = writer.ToString(), Telemetry = telemetry };
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Gemini streaming API request failed for model {TargetModel}.", targetModel);
+                    Logger.LogError(ex, "Gemini streaming API request failed for model {TargetModel}.", targetModel);
                     throw;
                 }
             }
@@ -333,36 +235,34 @@ namespace AIFileProcessor.Services
                         settings.MaxRetries,
                         settings.BaseDelay,
                         settings.MaxDelay,
-                        _logger,
+                        Logger,
                         $"Gemini model {targetModel}",
                         ct,
                         onAttempt: attempt => telemetry.Attempts = attempt).ConfigureAwait(false);
 
                     if (settings.EnableLogging)
                     {
-                        _logger.LogInformation("[Gemini Log] Model: {TargetModel}, Response Status: Success", targetModel);
+                        Logger.LogInformation("[Gemini Log] Model: {TargetModel}, Response Status: Success", targetModel);
                     }
 
                     // finalize telemetry for non-streaming response
-                    telemetry ??= new AIFileProcessor.Telemetry.CallTelemetry { StartUtc = DateTime.UtcNow, Attempts = 1 };
-                    telemetry.EndUtc = DateTime.UtcNow;
-                    telemetry.ElapsedMs = (long)(telemetry.EndUtc - telemetry.StartUtc).TotalMilliseconds;
+                    FinalizeTelemetry(telemetry);
 
                     // Try reflection-based mapping for token counts
                     try
                     {
-                        if (Telemetry.TelemetryUtils.TryExtractTokens(response, out var p, out var c))
+                        if (TelemetryUtils.TryExtractTokens(response, out var p, out var c))
                         {
                             telemetry.PromptTokens = p;
                             telemetry.CompletionTokens = c;
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // ignore
+                        Logger.LogWarning(ex, "Gemini: failed to extract token counts from completion response.");
                     }
 
-                    return new AIFileProcessor.Response.AiCallResult { Text = response.Text ?? string.Empty, Telemetry = telemetry };
+                    return new AiCallResult { Text = response.Text ?? string.Empty, Telemetry = telemetry };
                 }
                 catch (OperationCanceledException)
                 {
@@ -370,10 +270,66 @@ namespace AIFileProcessor.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Gemini API request failed for model {TargetModel}.", targetModel);
+                    Logger.LogError(ex, "Gemini API request failed for model {TargetModel}.", targetModel);
                     throw;
                 }
             }
+        }
+
+        /// <summary>
+        /// Builds the JSON response schema used to constrain Gemini output to the
+        /// expected sentence-processing structure.
+        /// </summary>
+        /// <returns>The response schema for the Gemini API.</returns>
+        private static Schema BuildResponseSchema()
+        {
+            Schema sentenceSchema = new()
+            {
+                Type = Google.GenAI.Types.Type.Object,
+                Properties = new()
+                    {
+                        { "C", new() { Type = Google.GenAI.Types.Type.String } },
+                        { "P", new() { Type = Google.GenAI.Types.Type.String } },
+                        { "B", new() { Type = Google.GenAI.Types.Type.String } },
+                        { "R", new() { Type = Google.GenAI.Types.Type.String } },
+                        { "E", new() { Type = Google.GenAI.Types.Type.String } }
+                    },
+                Required = new System.Collections.Generic.List<string> { "C", "P", "B", "R", "E" }
+            };
+
+            return new()
+            {
+                Type = Google.GenAI.Types.Type.Object,
+                Properties = new()
+                {
+                    { "SP", new() { Type = Google.GenAI.Types.Type.String } },
+                    {
+                        "Corrections", new()
+                        {
+                            Type = Google.GenAI.Types.Type.Array,
+                            Items = new() { Type = Google.GenAI.Types.Type.String }
+                        }
+                    },
+                    {
+                        "Sentences", new()
+                        {
+                            Type = Google.GenAI.Types.Type.Array,
+                            Items = sentenceSchema
+                        }
+                    }
+                },
+                Required = new System.Collections.Generic.List<string> { "SP", "Sentences" }
+            };
+        }
+
+        /// <summary>
+        /// Builds a fingerprint string for client caching, ensuring that users
+        /// with different API keys, endpoints, projects, or locations get separate
+        /// cached <see cref="Google.GenAI.Client"/> instances.
+        /// </summary>
+        private static string GetClientFingerprint(GeminiSettings settings)
+        {
+            return $"{settings.ApiKey}:{settings.Endpoint}:{settings.ProjectId}:{settings.Location}";
         }
     }
 }

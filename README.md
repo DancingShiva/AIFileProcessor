@@ -29,11 +29,14 @@ See **[docs/architecture.md](docs/architecture.md)** for the component and data-
 2. **Per-user settings** — `ProcessingOrchestrator` resolves settings for all three providers from
    `ISettingsProvider`, applying the selected model's reasoning level and a clamped `MaxTokens`
    (clamped to the provider hard limit via `TokenUtils`/`ModelTokenLimits`).
-3. **Chunked fan-out** — `ChineseTextProcessor` splits the data into 40-line chunks, processes up to
-   3 concurrently (semaphore), and fails fast on any chunk error.
-4. **Provider calls** — each `IAiService` (Gemini/OpenAI/DeepSeek) calls its API with
-   transient-failure retry (exponential backoff via `TransientRetryPolicy`), using cached clients
-   keyed by a settings fingerprint.
+3. **Chunked fan-out** — `ChineseTextProcessor` splits the data into chunks (default 40 lines,
+   bundled in a `ChunkingOptions`), processes up to 3 concurrently (semaphore), and fails fast
+   on any chunk error.
+4. **Provider calls** — each `IAiService` (Gemini/OpenAI/DeepSeek) — all inheriting from
+   `AiServiceBase<TSettings>` — calls its API with transient-failure retry (exponential backoff
+   via `TransientRetryPolicy`), using cached clients keyed by a settings fingerprint. Per-call
+   settings are passed as `IAiServiceSettings` (type-safe marker interface) and cast to the
+   concrete type inside `AiServiceBase`.
 5. **Parse + sandhi** — the JSON response is deserialized (span-based, allocation-light in
    `AiApiResponse.FillFromJsonResponse`), and Mandarin tone sandhi is applied to pinyin.
 6. **Assemble** — rows get generated IDs (prefix + padded sequence) and cleaned character counts,
@@ -97,6 +100,12 @@ dotnet test AIFileProcessor.Core.Tests
 ## Conventions
 
 - StyleCop-enforced C# style; XML doc comments on public members.
+- `AiServiceBase<TSettings>` — abstract base class extracts the shared structural shell
+  (constructor, model catalog lookups, `ProcessTextAsync` overloads, transient-exception
+  detection, request validation, telemetry helpers) from the three provider services.
+- `IAiServiceSettings` — marker interface that replaces `object` on the per-call settings
+  overload, restoring type safety at the `IAiService` boundary.
+- `ChunkingOptions` — bundles `ChunkSize` + `MaxConcurrentChunks` through the pipeline.
 - Static, stateless helpers for shared logic (`AiModelCatalog`, `TransientRetryPolicy`,
   `TokenUtils`, `ModelTokenLimits`, `AiServiceGuard`) — no extra DI for pure logic.
 - **Security invariant:** `ApiKey` is `[JsonIgnore]` and `init`-only on every settings type;

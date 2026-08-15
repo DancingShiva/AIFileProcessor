@@ -1,4 +1,4 @@
-﻿namespace AIFileProcessor.Core.Tests.Services
+namespace AIFileProcessor.Core.Tests.Services
 {
     using System;
     using System.Collections.Generic;
@@ -267,7 +267,7 @@
             var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gemini-3-flash", "prompt", "data", "not-settings", CancellationToken.None));
+                () => service.ProcessTextAsync("gemini-3-flash", "prompt", "data", new OpenAiSettings(), CancellationToken.None));
         }
 
         [Fact]

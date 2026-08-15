@@ -55,12 +55,12 @@ namespace AIFileProcessor.Telemetry
 
                 if (promptProp != null)
                 {
-                    try { promptTokens = Convert.ToInt32(promptProp.GetValue(usageValue)); } catch { }
+                    promptTokens = Convert.ToInt32(promptProp.GetValue(usageValue));
                 }
 
                 if (completionProp != null)
                 {
-                    try { completionTokens = Convert.ToInt32(completionProp.GetValue(usageValue)); } catch { }
+                    completionTokens = Convert.ToInt32(completionProp.GetValue(usageValue));
                 }
 
                 return promptTokens.HasValue || completionTokens.HasValue;

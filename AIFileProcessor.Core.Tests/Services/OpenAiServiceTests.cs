@@ -1,4 +1,4 @@
-﻿namespace AIFileProcessor.Core.Tests.Services
+namespace AIFileProcessor.Core.Tests.Services
 {
     using System;
     using System.Collections.Generic;
@@ -241,7 +241,7 @@
             var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("gpt-5.5", "prompt", "data", "not-settings", CancellationToken.None));
+                () => service.ProcessTextAsync("gpt-5.5", "prompt", "data", new GeminiSettings(), CancellationToken.None));
         }
 
         [Fact]

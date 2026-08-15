@@ -155,8 +155,9 @@ namespace AIFileProcessor.Web.Controllers
             catch (InvalidOperationException ex) when (ex.Message.Contains("injection", StringComparison.OrdinalIgnoreCase)
                 && ex.Message.Contains("aborted", StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogWarning(ex, "Processing aborted for model {ModelId} due to prompt-injection detection.", request.ModelId);
-                return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+                string errorId = Guid.NewGuid().ToString("N")[..8];
+                _logger.LogWarning(ex, "Processing aborted for model {ModelId} due to prompt-injection detection. Error ID: {ErrorId}", request.ModelId, errorId);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { errorId, message = $"Processing aborted due to a security check. Reference ID: {errorId}" });
             }
             catch (NotSupportedException ex)
             {
@@ -165,8 +166,9 @@ namespace AIFileProcessor.Web.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Processing failed for model {ModelId}.", request.ModelId);
-                return StatusCode(StatusCodes.Status500InternalServerError, $"Processing failed: {ex.Message}");
+                string errorId = Guid.NewGuid().ToString("N")[..8];
+                _logger.LogError(ex, "Processing failed for model {ModelId}. Error ID: {ErrorId}", request.ModelId, errorId);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { errorId, message = $"An internal error occurred. Reference ID: {errorId}" });
             }
         }
 

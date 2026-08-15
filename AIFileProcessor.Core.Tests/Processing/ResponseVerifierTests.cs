@@ -19,7 +19,7 @@ public class ResponseVerifierTests
         => new() { Chinese = chinese, Breakdown = new List<BreakdownEntry>(entries) };
 
     private static BreakdownEntry Entry(string chinese, string pos, string hsk = "3", string note = "")
-        => new() { Chinese = chinese, PartOfSpeech = pos, HskLevel = hsk, Note = note };
+        => new() { Chinese = chinese, Pinyin = "pinyin", Gloss = "gloss", PartOfSpeech = pos, HskLevel = hsk, Note = note };
 
     // ─── Null/empty handling ──────────────────────────────────────────────────
 
@@ -478,7 +478,7 @@ public class ResponseVerifierTests
         Assert.DoesNotContain(violations, v => v.Contains("INJECTION"));
     }
 
-    // ─── Gap 1: Output sanitization ───────────────────────────────────────
+    // ─── Output sanitization ───────────────────────────────────────────────
 
     [Fact]
     public void SanitizeResponse_StripsInjectionPatternsFromAllFields()
@@ -544,13 +544,14 @@ public class ResponseVerifierTests
         Assert.Equal("Hello world", response.ProcessedSentenceRows[0].English);
     }
 
-    // ─── Gap 2: Field length ceiling ──────────────────────────────────────
+    // ─── Field length ceiling ──────────────────────────────────────────────
 
     [Fact]
     public void Verify_ChineseFieldExceedingMaxLength_ReturnsViolation()
     {
-        // Spaced Hanzi: each unit is 2 chars + space separator
-        var oversized = string.Join(' ', Enumerable.Repeat("你好", (ResponseVerifier.MaxFieldLength / 3) + 1));
+        // Spaced Hanzi: each unit is 2 chars + space separator. Add 2 to ensure
+        // the total exceeds MaxFieldLength (integer division rounds down).
+        var oversized = string.Join(' ', Enumerable.Repeat("你好", (ResponseVerifier.MaxFieldLength / 3) + 2));
         var response = CreateResponse(new ProcessedSentenceRow
         {
             Chinese = oversized,
@@ -613,7 +614,7 @@ public class ResponseVerifierTests
         Assert.DoesNotContain(violations, v => v.Contains("exceeds maximum length"));
     }
 
-    // ─── Gap 3: Structural delimiter integrity ─────────────────────────────
+    // ─── Structural delimiter integrity ─────────────────────────────────────
 
     [Fact]
     public void Verify_ChineseWithStructuralTab_ReturnsViolation()
@@ -681,7 +682,7 @@ public class ResponseVerifierTests
         Assert.Contains(violations, v => v.Contains("structural tab character") && v.Contains("breakdown field"));
     }
 
-    // ─── Gap 4: Abort on injection violations ─────────────────────────────
+    // ─── Abort on injection violations ─────────────────────────────────────
 
     [Fact]
     public void AbortOnInjectionViolations_WithInjectionViolations_ThrowsInvalidOperationException()

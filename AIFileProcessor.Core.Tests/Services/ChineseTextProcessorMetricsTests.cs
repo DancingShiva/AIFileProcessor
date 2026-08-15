@@ -5,6 +5,7 @@ namespace AIFileProcessor.Core.Tests.Services
     using System.Threading;
     using System.Threading.Tasks;
     using AIFileProcessor.Interfaces;
+    using AIFileProcessor.Models;
     using AIFileProcessor.Response;
     using AIFileProcessor.Telemetry;
     using AIFileProcessor.Services;
@@ -46,7 +47,7 @@ namespace AIFileProcessor.Core.Tests.Services
             var processor = new ChineseTextProcessor(logger.Object, new[] { aiService.Object });
 
             // Act
-            var result = await processor.ProcessChineseTextAsync(modelId, prompt, data, 40, 3, CancellationToken.None);
+            var result = await processor.ProcessChineseTextAsync(modelId, prompt, data, new ChunkingOptions(), CancellationToken.None);
 
             // Assert
             Assert.NotNull(result);
@@ -115,7 +116,7 @@ namespace AIFileProcessor.Core.Tests.Services
             };
 
             var chineseProcessorMock = new Mock<IChineseTextProcessor>();
-            chineseProcessorMock.Setup(p => p.ProcessChineseTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            chineseProcessorMock.Setup(p => p.ProcessChineseTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IDictionary<string, IAiServiceSettings>>(), It.IsAny<ChunkingOptions>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(aiResponseWithMetrics);
 
             // Create orchestrator via existing factory mocking used in ProcessingOrchestratorTests

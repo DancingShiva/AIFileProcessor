@@ -221,25 +221,21 @@ public class AiApiResponseTests
     }
 
     [Fact]
-    public void FillFromJsonResponse_InvalidJson_ReturnsFalse()
+    public void FillFromJsonResponse_InvalidJson_ThrowsJsonException()
     {
         var response = new AiApiResponse();
         string json = "this is definitely not json!!!";
 
-        bool result = response.FillFromJsonResponse(json);
-
-        Assert.False(result);
+        Assert.Throws<JsonException>(() => response.FillFromJsonResponse(json));
     }
 
     [Fact]
-    public void FillFromJsonResponse_InvalidJsonWithBraces_ReturnsFalse()
+    public void FillFromJsonResponse_InvalidJsonWithBraces_ThrowsJsonException()
     {
         var response = new AiApiResponse();
         string json = "{not valid json}";
 
-        bool result = response.FillFromJsonResponse(json);
-
-        Assert.False(result);
+        Assert.Throws<JsonException>(() => response.FillFromJsonResponse(json));
     }
 
     [Fact]
@@ -271,16 +267,14 @@ public class AiApiResponseTests
     }
 
     [Fact]
-    public void FillFromJsonResponse_PreservesExistingPropertiesWhenParseFails()
+    public void FillFromJsonResponse_InvalidJson_ThrowsJsonExceptionAndPreservesExistingProperties()
     {
         var response = new AiApiResponse();
         response.Scratchpad = "existing";
         response.Corrections = new List<string> { "existing1" };
 
-        bool result = response.FillFromJsonResponse("not json!!!");
-
-        Assert.False(result);
-        // Properties should remain as they were (not overwritten since parse failed)
+        Assert.Throws<JsonException>(() => response.FillFromJsonResponse("not json!!!"));
+        // Properties should remain as they were (not overwritten since parse threw before assignment)
         Assert.Equal("existing", response.Scratchpad);
         Assert.Single(response.Corrections);
     }
@@ -312,26 +306,22 @@ public class AiApiResponseTests
     }
 
     [Fact]
-    public void FillFromJsonResponse_GeneralCodeBlockWithoutClosingFenceAndNoBraces_ReturnsFalse()
+    public void FillFromJsonResponse_GeneralCodeBlockWithoutClosingFenceAndNoBraces_ThrowsJsonException()
     {
         var response = new AiApiResponse();
         // General code block start but no closing fence and no curly braces
         string json = "``` some text without json";
 
-        bool result = response.FillFromJsonResponse(json);
-
-        Assert.False(result);
+        Assert.Throws<JsonException>(() => response.FillFromJsonResponse(json));
     }
 
     [Fact]
-    public void FillFromJsonResponse_PrefixSuffixWithNoBraces_ReturnsFalse()
+    public void FillFromJsonResponse_PrefixSuffixWithNoBraces_ThrowsJsonException()
     {
         var response = new AiApiResponse();
         string json = "no braces here at all";
 
-        bool result = response.FillFromJsonResponse(json);
-
-        Assert.False(result);
+        Assert.Throws<JsonException>(() => response.FillFromJsonResponse(json));
     }
 
     [Fact]

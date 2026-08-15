@@ -14,7 +14,6 @@ namespace AIFileProcessor.Services
     using System.Threading;
     using System.Threading.Tasks;
     using AIFileProcessor.Configuration;
-    using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
     using AIFileProcessor.Response;
     using AIFileProcessor.Telemetry;
@@ -26,9 +25,9 @@ namespace AIFileProcessor.Services
     /// <summary>
     /// Service that executes requests against the OpenAI API using the official OpenAI SDK.
     /// </summary>
-    public class OpenAiService : IAiService
+    public class OpenAiService : AiServiceBase<OpenAiSettings>
     {
-        private static readonly IReadOnlyList<AiModelInfo> SupportedModels =
+        private static readonly IReadOnlyList<AiModelInfo> SupportedModelsList =
         [
             new AiModelInfo(
                 "GPT-5.6 Sol",
@@ -68,9 +67,6 @@ namespace AIFileProcessor.Services
                 [ReasoningLevel.None, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High, ReasoningLevel.XHigh]),
         ];
 
-        private readonly ILogger _logger;
-        private readonly OpenAiSettings _defaultSettings;
-        private readonly HttpClient _httpClient;
         private readonly ConcurrentDictionary<string, ChatClient> _clients = new();
 
         /// <summary>
@@ -80,92 +76,21 @@ namespace AIFileProcessor.Services
         /// <param name="settings">The default OpenAI settings (from <c>IOptions&lt;T&gt;</c>).</param>
         /// <param name="httpClient">The HTTP client for making requests, managed by IHttpClientFactory.</param>
         public OpenAiService(ILogger<OpenAiService> logger, IOptions<OpenAiSettings> settings, HttpClient httpClient)
+            : base(logger, settings?.Value ?? throw new ArgumentNullException(nameof(settings)), httpClient)
         {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _defaultSettings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
-            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         }
 
-        public IEnumerable<AiModelInfo> GetSupportedModels() => SupportedModels;
+        protected override IReadOnlyList<AiModelInfo> SupportedModels => SupportedModelsList;
 
-        public bool SupportsModel(string modelNameOrId)
+        protected override string ProviderName => "OpenAI";
+
+        protected override bool IsProviderTransient(Exception ex)
         {
-            return AiModelCatalog.SupportsModel(SupportedModels, modelNameOrId);
-        }
-
-        public IReadOnlyList<ReasoningLevel> GetSupportedReasoningLevels(string modelId)
-        {
-            return AiModelCatalog.GetReasoningLevels(SupportedModels, modelId);
-        }
-
-        /// <summary>
-        /// Generates content using the default (constructor-injected) OpenAI settings.
-        /// </summary>
-        /// <param name="modelId">The model to use for processing.</param>
-        /// <param name="prompt">The user prompt to process.</param>
-        /// <param name="data">The string data for the AI model.</param>
-        /// <param name="ct">A token to cancel the request.</param>
-        /// <returns>The generated text response and telemetry.</returns>
-        public Task<AiCallResult> ProcessTextAsync(
-            string modelId,
-            string prompt,
-            string data,
-            CancellationToken ct = default)
-        {
-            return ProcessTextAsync(modelId, prompt, data, _defaultSettings, ct);
-        }
-
-        /// <summary>
-        /// Generates content using the provided per-call OpenAI settings.
-        /// </summary>
-        /// <param name="modelId">The model to use for processing.</param>
-        /// <param name="prompt">The user prompt to process.</param>
-        /// <param name="data">The string data for the AI model.</param>
-        /// <param name="settings">The per-call settings (must be an <see cref="OpenAiSettings"/>).</param>
-        /// <param name="ct">A token to cancel the request.</param>
-        /// <returns>The generated text response and telemetry.</returns>
-        public Task<AiCallResult> ProcessTextAsync(
-            string modelId,
-            string prompt,
-            string data,
-            object settings,
-            CancellationToken ct = default)
-        {
-            OpenAiSettings openAiSettings = AiServiceGuard.RequireSettings<OpenAiSettings>(settings);
-            return ProcessTextAsync(modelId, prompt, data, openAiSettings, ct);
-        }
-
-        /// <summary>
-        /// Builds a fingerprint string for client caching, ensuring that users
-        /// with different API keys, endpoints, or models get separate cached
-        /// <see cref="ChatClient"/> instances.
-        /// </summary>
-        private static string GetClientFingerprint(string modelId, OpenAiSettings settings)
-        {
-            return $"{settings.ApiKey}:{settings.Endpoint}:{modelId}";
-        }
-
-        /// <summary>
-        /// Determines whether an exception from the OpenAI SDK represents a transient
-        /// failure worth retrying (rate-limit, server error, network, or timeout).
-        /// </summary>
-        private static bool IsTransient(Exception ex)
-        {
-            if (ex is HttpRequestException hre)
-            {
-                return hre.StatusCode is null or System.Net.HttpStatusCode.TooManyRequests or >= System.Net.HttpStatusCode.InternalServerError;
-            }
-
             // The OpenAI SDK wraps HTTP errors in ClientResultException; retry on 429/5xx.
             if (ex is ClientResultException cre)
             {
                 return cre.Status == (int)System.Net.HttpStatusCode.TooManyRequests
                     || cre.Status >= (int)System.Net.HttpStatusCode.InternalServerError;
-            }
-
-            if (ex is TimeoutException or TaskCanceledException)
-            {
-                return true;
             }
 
             return false;
@@ -175,26 +100,27 @@ namespace AIFileProcessor.Services
         /// Internal implementation that executes the OpenAI API call using the
         /// specified settings, caching clients keyed by a settings fingerprint.
         /// </summary>
-        private async Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(
+        /// <param name="modelId">The model to use for processing.</param>
+        /// <param name="prompt">The user prompt to process.</param>
+        /// <param name="data">The string data for the AI model.</param>
+        /// <param name="settings">The OpenAI-specific settings.</param>
+        /// <param name="ct">A token to cancel the request.</param>
+        /// <returns>The generated text response and telemetry.</returns>
+        protected override async Task<AiCallResult> ProcessTextCoreAsync(
             string modelId,
             string prompt,
             string data,
             OpenAiSettings settings,
             CancellationToken ct)
         {
-            AiServiceGuard.RequireValidRequest(modelId, prompt, data);
-
-            if (string.IsNullOrWhiteSpace(settings.ApiKey))
-            {
-                throw new InvalidOperationException("OpenAI API key is not configured.");
-            }
+            ValidateRequest(modelId, prompt, data, settings.ApiKey);
 
             string fingerprint = GetClientFingerprint(modelId, settings);
             var client = _clients.GetOrAdd(fingerprint, _ =>
             {
                 var clientOptions = new OpenAIClientOptions
                 {
-                    Transport = new HttpClientPipelineTransport(_httpClient),
+                    Transport = new HttpClientPipelineTransport(HttpClient),
                 };
 
                 if (!string.IsNullOrWhiteSpace(settings.Endpoint))
@@ -241,10 +167,10 @@ namespace AIFileProcessor.Services
 
             // Wrap user-supplied data in cryptographically random per-request delimiter
             // tags to defend against prompt injection (tag unpredictability + leak detection).
-            string wrappedData = PromptInjectionGuard.WrapData(data).WrappedData;
+            string wrappedData = WrapData(data);
 
             // Initialize telemetry for this call
-            var telemetry = new AIFileProcessor.Telemetry.CallTelemetry { StartUtc = DateTime.UtcNow, Attempts = 1 };
+            var telemetry = CreateTelemetry();
 
             try
             {
@@ -267,36 +193,35 @@ namespace AIFileProcessor.Services
                     settings.MaxRetries,
                     settings.BaseDelay,
                     settings.MaxDelay,
-                    _logger,
+                    Logger,
                     $"OpenAI model {modelId}",
                     ct,
                     onAttempt: attempt => telemetry.Attempts = attempt).ConfigureAwait(false);
 
                 // finalize telemetry and return
-                telemetry.EndUtc = DateTime.UtcNow;
-                telemetry.ElapsedMs = (long)(telemetry.EndUtc - telemetry.StartUtc).TotalMilliseconds;
+                FinalizeTelemetry(telemetry);
 
                 // Try to map token counts; guard against SDK shape differences and possible nulls.
                 if (completion != null)
                 {
                     try
                     {
-                        if (Telemetry.TelemetryUtils.TryExtractTokens(completion, out var p, out var c))
+                        if (TelemetryUtils.TryExtractTokens(completion, out var p, out var c))
                         {
                             telemetry.PromptTokens = p;
                             telemetry.CompletionTokens = c;
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // best-effort mapping only
+                        Logger.LogWarning(ex, "OpenAI: failed to extract token counts from completion response.");
                     }
                 }
 
                 string text = (completion?.Content != null && completion.Content.Count > 0)
                     ? (completion.Content[0].Text ?? string.Empty)
                     : string.Empty;
-                return new AIFileProcessor.Response.AiCallResult
+                return new AiCallResult
                 {
                     Text = text,
                     Telemetry = telemetry,
@@ -308,9 +233,19 @@ namespace AIFileProcessor.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "OpenAI API request failed for model {ModelId}.", modelId);
+                Logger.LogError(ex, "OpenAI API request failed for model {ModelId}.", modelId);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Builds a fingerprint string for client caching, ensuring that users
+        /// with different API keys, endpoints, or models get separate cached
+        /// <see cref="ChatClient"/> instances.
+        /// </summary>
+        private static string GetClientFingerprint(string modelId, OpenAiSettings settings)
+        {
+            return $"{settings.ApiKey}:{settings.Endpoint}:{modelId}";
         }
     }
 }

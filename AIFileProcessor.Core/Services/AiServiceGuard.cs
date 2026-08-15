@@ -9,10 +9,6 @@ namespace AIFileProcessor.Services
 
     /// <summary>
     /// Shared argument validation for the <see cref="Interfaces.IAiService"/> implementations.
-    /// The three services had identical <c>IsNullOrWhiteSpace</c> request guards and an identical
-    /// "cast <c>object settings</c> to the concrete settings type or throw" pattern; these helpers
-    /// remove that duplication. Internal/static, consistent with <see cref="AiModelCatalog"/> and
-    /// <see cref="TransientRetryPolicy"/>.
     /// </summary>
     internal static class AiServiceGuard
     {
@@ -40,26 +36,6 @@ namespace AIFileProcessor.Services
             }
 
             PromptInjectionGuard.RequireSafeData(data);
-        }
-
-        /// <summary>
-        /// Casts the per-call <c>object settings</c> to the concrete <typeparamref name="TSettings"/>
-        /// type, throwing a descriptive <see cref="ArgumentException"/> when the type is wrong.
-        /// </summary>
-        /// <typeparam name="TSettings">The expected concrete settings type.</typeparam>
-        /// <param name="settings">The per-call settings object.</param>
-        /// <returns>The settings cast to <typeparamref name="TSettings"/>.</returns>
-        public static TSettings RequireSettings<TSettings>(object? settings)
-            where TSettings : class
-        {
-            if (settings is not TSettings typed)
-            {
-                throw new ArgumentException(
-                    $"Expected {typeof(TSettings).Name} but received {settings?.GetType().Name ?? "null"}.",
-                    nameof(settings));
-            }
-
-            return typed;
         }
     }
 }

@@ -83,9 +83,11 @@ namespace AIFileProcessor.Response
         public string Note { get; set; } = string.Empty;
 
         /// <summary>
-        /// Reconstructs the pipe-delimited string for this entry.
+        /// Reconstructs the pipe-delimited string for this entry using the wire (abbreviated)
+        /// values for part-of-speech and HSK level — not the display-inflated values.
+        /// For display-formatted output, use <see cref="Processing.ResponseFormatter.FormatRawRow(ProcessedSentenceRow)"/>.
         /// </summary>
-        /// <returns>The pipe delimited string.</returns>
+        /// <returns>The pipe-delimited string in wire format (e.g., <c>pron</c>, <c>1</c>).</returns>
         public override string ToString()
         {
             return $"{Chinese}|{Pinyin}|{Gloss}|{PartOfSpeech}|{HskLevel}|{Note}";

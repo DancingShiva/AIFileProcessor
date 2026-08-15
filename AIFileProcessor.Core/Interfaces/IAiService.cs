@@ -55,9 +55,9 @@ namespace AIFileProcessor.Interfaces
         /// <param name="modelId">The name of the AI model to use for text generation.</param>
         /// <param name="prompt">The user prompt to process.</param>
         /// <param name="data">The string data for the AI model.</param>
-        /// <param name="settings">The provider-specific settings instance (e.g., <see cref="GeminiSettings"/>, <see cref="OpenAiSettings"/>, <see cref="DeepSeekSettings"/>).</param>
+        /// <param name="settings">The provider-specific settings instance (e.g., <see cref="IGeminiSettings"/>, <see cref="IOpenAiSettings"/>, <see cref="IDeepSeekSettings"/>).</param>
         /// <param name="ct">A token to cancel the operation.</param>
         /// <returns>A task representing the asynchronous operation, containing the generated text response and its call telemetry.</returns>
-        Task<AiCallResult> ProcessTextAsync(string modelId, string prompt, string data, object settings, CancellationToken ct = default);
+        Task<AiCallResult> ProcessTextAsync(string modelId, string prompt, string data, IAiServiceSettings settings, CancellationToken ct = default);
     }
 }

@@ -14,8 +14,9 @@ namespace AIFileProcessor.Services
     using System.Threading;
     using System.Threading.Tasks;
     using AIFileProcessor.Configuration;
-    using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
+    using AIFileProcessor.Response;
+    using AIFileProcessor.Telemetry;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using OpenAI;
@@ -24,9 +25,9 @@ namespace AIFileProcessor.Services
     /// <summary>
     /// Service that executes requests against the DeepSeek API using the OpenAI-compatible SDK interface.
     /// </summary>
-    public class DeepSeekService : IAiService
+    public class DeepSeekService : AiServiceBase<DeepSeekSettings>
     {
-        private static readonly IReadOnlyList<AiModelInfo> SupportedModels =
+        private static readonly IReadOnlyList<AiModelInfo> SupportedModelsList =
         [
             new AiModelInfo(
                 "DeepSeek-V4-Flash",
@@ -38,9 +39,6 @@ namespace AIFileProcessor.Services
                 [ReasoningLevel.High, ReasoningLevel.Max]),
         ];
 
-        private readonly ILogger _logger;
-        private readonly DeepSeekSettings _defaultSettings;
-        private readonly HttpClient _httpClient;
         private readonly ConcurrentDictionary<string, ChatClient> _clients = new();
 
         /// <summary>
@@ -50,72 +48,16 @@ namespace AIFileProcessor.Services
         /// <param name="settings">The default DeepSeek settings (from <c>IOptions&lt;T&gt;</c>).</param>
         /// <param name="httpClient">The HTTP client for making requests, managed by IHttpClientFactory.</param>
         public DeepSeekService(ILogger<DeepSeekService> logger, IOptions<DeepSeekSettings> settings, HttpClient httpClient)
+            : base(logger, settings?.Value ?? throw new ArgumentNullException(nameof(settings)), httpClient)
         {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _defaultSettings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
-            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         }
 
-        public IEnumerable<AiModelInfo> GetSupportedModels() => SupportedModels;
+        protected override IReadOnlyList<AiModelInfo> SupportedModels => SupportedModelsList;
 
-        public bool SupportsModel(string modelNameOrId)
+        protected override string ProviderName => "DeepSeek";
+
+        protected override bool IsProviderTransient(Exception ex)
         {
-            return AiModelCatalog.SupportsModel(SupportedModels, modelNameOrId);
-        }
-
-        public IReadOnlyList<ReasoningLevel> GetSupportedReasoningLevels(string modelId)
-        {
-            return AiModelCatalog.GetReasoningLevels(SupportedModels, modelId);
-        }
-
-        /// <summary>
-        /// Generates content using the default (constructor-injected) DeepSeek settings.
-        /// </summary>
-        /// <param name="modelId">The model to use for processing.</param>
-        /// <param name="prompt">The user prompt to process.</param>
-        /// <param name="data">The string data for the AI model.</param>
-        /// <param name="ct">A token to cancel the request.</param>
-        /// <returns>The generated text response and telemetry.</returns>
-        public Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(
-            string modelId,
-            string prompt,
-            string data,
-            CancellationToken ct = default)
-        {
-            return ProcessTextAsync(modelId, prompt, data, _defaultSettings, ct);
-        }
-
-        /// <summary>
-        /// Generates content using the provided per-call DeepSeek settings.
-        /// </summary>
-        /// <param name="modelId">The model to use for processing.</param>
-        /// <param name="prompt">The user prompt to process.</param>
-        /// <param name="data">The string data for the AI model.</param>
-        /// <param name="settings">The per-call settings (must be a <see cref="DeepSeekSettings"/>).</param>
-        /// <param name="ct">A token to cancel the request.</param>
-        /// <returns>The generated text response and telemetry.</returns>
-        public Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(
-            string modelId,
-            string prompt,
-            string data,
-            object settings,
-            CancellationToken ct = default)
-        {
-            DeepSeekSettings deepSeekSettings = AiServiceGuard.RequireSettings<DeepSeekSettings>(settings);
-            return ProcessTextAsync(modelId, prompt, data, deepSeekSettings, ct);
-        }
-
-        /// <summary>
-        /// Determines whether an exception from the DeepSeek (OpenAI-compatible) SDK represents
-        /// a transient failure worth retrying (rate-limit, server error, network, or timeout).
-        /// </summary>
-        private static bool IsTransient(Exception ex)
-        {
-            if (ex is HttpRequestException hre)
-            {
-                return hre.StatusCode is null or System.Net.HttpStatusCode.TooManyRequests or >= System.Net.HttpStatusCode.InternalServerError;
-            }
-
             // The OpenAI-compatible SDK wraps HTTP errors in ClientResultException; retry on 429/5xx.
             if (ex is ClientResultException cre)
             {
@@ -123,48 +65,34 @@ namespace AIFileProcessor.Services
                     || cre.Status >= (int)System.Net.HttpStatusCode.InternalServerError;
             }
 
-            if (ex is TimeoutException or TaskCanceledException)
-            {
-                return true;
-            }
-
             return false;
-        }
-
-        /// <summary>
-        /// Builds a fingerprint string for client caching, ensuring that users
-        /// with different API keys, endpoints, or models get separate cached
-        /// <see cref="ChatClient"/> instances.
-        /// </summary>
-        private static string GetClientFingerprint(string modelId, DeepSeekSettings settings)
-        {
-            return $"{settings.ApiKey}:{settings.Endpoint}:{modelId}";
         }
 
         /// <summary>
         /// Internal implementation that executes the DeepSeek API call using the
         /// specified settings, caching clients keyed by a settings fingerprint.
         /// </summary>
-        private async Task<AIFileProcessor.Response.AiCallResult> ProcessTextAsync(
+        /// <param name="modelId">The model to use for processing.</param>
+        /// <param name="prompt">The user prompt to process.</param>
+        /// <param name="data">The string data for the AI model.</param>
+        /// <param name="settings">The DeepSeek-specific settings.</param>
+        /// <param name="ct">A token to cancel the request.</param>
+        /// <returns>The generated text response and telemetry.</returns>
+        protected override async Task<AiCallResult> ProcessTextCoreAsync(
             string modelId,
             string prompt,
             string data,
             DeepSeekSettings settings,
             CancellationToken ct)
         {
-            AiServiceGuard.RequireValidRequest(modelId, prompt, data);
-
-            if (string.IsNullOrWhiteSpace(settings.ApiKey))
-            {
-                throw new InvalidOperationException("DeepSeek API key is not configured.");
-            }
+            ValidateRequest(modelId, prompt, data, settings.ApiKey);
 
             string fingerprint = GetClientFingerprint(modelId, settings);
             var client = _clients.GetOrAdd(fingerprint, _ =>
             {
                 var clientOptions = new OpenAIClientOptions
                 {
-                    Transport = new HttpClientPipelineTransport(_httpClient),
+                    Transport = new HttpClientPipelineTransport(HttpClient),
                     Endpoint = new Uri(
                         string.IsNullOrWhiteSpace(settings.Endpoint)
                             ? "https://api.deepseek.com"
@@ -214,7 +142,7 @@ namespace AIFileProcessor.Services
 
             // Wrap user-supplied data in cryptographically random per-request delimiter
             // tags to defend against prompt injection (tag unpredictability + leak detection).
-            string wrappedData = PromptInjectionGuard.WrapData(data).WrappedData;
+            string wrappedData = WrapData(data);
 
             try
             {
@@ -224,30 +152,30 @@ namespace AIFileProcessor.Services
                 if (settings.EnableReasoning)
                 {
                     // A gentle, non-sensitive instruction that encourages step-by-step reasoning.
-                        var reasoningInstruction = new SystemChatMessage(
-                            "When answering, please show your chain-of-thought reasoning step-by-step, then provide a concise final answer. " +
-                            "If the model supports explicit reasoning configuration, that will be used instead.");
+                    var reasoningInstruction = new SystemChatMessage(
+                        "When answering, please show your chain-of-thought reasoning step-by-step, then provide a concise final answer. " +
+                        "If the model supports explicit reasoning configuration, that will be used instead.");
 
-                        messages = new List<ChatMessage>
-                        {
-                            reasoningInstruction,
-                            new SystemChatMessage(prompt),
-                            new SystemChatMessage(PromptInjectionGuard.DataBoundaryInstruction),
-                            new UserChatMessage(wrappedData),
-                        };
-                    }
-                    else
+                    messages = new List<ChatMessage>
                     {
-                        messages = new List<ChatMessage>
-                        {
-                            new SystemChatMessage(prompt),
-                            new SystemChatMessage(PromptInjectionGuard.DataBoundaryInstruction),
-                            new UserChatMessage(wrappedData),
-                        };
-                    }
+                        reasoningInstruction,
+                        new SystemChatMessage(prompt),
+                        new SystemChatMessage(PromptInjectionGuard.DataBoundaryInstruction),
+                        new UserChatMessage(wrappedData),
+                    };
+                }
+                else
+                {
+                    messages = new List<ChatMessage>
+                    {
+                        new SystemChatMessage(prompt),
+                        new SystemChatMessage(PromptInjectionGuard.DataBoundaryInstruction),
+                        new UserChatMessage(wrappedData),
+                    };
+                }
 
                 // Initialize telemetry before the API call so the retry hook can update Attempts.
-                var localTelemetry = new AIFileProcessor.Telemetry.CallTelemetry { StartUtc = DateTime.UtcNow, Attempts = 1 };
+                var localTelemetry = CreateTelemetry();
 
                 var completion = await TransientRetryPolicy.ExecuteAsync(
                     async cancellationToken =>
@@ -262,31 +190,30 @@ namespace AIFileProcessor.Services
                     settings.MaxRetries,
                     settings.BaseDelay,
                     settings.MaxDelay,
-                    _logger,
+                    Logger,
                     $"DeepSeek model {modelId}",
                     ct,
                     onAttempt: attempt => localTelemetry.Attempts = attempt).ConfigureAwait(false);
 
                 // finalize telemetry and return
-                localTelemetry.EndUtc = DateTime.UtcNow;
-                localTelemetry.ElapsedMs = (long)(localTelemetry.EndUtc - localTelemetry.StartUtc).TotalMilliseconds;
+                FinalizeTelemetry(localTelemetry);
 
                 // ChatCompletion.Usage properties may vary by SDK version; attempt best-effort mapping using reflection helper.
                 try
                 {
-                    if (Telemetry.TelemetryUtils.TryExtractTokens(completion, out var p, out var c))
+                    if (TelemetryUtils.TryExtractTokens(completion, out var p, out var c))
                     {
                         localTelemetry.PromptTokens = p;
                         localTelemetry.CompletionTokens = c;
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Ignore if usage fields are not present in this SDK shape.
+                    Logger.LogWarning(ex, "DeepSeek: failed to extract token counts from completion response.");
                 }
 
                 string text = completion.Content.Count > 0 ? completion.Content[0].Text ?? string.Empty : string.Empty;
-                return new AIFileProcessor.Response.AiCallResult { Text = text, Telemetry = localTelemetry };
+                return new AiCallResult { Text = text, Telemetry = localTelemetry };
             }
             catch (OperationCanceledException)
             {
@@ -294,9 +221,19 @@ namespace AIFileProcessor.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "DeepSeek API request failed for model {ModelId}.", modelId);
+                Logger.LogError(ex, "DeepSeek API request failed for model {ModelId}.", modelId);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Builds a fingerprint string for client caching, ensuring that users
+        /// with different API keys, endpoints, or models get separate cached
+        /// <see cref="ChatClient"/> instances.
+        /// </summary>
+        private static string GetClientFingerprint(string modelId, DeepSeekSettings settings)
+        {
+            return $"{settings.ApiKey}:{settings.Endpoint}:{modelId}";
         }
     }
 }

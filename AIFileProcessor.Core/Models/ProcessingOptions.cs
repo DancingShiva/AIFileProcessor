@@ -164,17 +164,10 @@ namespace AIFileProcessor.Models
         public Dictionary<string, int> ModelMaxTokens { get; set; }
 
         /// <summary>
-        /// Gets or sets the number of lines per API call chunk. Set by the orchestrator
-        /// from the resolved model settings before processing.
-        /// </summary>
-        [JsonIgnore]
-        public int ChunkSize { get; set; } = 40;
-
-        /// <summary>
-        /// Gets or sets the maximum number of concurrent API calls (semaphore size).
+        /// Gets or sets the chunking configuration (lines per chunk and max concurrency).
         /// Set by the orchestrator from the resolved model settings before processing.
         /// </summary>
         [JsonIgnore]
-        public int MaxConcurrentChunks { get; set; } = 3;
+        public ChunkingOptions Chunking { get; set; } = new();
     }
 }

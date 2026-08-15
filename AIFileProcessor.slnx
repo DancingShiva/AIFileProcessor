@@ -2,6 +2,16 @@
   <Folder Name="/Prompt/">
     <File Path="Prompt/ChineseProcessingPrompt.txt" />
   </Folder>
+  <Folder Name="/docs/">
+    <File Path="docs/architecture.md" />
+    <File Path="docs/deployment.md" />
+    <File Path="docs/settings-and-authentication.md" />
+    <File Path="docs/SettingsProviderArchitecture.md" />
+    <File Path="docs/web-api.md" />
+  </Folder>
+  <File Path=".github/copilot-instructions.md" />
+  <File Path="README.md" />
+  <File Path="GEMINI.md" />
   <Project Path="AIFileProcessor.Core.Tests/AIFileProcessor.Core.Tests.csproj" />
   <Project Path="AIFileProcessor.Core/AIFileProcessor.Core.csproj" />
   <Project Path="AIFileProcessor.Web/AIFileProcessor.Web.csproj" />

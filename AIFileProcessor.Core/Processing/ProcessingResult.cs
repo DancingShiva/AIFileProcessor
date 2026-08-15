@@ -27,12 +27,12 @@ namespace AIFileProcessor.Processing
         /// <summary>
         /// Gets or sets the list of corrections applied by the AI during processing.
         /// </summary>
-        public List<string> Corrections { get; set; } = new List<string>();
+        public List<string> Corrections { get; set; } = [];
 
         /// <summary>
         /// Gets or sets the list of processed sentence rows from the AI response.
         /// </summary>
-        public List<ProcessedSentenceRow> ProcessedSentenceRows { get; set; } = new List<ProcessedSentenceRow>();
+        public List<ProcessedSentenceRow> ProcessedSentenceRows { get; set; } = [];
 
         /// <summary>
         /// Gets or sets the aggregated processing metrics for the entire run.

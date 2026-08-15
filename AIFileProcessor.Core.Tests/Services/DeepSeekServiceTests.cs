@@ -1,4 +1,4 @@
-﻿namespace AIFileProcessor.Core.Tests.Services
+namespace AIFileProcessor.Core.Tests.Services
 {
     using System;
     using System.Collections.Generic;
@@ -275,7 +275,7 @@
             var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
 
             await Assert.ThrowsAsync<ArgumentException>(
-                () => service.ProcessTextAsync("deepseek-v4-flash", "prompt", "data", "not-settings", CancellationToken.None));
+                () => service.ProcessTextAsync("deepseek-v4-flash", "prompt", "data", new GeminiSettings(), CancellationToken.None));
         }
 
         [Fact]
