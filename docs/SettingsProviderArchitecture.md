@@ -66,7 +66,9 @@ API keys are **always** sourced from machine-level `IConfiguration` (environment
 
 - `userId` = the Windows identity (`Environment.UserName` or `Thread.CurrentPrincipal.Identity.Name`)
 - Each user gets their own `%APPDATA%\AIFileProcessor\{userId}\settings.json` (preferences only)
-- No contention — each user reads/writes only their own file
+- **Cross-process file locking** — the same user may open multiple RDP sessions; `FileSettingsProvider`
+  uses a `Global\` mutex (named per sanitized user ID) to serialize all read-modify-write operations,
+  preventing concurrent writes from corrupting the settings file or silently losing changes
 - API keys are shared from machine-level environment variables — all users use the same keys
 
 **3. Web application (many users)**
@@ -141,8 +143,25 @@ Each AI service gets a per-call `settings` object instead of relying on the cons
 
 The single change that unlocks all three deployment modes is **replacing the static `IOptions<T>` singleton with a per-call, per-user `ISettingsProvider`**. Everything else flows from that:
 
-- `FileSettingsProvider` covers WinForms + Terminal Server (per-user preference files in `%APPDATA%`, API keys from env vars)
+- `FileSettingsProvider` covers WinForms + Terminal Server (per-user preference files in `%APPDATA%`, API keys from env vars, cross-process `Mutex` locking for concurrent session safety)
 - `WebSettingsProvider` covers web (per-request preferences from client, API keys from server env vars)
 - API keys are always machine-level — never in per-user files, never from web clients
 - Non-secret preferences are per-user files (desktop) or `localStorage` (web), stored as plain JSON without encryption
+
+### Cross-Process File Locking
+
+`FileSettingsProvider` serializes all file read-modify-write operations using a named `Mutex` with
+the `Global\` prefix (e.g., `Global\AIFileProcessor_{sanitizedUserId}_Settings`). This is required
+because on Terminal Server, the same user can open multiple RDP sessions — two processes writing
+the same `%APPDATA%` settings file concurrently could corrupt the file or silently lose changes.
+
+The implementation uses two methods:
+- `ReadUserOverrides` — acquires the mutex, reads the file, releases the mutex. Used by all
+  getter methods (e.g., `GetGeminiSettingsAsync`) that are not already inside a locked context.
+- `ReadUserOverridesInternal` — reads without acquiring the mutex. Used by `SaveSection`,
+  `SaveModelSection`, `MigrateLegacyProviderToModelSettings`, and migration `seed` callbacks
+  that are already inside a `WithUserFileLock` scope (avoids re-entrant deadlock).
+
+`WithUserFileLock` wraps an `Action` or `Func<T>` with `Mutex.WaitOne()` / `Mutex.ReleaseMutex()`,
+using a `using` block to ensure the mutex handle is released even on exceptions.
 - `appsettings.json` remains as the shared defaults baseline

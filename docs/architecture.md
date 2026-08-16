@@ -122,9 +122,10 @@ UI/API request
 		├─ ChineseTextProcessor.ProcessChineseTextAsync(modelId, prompt, data, providerSettings, chunking, ct)
 		│     ├─ split data into chunks (ChunkingOptions.ChunkSize, default 40)
 		│     ├─ pick IAiService where SupportsModel(modelId)
-		│     ├─ per chunk: IAiService.ProcessTextAsync(...)  [TransientRetryPolicy retry]
+		│     ├─ per chunk: chunk-level TransientRetryPolicy retry (ChunkMaxRetries=3, 5s/10s/20s backoff)
+		│     │     └─ IAiService.ProcessTextAsync(...) → service-level TransientRetryPolicy retry (MaxRetries=3, 1s/2s/4s backoff)
 		│     ├─ parse each chunk's JSON → AiApiResponse (span-based)
-		│     ├─ fail fast on first chunk error
+		│     ├─ fail fast on first chunk error (after all retries exhausted)
 		│     └─ merge → AiApiResponse
 		├─ assign IDs (InitializeId) + cleaned length (GetCleanedCharacterCount)
 		└─ assemble tab-delimited RawResponse → ProcessingResult
