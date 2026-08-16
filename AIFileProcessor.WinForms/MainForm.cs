@@ -83,6 +83,7 @@ namespace AIFileProcessor
         private readonly ProcessingOrchestrator _processingOrchestrator;
         private readonly ISettingsProvider _settingsProvider;
         private readonly IUserContext _userContext;
+        private readonly IDialogService _dialogService;
 
         private readonly ProcessingOptions _options = new();
 
@@ -109,6 +110,7 @@ namespace AIFileProcessor
         /// <param name="processingOrchestrator">The processing orchestrator that executes the Chinese text processing pipeline.</param>
         /// <param name="settingsProvider">The settings provider for persisting per-user processing options.</param>
         /// <param name="userContext">The user context for resolving the current user's settings.</param>
+        /// <param name="dialogService">The dialog service for showing message boxes (testable abstraction).</param>
         public MainForm(
             ILogger<MainForm> logger,
             IFileOps fileOps,
@@ -116,7 +118,8 @@ namespace AIFileProcessor
             IEnumerable<IAiService> aiServices,
             ProcessingOrchestrator processingOrchestrator,
             ISettingsProvider settingsProvider,
-            IUserContext userContext)
+            IUserContext userContext,
+            IDialogService dialogService)
         {
             ArgumentNullException.ThrowIfNull(logger);
             ArgumentNullException.ThrowIfNull(fileOps);
@@ -125,6 +128,7 @@ namespace AIFileProcessor
             ArgumentNullException.ThrowIfNull(processingOrchestrator);
             ArgumentNullException.ThrowIfNull(settingsProvider);
             ArgumentNullException.ThrowIfNull(userContext);
+            ArgumentNullException.ThrowIfNull(dialogService);
 
             InitializeComponent();
 
@@ -135,6 +139,7 @@ namespace AIFileProcessor
             _processingOrchestrator = processingOrchestrator;
             _settingsProvider = settingsProvider;
             _userContext = userContext;
+            _dialogService = dialogService;
 
             FillModelListBox();
             LoadLastProcessingOptions();
@@ -340,9 +345,9 @@ namespace AIFileProcessor
         /// for the first one. Used so the user sees every problem at once rather than
         /// re-clicking Process per missing field.
         /// </summary>
-        private static void ShowErrors(List<string> errors)
+        private void ShowErrors(List<string> errors)
         {
-            MessageBox.Show(string.Join(Environment.NewLine, errors), "Please fix the following:", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _dialogService.Show(string.Join(Environment.NewLine, errors), "Please fix the following:", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         /// <summary>
@@ -433,14 +438,14 @@ namespace AIFileProcessor
         {
             if (string.IsNullOrWhiteSpace(promptText))
             {
-                return MessageBox.Show(
+                return _dialogService.Show(
                     "The selected prompt file is empty. The AI call will produce nothing useful. Load it anyway?", "Empty Prompt", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;
             }
 
             const int MinPromptLength = 50;
             if (promptText.Trim().Length < MinPromptLength)
             {
-                if (MessageBox.Show(
+                if (_dialogService.Show(
                         "This prompt is very short and doesn't look like the processing specification. Load it anyway?", "Very Short Prompt", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 {
                     return false;
@@ -449,7 +454,7 @@ namespace AIFileProcessor
 
             const int MaxPromptLength = 30000;
             if (promptText.Length > MaxPromptLength
-                && MessageBox.Show(
+                && _dialogService.Show(
                     $"This prompt is very large ({promptText.Length:n0} characters) and may be an oversized/wrong file. Load it anyway?", "Very Large Prompt", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
             {
                 return false;

@@ -5,6 +5,7 @@
 //-----------------------------------------------------------------------
 namespace AIFileProcessor.Web.Models
 {
+    using System.ComponentModel.DataAnnotations;
     using AIFileProcessor.Configuration;
     using AIFileProcessor.Models;
 
@@ -18,16 +19,20 @@ namespace AIFileProcessor.Web.Models
         /// <summary>
         /// Gets or sets the model ID to use for processing (e.g., "gemini-3.5-flash").
         /// </summary>
+        [Required]
         public string ModelId { get; set; } = string.Empty;
 
         /// <summary>
         /// Gets or sets the prompt text to send to the AI.
         /// </summary>
+        [Required]
         public string Prompt { get; set; } = string.Empty;
 
         /// <summary>
         /// Gets or sets the data text to process.
         /// </summary>
+        [Required]
+        [MaxLength(32768)]
         public string Data { get; set; } = string.Empty;
 
         /// <summary>
@@ -38,16 +43,19 @@ namespace AIFileProcessor.Web.Models
         /// <summary>
         /// Gets or sets the starting number for generated IDs.
         /// </summary>
+        [Range(1, int.MaxValue)]
         public int IdStart { get; set; } = 1;
 
         /// <summary>
         /// Gets or sets the padding length for the numeric part of generated IDs.
         /// </summary>
+        [Range(1, int.MaxValue)]
         public int IdPad { get; set; } = 3;
 
         /// <summary>
         /// Gets or sets the padding length for the length indicator of each sentence.
         /// </summary>
+        [Range(1, int.MaxValue)]
         public int LengthPad { get; set; } = 3;
 
         /// <summary>

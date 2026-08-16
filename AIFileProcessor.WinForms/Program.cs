@@ -11,6 +11,7 @@ namespace AIFileProcessor
     using AIFileProcessor.Configuration;
     using AIFileProcessor.DependencyInjection;
     using AIFileProcessor.Interfaces;
+    using AIFileProcessor.Services;
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
@@ -75,6 +76,9 @@ namespace AIFileProcessor
             // Register the Windows user context for per-user settings resolution.
             // On a Terminal Server, each session resolves to a different user automatically.
             builder.Services.AddSingleton<IUserContext, WindowsUserContext>();
+
+            // Register dialog service abstraction for testability.
+            builder.Services.AddSingleton<IDialogService, MessageBoxDialogService>();
 
             // Register factory delegate for transient SettingsForm.
             // The default Microsoft DI container does not automatically provide Func<T>.

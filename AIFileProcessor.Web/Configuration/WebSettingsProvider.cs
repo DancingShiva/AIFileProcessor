@@ -102,10 +102,10 @@ namespace AIFileProcessor.Web.Configuration
         }
 
         /// <inheritdoc/>
-        public Task<GeminiModelSettings> GetGeminiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        public async Task<GeminiModelSettings> GetGeminiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
         {
             var modelSettings = new GeminiModelSettings();
-            var caps = GetProcessingSettingsAsync(ct).Result;
+            var caps = await GetProcessingSettingsAsync(ct).ConfigureAwait(false);
 
             _configuration.GetSection("GeminiSettings").Bind(modelSettings);
             string modelSection = $"GeminiModels:{modelId}";
@@ -123,14 +123,14 @@ namespace AIFileProcessor.Web.Configuration
                 prefs.CopyOnto(modelSettings);
             }
 
-            return Task.FromResult(modelSettings);
+            return modelSettings;
         }
 
         /// <inheritdoc/>
-        public Task<OpenAiModelSettings> GetOpenAiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        public async Task<OpenAiModelSettings> GetOpenAiModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
         {
             var modelSettings = new OpenAiModelSettings();
-            var caps = GetProcessingSettingsAsync(ct).Result;
+            var caps = await GetProcessingSettingsAsync(ct).ConfigureAwait(false);
 
             _configuration.GetSection("OpenAiSettings").Bind(modelSettings);
             string modelSection = $"OpenAiModels:{modelId}";
@@ -148,14 +148,14 @@ namespace AIFileProcessor.Web.Configuration
                 prefs.CopyOnto(modelSettings);
             }
 
-            return Task.FromResult(modelSettings);
+            return modelSettings;
         }
 
         /// <inheritdoc/>
-        public Task<DeepSeekModelSettings> GetDeepSeekModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        public async Task<DeepSeekModelSettings> GetDeepSeekModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
         {
             var modelSettings = new DeepSeekModelSettings();
-            var caps = GetProcessingSettingsAsync(ct).Result;
+            var caps = await GetProcessingSettingsAsync(ct).ConfigureAwait(false);
 
             _configuration.GetSection("DeepSeekSettings").Bind(modelSettings);
             string modelSection = $"DeepSeekModels:{modelId}";
@@ -173,7 +173,7 @@ namespace AIFileProcessor.Web.Configuration
                 prefs.CopyOnto(modelSettings);
             }
 
-            return Task.FromResult(modelSettings);
+            return modelSettings;
         }
 
         /// <inheritdoc/>
