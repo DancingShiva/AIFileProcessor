@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using AIFileProcessor.Response;
 
+[Trait("Category", "Unit")]
 public class AiApiResponseTests
 {
     // ---------- Parameterless constructor tests ----------

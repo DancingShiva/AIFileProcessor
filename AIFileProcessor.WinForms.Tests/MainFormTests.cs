@@ -19,6 +19,7 @@ using AIFileProcessor.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
+[Trait("Category", "WinForms")]
 public class MainFormTests
 {
     private readonly Mock<ILogger<MainForm>> _loggerMock = new();

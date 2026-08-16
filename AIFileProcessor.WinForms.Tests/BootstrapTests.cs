@@ -16,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Xunit;
 
+[Trait("Category", "WinForms")]
 public class BootstrapTests
 {
     private static IServiceProvider BuildServiceProvider()

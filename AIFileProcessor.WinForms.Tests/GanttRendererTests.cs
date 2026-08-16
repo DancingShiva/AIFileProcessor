@@ -11,6 +11,7 @@ using System.Drawing;
 using AIFileProcessor.Telemetry;
 using Xunit;
 
+[Trait("Category", "WinForms")]
 public class GanttRendererTests
 {
     private static ProcessingMetrics CreateMetrics(int chunkCount)

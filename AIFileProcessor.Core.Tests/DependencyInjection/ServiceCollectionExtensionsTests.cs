@@ -14,6 +14,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
+[Trait("Category", "Integration")]
 public class ServiceCollectionExtensionsTests
 {
     private static IConfiguration CreateConfiguration(Action<Dictionary<string, string?>>? configure = null)

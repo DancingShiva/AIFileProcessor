@@ -2,6 +2,7 @@
 
 using AIFileProcessor.Response;
 
+[Trait("Category", "Unit")]
 public class ProcessedSentenceRowTests
 {
     // ---------- R property (set) tests ----------

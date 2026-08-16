@@ -16,6 +16,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
+[Trait("Category", "WinForms")]
 public class SettingsFormTests
 {
     private readonly Mock<ISettingsProvider> _settingsProviderMock = new();

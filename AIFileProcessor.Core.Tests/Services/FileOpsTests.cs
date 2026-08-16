@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
+[Trait("Category", "Integration")]
 public class FileOpsTests
 {
     private readonly Mock<ILogger<FileOps>> _loggerMock;

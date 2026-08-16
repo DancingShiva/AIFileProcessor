@@ -8,6 +8,7 @@ namespace AIFileProcessor.Core.Tests.Services;
 using AIFileProcessor.Services;
 using Xunit;
 
+[Trait("Category", "Unit")]
 public class ModelTokenLimitsTests
 {
     // ─── GetHardMax: null/whitespace providerName ──────────────────────────────

@@ -10,6 +10,7 @@ using System.Linq;
 using AIFileProcessor.Configuration;
 using Xunit;
 
+[Trait("Category", "WinForms")]
 public class WindowsUserContextTests
 {
     [Fact]

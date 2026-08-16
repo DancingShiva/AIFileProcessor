@@ -3,6 +3,7 @@
 using AIFileProcessor.Models;
 using AIFileProcessor.Processing;
 
+[Trait("Category", "Integration")]
 public class ProcessingOptionsValidatorTests
 {
     private static ProcessingOptions CreateValidOptions() => new()

@@ -2,6 +2,7 @@
 
 using AIFileProcessor.Extensions;
 
+[Trait("Category", "Unit")]
 public class PinyinUtilityTests
 {
     // ---------- GetTone ----------

@@ -5,6 +5,7 @@ using AIFileProcessor.Configuration;
 using AIFileProcessor.Services;
 using Xunit;
 
+[Trait("Category", "Unit")]
 public class SettingsExtensionsTests
 {
     // --- GeminiSettings.CopyOnto --------------------------------------

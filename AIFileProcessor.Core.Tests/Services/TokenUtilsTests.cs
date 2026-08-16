@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
+[Trait("Category", "Unit")]
 public class TokenUtilsTests
 {
     // ─── ClampRequestedMaxTokens: requested=null ───────────────────────────────

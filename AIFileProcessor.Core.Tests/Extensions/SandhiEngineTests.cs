@@ -1,7 +1,9 @@
 ﻿namespace AIFileProcessor.Core.Tests.Extensions;
 
+using System.Collections.Generic;
 using AIFileProcessor.Extensions;
 
+[Trait("Category", "Unit")]
 public class SandhiEngineTests
 {
     private readonly SandhiEngine engine = new();
@@ -73,95 +75,74 @@ public class SandhiEngineTests
 
     // ---------- RULE B: bù before 4th tone ----------
 
-    [Fact]
-    public void ProcessSandhiPipeline_BuBeforeFourthTone_ReturnsBuSecondTone()
+    public static IEnumerable<object[]> BuSandhiData => new[]
     {
-        var stream = new List<SyllableNode>
-        {
-            Node("bù", Tone.Fourth),
-            Node("shì", Tone.Fourth),
-        };
-        var result = engine.ProcessSandhiPipeline(stream);
-        Assert.Equal("bú", result[0]);
-    }
+        new object[] { "shì", Tone.Fourth, "bú" },
+        new object[] { "hǎo", Tone.Third, "bù" },
+    };
 
-    [Fact]
-    public void ProcessSandhiPipeline_BuBeforeThirdTone_KeepsOriginal()
+    [Theory]
+    [MemberData(nameof(BuSandhiData))]
+    public void ProcessSandhiPipeline_BuSandhi_AppliesExpectedToneChange(
+        string nextText, Tone nextTone, string expected)
     {
         var stream = new List<SyllableNode>
         {
             Node("bù", Tone.Fourth),
-            Node("hǎo", Tone.Third),
+            Node(nextText, nextTone),
         };
         var result = engine.ProcessSandhiPipeline(stream);
-        Assert.Equal("bù", result[0]);
+        Assert.Equal(expected, result[0]);
     }
 
     // ---------- RULE C: yī quantitative shifts ----------
 
-    [Fact]
-    public void ProcessSandhiPipeline_YiBeforeFourthToneNonNum_ReturnsYiSecondTone()
+    public static IEnumerable<object[]> YiSandhiData => new[]
     {
-        var stream = new List<SyllableNode>
-        {
-            Node("yī", Tone.First, pos: "other"),
-            Node("yàng", Tone.Fourth),
-        };
-        var result = engine.ProcessSandhiPipeline(stream);
-        Assert.Equal("yí", result[0]);
-    }
+        // yī before 4th tone, non-num -> yí (2nd tone)
+        new object[] { "yàng", Tone.Fourth, "other", "yí" },
+        // yī before 1st/2nd/3rd tone, non-num -> yì (4th tone)
+        new object[] { "ge", Tone.First, "other", "yì" },
+        new object[] { "ge", Tone.Second, "other", "yì" },
+        new object[] { "ge", Tone.Third, "other", "yì" },
+        // yī with num pos -> keeps original
+        new object[] { "yàng", Tone.Fourth, "num", "yī" },
+    };
 
     [Theory]
-    [InlineData(Tone.First)]
-    [InlineData(Tone.Second)]
-    [InlineData(Tone.Third)]
-    public void ProcessSandhiPipeline_YiBeforeNonFourthNonNum_ReturnsYiFourthTone(Tone nextTone)
+    [MemberData(nameof(YiSandhiData))]
+    public void ProcessSandhiPipeline_YiSandhi_AppliesExpectedToneChange(
+        string nextText, Tone nextTone, string pos, string expected)
     {
         var stream = new List<SyllableNode>
         {
-            Node("yī", Tone.First, pos: "other"),
-            Node("ge", nextTone),
+            Node("yī", Tone.First, pos: pos),
+            Node(nextText, nextTone),
         };
         var result = engine.ProcessSandhiPipeline(stream);
-        Assert.Equal("yì", result[0]);
-    }
-
-    [Fact]
-    public void ProcessSandhiPipeline_YiWithNumPos_KeepsOriginal()
-    {
-        var stream = new List<SyllableNode>
-        {
-            Node("yī", Tone.First, pos: "num"),
-            Node("yàng", Tone.Fourth),
-        };
-        var result = engine.ProcessSandhiPipeline(stream);
-        Assert.Equal("yī", result[0]);
+        Assert.Equal(expected, result[0]);
     }
 
     // ---------- RULE A: 3rd + 3rd Sandhi ----------
 
-    [Fact]
-    public void ProcessSandhiPipeline_ThirdToneBeforeThirdTone_ReturnsSecondTone()
+    public static IEnumerable<object[]> ThirdToneSandhiData => new[]
     {
-        var stream = new List<SyllableNode>
-        {
-            Node("nǐ", Tone.Third),
-            Node("hǎo", Tone.Third),
-        };
-        var result = engine.ProcessSandhiPipeline(stream);
-        Assert.Equal("ní", result[0]);
-    }
+        new object[] { "hǎo", Tone.Third, "ní" },
+        new object[] { "ge", Tone.Fourth, "nǐ" },
+    };
 
-    [Fact]
-    public void ProcessSandhiPipeline_ThirdToneBeforeNonThird_KeepsOriginal()
+    [Theory]
+    [MemberData(nameof(ThirdToneSandhiData))]
+    public void ProcessSandhiPipeline_ThirdToneSandhi_AppliesExpectedToneChange(
+        string nextText, Tone nextTone, string expected)
     {
         var stream = new List<SyllableNode>
         {
             Node("nǐ", Tone.Third),
-            Node("ge", Tone.Fourth),
+            Node(nextText, nextTone),
         };
         var result = engine.ProcessSandhiPipeline(stream);
-        Assert.Equal("nǐ", result[0]);
+        Assert.Equal(expected, result[0]);
     }
 
     // ---------- Boundary handling ----------

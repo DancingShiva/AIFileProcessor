@@ -10,6 +10,7 @@ using AIFileProcessor.Processing;
 using AIFileProcessor.Response;
 using Xunit;
 
+[Trait("Category", "Unit")]
 public class SandhiProcessorTests
 {
     private static AiApiResponse CreateResponse(params ProcessedSentenceRow[] rows)

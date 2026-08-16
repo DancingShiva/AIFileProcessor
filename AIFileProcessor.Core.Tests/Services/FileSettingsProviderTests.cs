@@ -12,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using Moq;
 using Xunit;
 
+[Trait("Category", "Integration")]
 public class FileSettingsProviderTests
 {
     private const string AppFolderName = "AIFileProcessor";
