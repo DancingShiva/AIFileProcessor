@@ -9,7 +9,7 @@ namespace AIFileProcessor.Interfaces
 
     /// <summary>
     /// Abstraction over <see cref="MessageBox"/> to enable unit testing of
-    /// dialog-dependent logic in <see cref=" MainForm"/> and
+    /// dialog-dependent logic in <see cref="MainForm"/> and
     /// <see cref="SettingsForm"/>.
     /// </summary>
     public interface IDialogService
