@@ -3,6 +3,33 @@
 AIFileProcessor is organized so that **all** durable logic lives in `AIFileProcessor.Core`, and each
 front-end (WinForms, Web) is a thin shell that wires it up with its own composition root.
 
+## Deployment Scenarios
+
+AIFileProcessor supports two deployment scenarios today, with a third planned:
+
+### Desktop (single-user Windows machine)
+- One process, one user. No concurrency concerns.
+- `WindowsUserContext` resolves the current Windows identity as the user ID.
+- Per-user settings stored at `%APPDATA%\AIFileProcessor\{userId}\settings.json`.
+
+### Terminal Server (multi-user via Windows RDP)
+- Each RDP session is a separate process, but the same user may open multiple sessions.
+- **Cross-process file locking is required** — `FileSettingsProvider` uses a `Global\` mutex
+  per user ID to serialize read-modify-write operations on the shared `%APPDATA%` settings file.
+- `ProcessingLimits` is process-wide static — safe because each session is a separate process.
+  This will change when porting to Web (single shared process for all users).
+- API keys are shared from machine-level environment variables.
+- Each user has their own non-secret preferences file.
+
+### Web (planned, not yet production-ready)
+- `AIFileProcessor.Web` is a prototype. The WinForms version is being fully fleshed out first,
+  then the complete project will be ported to Web.
+- Single process serves all users — `ProcessingLimits` statics become a shared-state concern.
+- `HttpUserContext` resolves user from Entra ID JWT claims.
+- `WebSettingsProvider` resolves per-user settings from the HTTP request, not files.
+- Rate limiting, per-user quotas, and server-side API key security are web-only concerns
+  not yet implemented.
+
 ## Projects and responsibilities
 
 ```

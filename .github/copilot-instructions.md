@@ -36,5 +36,45 @@ public class Example
 
 When adding a new member, insert it at the correct position to maintain this ordering. Do not append to the end of the class by default.
 
-## Always do a full rebuild when building the solution
-When performing a build on the project, always do a Clean Solution, then a Rebuild Solution.
+## Git Push Confirmation
+
+- Always confirm before pushing to remote. User must explicitly approve pushes to ensure control over versioning.
+
+## Deployment Targets
+
+AIFileProcessor supports two deployment scenarios today, with a third planned:
+
+### 1. Desktop (single-user Windows machine)
+- One process, one user. No concurrency concerns.
+- `WindowsUserContext` resolves the current Windows identity as the user ID.
+- Per-user settings stored at `%APPDATA%\AIFileProcessor\{userId}\settings.json`.
+
+### 2. Terminal Server (multi-user via Windows RDP)
+- Each RDP session is a separate process, but the same user may open multiple sessions.
+- **Cross-process file locking is required** for `FileSettingsProvider` — two sessions for the same user share the same `%APPDATA%` settings file. A `Global\` mutex per user ID serializes read-modify-write operations.
+- `ProcessingLimits` is process-wide static — safe because each session is a separate process. This will change when porting to Web (single shared process for all users).
+- API keys are shared from machine-level environment variables — all users on the same Terminal Server use the same keys.
+- Each user has their own non-secret preferences file (temperature, max tokens, etc.).
+
+### 3. Web (planned, not yet production-ready)
+- `AIFileProcessor.Web` is a thought experiment / prototype. The WinForms version is being fully fleshed out first, then the complete project will be ported to Web.
+- Single process serves all users — `ProcessingLimits` statics become a shared-state concern.
+- `HttpUserContext` resolves user from Entra ID JWT claims (`oid`/`sub`/`NameIdentifier`).
+- `WebSettingsProvider` resolves per-user settings from the HTTP request, not files.
+- Rate limiting, per-user quotas, and server-side API key security are web-only concerns not yet implemented.
+
+## Key Architectural Rules
+
+- **All durable logic lives in `AIFileProcessor.Core`** — front-ends are thin shells.
+- **API keys are never stored in per-user files** — `[JsonIgnore]` on settings models, machine-config only.
+- **`FileSettingsProvider` uses cross-process `Mutex` locking** — `Global\` prefix, named per sanitized user ID.
+- **Chunking is by lines, not characters** — `ChunkSize` default is 40 lines. The 32K character input limit does not bound chunk count.
+- **Two retry layers**: service-level (per HTTP call, 3 retries) and chunk-level (per chunk, 3 retries with 5s/10s/20s backoff).
+
+## Conventions
+
+- **Line endings**: Always use CRLF (`\r\n`) as line terminators in all source files. This is enforced by `.gitattributes` with `eol=crlf` for C#, JSON, Markdown, and project files. When creating or editing files, ensure CRLF line endings to avoid Git normalization warnings.
+- **Namespace style**: File-scoped namespaces (`namespace X;`) in all test files.
+- **Test categorization**: `[Trait("Category", "Unit"|"Integration"|"WinForms")]` on all test classes.
+- **Data-driven tests**: Prefer `[Theory]` + `[MemberData]` for complex object test data; `[InlineData]` for simple constants.
+- **Copyright header**: `Midnight Mission Systems` copyright on all source files.

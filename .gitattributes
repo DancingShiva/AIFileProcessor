@@ -1,0 +1,22 @@
+# Normalize all text files to CRLF on checkout, LF on commit (for cross-platform safety).
+# Git will auto-convert to CRLF in the working tree on Windows and store as LF in the repo.
+* text=auto
+
+# Explicitly enforce CRLF for C# source files
+*.cs text eol=crlf
+
+# Explicitly enforce CRLF for project/solution files
+*.csproj text eol=crlf
+*.slnx text eol=crlf
+*.json text eol=crlf
+*.md text eol=crlf
+*.resx text eol=crlf
+*.editorconfig text eol=crlf
+*.stylecop.json text eol=crlf
+
+# Binary files — no line ending normalization
+*.png binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
