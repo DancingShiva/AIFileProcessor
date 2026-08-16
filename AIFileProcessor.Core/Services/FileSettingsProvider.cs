@@ -234,7 +234,7 @@ namespace AIFileProcessor.Services
                     var migrated = new GeminiSettings();
                     _configuration.GetSection("GeminiSettings").Bind(migrated);
 
-                    JsonObject? legacyRoot = ReadUserOverrides(userId);
+                    JsonObject? legacyRoot = ReadUserOverridesInternal(userId);
                     if (legacyRoot != null && legacyRoot["GeminiSettings"] is JsonObject legacyOverride)
                     {
                         string legacyJson = legacyOverride.ToJsonString();
@@ -336,7 +336,7 @@ namespace AIFileProcessor.Services
                     var migrated = new OpenAiSettings();
                     _configuration.GetSection("OpenAiSettings").Bind(migrated);
 
-                    JsonObject? legacyRoot = ReadUserOverrides(userId);
+                    JsonObject? legacyRoot = ReadUserOverridesInternal(userId);
                     if (legacyRoot != null && legacyRoot["OpenAiSettings"] is JsonObject legacyOverride)
                     {
                         string legacyJson = legacyOverride.ToJsonString();
@@ -428,7 +428,7 @@ namespace AIFileProcessor.Services
                     var migrated = new DeepSeekSettings();
                     _configuration.GetSection("DeepSeekSettings").Bind(migrated);
 
-                    JsonObject? legacyRoot = ReadUserOverrides(userId);
+                    JsonObject? legacyRoot = ReadUserOverridesInternal(userId);
                     if (legacyRoot != null && legacyRoot["DeepSeekSettings"] is JsonObject legacyOverride)
                     {
                         string legacyJson = legacyOverride.ToJsonString();
@@ -578,11 +578,24 @@ namespace AIFileProcessor.Services
 
         /// <summary>
         /// Reads the per-user override file if it exists, returning the root
-        /// JSON object or <c>null</c> if the file is not present.
+        /// JSON object or <c>null</c> if the file is not present. Acquires a
+        /// cross-process lock to prevent reading a partially written file.
         /// </summary>
         /// <param name="userId">The user identifier.</param>
         /// <returns>The parsed root <see cref="JsonObject"/>, or <c>null</c>.</returns>
         private static JsonObject? ReadUserOverrides(string userId)
+        {
+            return WithUserFileLock(userId, () => ReadUserOverridesInternal(userId));
+        }
+
+        /// <summary>
+        /// Unlocked read of the per-user override file. Callers already
+        /// holding the user file lock (via <see cref="WithUserFileLock"/>)
+        /// should call this to avoid re-entrant deadlock.
+        /// </summary>
+        /// <param name="userId">The user identifier.</param>
+        /// <returns>The parsed root <see cref="JsonObject"/>, or <c>null</c>.</returns>
+        private static JsonObject? ReadUserOverridesInternal(string userId)
         {
             string filePath = GetUserSettingsFilePath(userId);
             if (!File.Exists(filePath))
@@ -592,6 +605,50 @@ namespace AIFileProcessor.Services
 
             string jsonContent = File.ReadAllText(filePath);
             return JsonNode.Parse(jsonContent) as JsonObject;
+        }
+
+        /// <summary>
+        /// Executes an operation while holding a cross-process mutex that
+        /// serializes access to the per-user settings file. On Terminal Server,
+        /// two RDP sessions for the same user share the same settings file;
+        /// this mutex prevents concurrent read-modify-write races that could
+        /// corrupt the file or silently lose changes.
+        /// </summary>
+        /// <param name="userId">The user identifier.</param>
+        /// <param name="operation">The operation to execute under the lock.</param>
+        private static T WithUserFileLock<T>(string userId, Func<T> operation)
+        {
+            string mutexName = $"Global\\AIFileProcessor_{SanitizeUserId(userId)}_Settings";
+            using var mutex = new Mutex(false, mutexName);
+            try
+            {
+                mutex.WaitOne();
+                return operation();
+            }
+            finally
+            {
+                mutex.ReleaseMutex();
+            }
+        }
+
+        /// <summary>
+        /// Executes an action while holding the cross-process user file lock.
+        /// </summary>
+        /// <param name="userId">The user identifier.</param>
+        /// <param name="action">The action to execute under the lock.</param>
+        private static void WithUserFileLock(string userId, Action action)
+        {
+            string mutexName = $"Global\\AIFileProcessor_{SanitizeUserId(userId)}_Settings";
+            using var mutex = new Mutex(false, mutexName);
+            try
+            {
+                mutex.WaitOne();
+                action();
+            }
+            finally
+            {
+                mutex.ReleaseMutex();
+            }
         }
 
         /// <summary>
@@ -607,32 +664,27 @@ namespace AIFileProcessor.Services
         private static void SaveSection<T>(string userId, string sectionName, T settings)
             where T : class
         {
-            string filePath = GetUserSettingsFilePath(userId);
-            string? directory = Path.GetDirectoryName(filePath);
-
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            WithUserFileLock(userId, () =>
             {
-                Directory.CreateDirectory(directory);
-            }
+                string filePath = GetUserSettingsFilePath(userId);
+                string? directory = Path.GetDirectoryName(filePath);
 
-            JsonObject? rootNode = null;
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
 
-            if (File.Exists(filePath))
-            {
-                string existingContent = File.ReadAllText(filePath);
-                rootNode = JsonNode.Parse(existingContent) as JsonObject;
-            }
+                JsonObject? rootNode = ReadUserOverridesInternal(userId) ?? new JsonObject();
 
-            rootNode ??= new JsonObject();
+                string sectionJson = JsonSerializer.Serialize(settings, WriteOptions);
+                var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
 
-            string sectionJson = JsonSerializer.Serialize(settings, WriteOptions);
-            var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
+                // ApiKey is [JsonIgnore] on the settings models, so it is never
+                // present in the serialized JSON — no manual stripping needed.
+                rootNode[sectionName] = sectionNode;
 
-            // ApiKey is [JsonIgnore] on the settings models, so it is never
-            // present in the serialized JSON — no manual stripping needed.
-            rootNode[sectionName] = sectionNode;
-
-            File.WriteAllText(filePath, rootNode.ToJsonString(WriteOptions));
+                File.WriteAllText(filePath, rootNode.ToJsonString(WriteOptions));
+            });
         }
 
         /// <summary>
@@ -658,86 +710,84 @@ namespace AIFileProcessor.Services
             Func<TModel> seed)
             where TModel : class
         {
-            JsonObject? root = ReadUserOverrides(userId);
-            if (root == null)
+            WithUserFileLock(userId, () =>
             {
-                return; // no user file => nothing to migrate
-            }
-
-            // Skip if this model already has a per-model override.
-            if (root[modelsSectionName] is JsonObject existingModels
-                && existingModels.ContainsKey(modelId))
-            {
-                return;
-            }
-
-            // Skip if there's no legacy provider section to migrate.
-            if (root[legacySectionName] is not JsonObject legacySection)
-            {
-                return;
-            }
-
-            // Seed the model override from the legacy data (preserving user's prior
-            // provider-level preferences) and write it under modelsSectionName[modelId].
-            root[modelsSectionName] ??= new JsonObject();
-            if (root[modelsSectionName] is JsonObject modelsSection)
-            {
-                TModel modelSettings;
-                try
+                JsonObject? root = ReadUserOverridesInternal(userId);
+                if (root == null)
                 {
-                    modelSettings = seed();
-                }
-                catch
-                {
-                    return; // malformed legacy data: skip migration rather than corrupt the file
+                    return; // no user file => nothing to migrate
                 }
 
-                string sectionJson = JsonSerializer.Serialize(modelSettings, WriteOptions);
-                var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
-                modelsSection[modelId] = sectionNode;
-
-                string filePath = GetUserSettingsFilePath(userId);
-                string? directory = Path.GetDirectoryName(filePath);
-                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                // Skip if this model already has a per-model override.
+                if (root[modelsSectionName] is JsonObject existingModels
+                    && existingModels.ContainsKey(modelId))
                 {
-                    Directory.CreateDirectory(directory);
+                    return;
                 }
 
-                File.WriteAllText(filePath, root.ToJsonString(WriteOptions));
-            }
+                // Skip if there's no legacy provider section to migrate.
+                if (root[legacySectionName] is not JsonObject legacySection)
+                {
+                    return;
+                }
+
+                // Seed the model override from the legacy data (preserving user's prior
+                // provider-level preferences) and write it under modelsSectionName[modelId].
+                root[modelsSectionName] ??= new JsonObject();
+                if (root[modelsSectionName] is JsonObject modelsSection)
+                {
+                    TModel modelSettings;
+                    try
+                    {
+                        modelSettings = seed();
+                    }
+                    catch
+                    {
+                        return; // malformed legacy data: skip migration rather than corrupt the file
+                    }
+
+                    string sectionJson = JsonSerializer.Serialize(modelSettings, WriteOptions);
+                    var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
+                    modelsSection[modelId] = sectionNode;
+
+                    string filePath = GetUserSettingsFilePath(userId);
+                    string? directory = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
+
+                    File.WriteAllText(filePath, root.ToJsonString(WriteOptions));
+                }
+            });
         }
 
         private void SaveModelSection<T>(string userId, string modelsSectionName, string modelId, T settings)
             where T : class
         {
-            string filePath = GetUserSettingsFilePath(userId);
-            string? directory = Path.GetDirectoryName(filePath);
-
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            WithUserFileLock(userId, () =>
             {
-                Directory.CreateDirectory(directory);
-            }
+                string filePath = GetUserSettingsFilePath(userId);
+                string? directory = Path.GetDirectoryName(filePath);
 
-            JsonObject? rootNode = null;
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
 
-            if (File.Exists(filePath))
-            {
-                string existingContent = File.ReadAllText(filePath);
-                rootNode = JsonNode.Parse(existingContent) as JsonObject;
-            }
+                JsonObject? rootNode = ReadUserOverridesInternal(userId) ?? new JsonObject();
 
-            rootNode ??= new JsonObject();
+                // Ensure the models section exists
+                rootNode[modelsSectionName] ??= new JsonObject();
+                if (rootNode[modelsSectionName] is JsonObject modelsSection)
+                {
+                    string sectionJson = JsonSerializer.Serialize(settings, WriteOptions);
+                    var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
+                    modelsSection[modelId] = sectionNode;
+                }
 
-            // Ensure the models section exists
-            rootNode[modelsSectionName] ??= new JsonObject();
-            if (rootNode[modelsSectionName] is JsonObject modelsSection)
-            {
-                string sectionJson = JsonSerializer.Serialize(settings, WriteOptions);
-                var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
-                modelsSection[modelId] = sectionNode;
-            }
-
-            File.WriteAllText(filePath, rootNode.ToJsonString(WriteOptions));
+                File.WriteAllText(filePath, rootNode.ToJsonString(WriteOptions));
+            });
         }
     }
 }

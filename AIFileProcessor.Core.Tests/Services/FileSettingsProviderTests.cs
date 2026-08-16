@@ -2,6 +2,7 @@ namespace AIFileProcessor.Core.Tests.Services;
 
 using System;
 using System.IO;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -1155,6 +1156,177 @@ public class FileSettingsProviderTests
 
             Assert.True(root["GeminiSettings"] is JsonObject);
             Assert.Equal("existing-model", root["GeminiSettings"]!["modelName"]?.GetValue<string>());
+        }
+        finally
+        {
+            CleanupUser(userId);
+        }
+    }
+
+    // --- Concurrency tests --------------------------------------------
+
+    [Fact]
+    public async Task SaveGeminiSettings_ConcurrentWrites_DifferentSections_BothSettingsPreserved()
+    {
+        var configMock = CreateConfigMock();
+        var provider = new FileSettingsProvider(configMock.Object);
+        string userId = $"test-{Guid.NewGuid():N}";
+
+        try
+        {
+            var geminiSettings = new GeminiSettings { Temperature = 0.5, MaxTokens = 1000 };
+            var openAiSettings = new OpenAiSettings { Temperature = 0.7, MaxTokens = 2000 };
+
+            var t1 = Task.Run(() => provider.SaveGeminiSettingsAsync(userId, geminiSettings, CancellationToken.None));
+            var t2 = Task.Run(() => provider.SaveOpenAiSettingsAsync(userId, openAiSettings, CancellationToken.None));
+            await Task.WhenAll(t1, t2);
+
+            string fileContent = File.ReadAllText(GetTestUserSettingsFilePath(userId));
+            var root = JsonNode.Parse(fileContent) as JsonObject;
+
+            Assert.NotNull(root);
+            Assert.True(root!["GeminiSettings"] is JsonObject);
+            Assert.True(root["OpenAiSettings"] is JsonObject);
+            Assert.Equal(0.5, root["GeminiSettings"]!["temperature"]?.GetValue<double>());
+            Assert.Equal(0.7, root["OpenAiSettings"]!["temperature"]?.GetValue<double>());
+        }
+        finally
+        {
+            CleanupUser(userId);
+        }
+    }
+
+    [Fact]
+    public async Task SaveGeminiSettings_ConcurrentWrites_SameSection_FileNotCorrupted()
+    {
+        var configMock = CreateConfigMock();
+        var provider = new FileSettingsProvider(configMock.Object);
+        string userId = $"test-{Guid.NewGuid():N}";
+
+        try
+        {
+            var settings1 = new GeminiSettings { Temperature = 0.1, MaxTokens = 100 };
+            var settings2 = new GeminiSettings { Temperature = 0.9, MaxTokens = 900 };
+
+            var t1 = Task.Run(() => provider.SaveGeminiSettingsAsync(userId, settings1, CancellationToken.None));
+            var t2 = Task.Run(() => provider.SaveGeminiSettingsAsync(userId, settings2, CancellationToken.None));
+            await Task.WhenAll(t1, t2);
+
+            // The file should be valid JSON (not corrupted) with one of the two values.
+            string fileContent = File.ReadAllText(GetTestUserSettingsFilePath(userId));
+            var root = JsonNode.Parse(fileContent) as JsonObject;
+
+            Assert.NotNull(root);
+            Assert.True(root!["GeminiSettings"] is JsonObject);
+            double temp = root["GeminiSettings"]!["temperature"]?.GetValue<double>() ?? -1;
+            Assert.True(temp == 0.1 || temp == 0.9, $"Expected 0.1 or 0.9, got {temp}");
+        }
+        finally
+        {
+            CleanupUser(userId);
+        }
+    }
+
+    [Fact]
+    public async Task ReadUserOverrides_DuringWrite_ReturnsValidJson()
+    {
+        var configMock = CreateConfigMock();
+        var provider = new FileSettingsProvider(configMock.Object);
+        string userId = $"test-{Guid.NewGuid():N}";
+
+        try
+        {
+            // Pre-populate the file so reads have something to find.
+            var initialSettings = new GeminiSettings { Temperature = 0.3, MaxTokens = 500 };
+            await provider.SaveGeminiSettingsAsync(userId, initialSettings, CancellationToken.None);
+
+            var readResults = new List<JsonObject?>();
+            var writeTask = Task.Run(() =>
+            {
+                for (int i = 0; i < 20; i++)
+                {
+                    provider.SaveGeminiSettingsAsync(userId, new GeminiSettings { Temperature = 0.3 + (i * 0.01), MaxTokens = 500 + i }, CancellationToken.None).Wait();
+                }
+            });
+
+            for (int i = 0; i < 20; i++)
+            {
+                var gemini = provider.GetGeminiSettingsAsync(userId, CancellationToken.None).Result;
+                readResults.Add(JsonNode.Parse(JsonSerializer.Serialize(gemini)) as JsonObject);
+            }
+
+            await writeTask;
+
+            // Every read should have produced a valid GeminiSettings object (no exceptions thrown).
+            Assert.Equal(20, readResults.Count);
+            Assert.All(readResults, r => Assert.NotNull(r));
+        }
+        finally
+        {
+            CleanupUser(userId);
+        }
+    }
+
+    [Fact]
+    public async Task SaveModelSection_ConcurrentWrites_DifferentModels_BothPreserved()
+    {
+        var configMock = CreateConfigMock();
+        var provider = new FileSettingsProvider(configMock.Object);
+        string userId = $"test-{Guid.NewGuid():N}";
+
+        try
+        {
+            var geminiModel = new GeminiModelSettings { Temperature = 0.4, MaxTokens = 800 };
+            var openAiModel = new OpenAiModelSettings { Temperature = 0.6, MaxTokens = 1200 };
+
+            var t1 = Task.Run(() => provider.SaveGeminiModelSettingsAsync("gemini-3-flash", userId, geminiModel, CancellationToken.None));
+            var t2 = Task.Run(() => provider.SaveOpenAiModelSettingsAsync("gpt-5.5", userId, openAiModel, CancellationToken.None));
+            await Task.WhenAll(t1, t2);
+
+            string fileContent = File.ReadAllText(GetTestUserSettingsFilePath(userId));
+            var root = JsonNode.Parse(fileContent) as JsonObject;
+
+            Assert.NotNull(root);
+            Assert.True(root!["GeminiModels"] is JsonObject);
+            Assert.True(root["GeminiModels"]!.AsObject().ContainsKey("gemini-3-flash"));
+            Assert.True(root["OpenAiModels"] is JsonObject);
+            Assert.True(root["OpenAiModels"]!.AsObject().ContainsKey("gpt-5.5"));
+        }
+        finally
+        {
+            CleanupUser(userId);
+        }
+    }
+
+    [Fact]
+    public async Task MigrateLegacyProviderToModelSettings_ConcurrentMigration_MigrationHappensOnce()
+    {
+        var configMock = CreateConfigMock();
+        var provider = new FileSettingsProvider(configMock.Object);
+        string userId = $"test-{Guid.NewGuid():N}";
+
+        try
+        {
+            // Set up a legacy provider-level override file (pre-migration format).
+            WriteUserOverrideFile(userId, """{"GeminiSettings":{"temperature":0.5,"maxTokens":1000}}""");
+
+            // Two threads trigger migration for the same model concurrently.
+            var t1 = Task.Run(() => provider.GetGeminiModelSettingsAsync("gemini-3-flash", userId, CancellationToken.None));
+            var t2 = Task.Run(() => provider.GetGeminiModelSettingsAsync("gemini-3-flash", userId, CancellationToken.None));
+            var results = await Task.WhenAll(t1, t2);
+
+            // Both calls should succeed, and the file should be valid JSON.
+            Assert.NotNull(results[0]);
+            Assert.NotNull(results[1]);
+
+            string fileContent = File.ReadAllText(GetTestUserSettingsFilePath(userId));
+            var root = JsonNode.Parse(fileContent) as JsonObject;
+
+            // File should not be corrupted - valid JSON parse.
+            Assert.NotNull(root);
+            // Migration should have happened - GeminiModels section should exist.
+            Assert.True(root!["GeminiModels"] is JsonObject);
+            Assert.True(root["GeminiModels"]!.AsObject().ContainsKey("gemini-3-flash"));
         }
         finally
         {
