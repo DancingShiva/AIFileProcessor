@@ -26,6 +26,9 @@ namespace AIFileProcessor.Telemetry
         public long QueueDelayMs { get; set; }
 
         /// <summary>Gets or sets the telemetry of the API call that processed this chunk.</summary>
-        public CallTelemetry Telemetry { get; set; } = new CallTelemetry();
+        public CallTelemetry Telemetry { get; set; } = new();
+
+        /// <summary>Gets or sets the number of chunk-level retry attempts (0 = no retry needed).</summary>
+        public int RetryAttempts { get; set; }
     }
 }

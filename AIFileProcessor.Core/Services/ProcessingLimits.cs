@@ -20,6 +20,9 @@ namespace AIFileProcessor.Services
         private static int _maxOutputFieldSize = 32_768;
         private static int _retryJitterSeconds = 5;
         private static int _maxJsonDepth = 16;
+        private static int _chunkMaxRetries = 3;
+        private static int _chunkBaseDelaySeconds = 5;
+        private static int _chunkMaxDelaySeconds = 30;
 
         /// <summary>
         /// Gets the maximum allowed input size (in characters).
@@ -42,6 +45,21 @@ namespace AIFileProcessor.Services
         internal static int MaxJsonDepth => _maxJsonDepth;
 
         /// <summary>
+        /// Gets the maximum number of chunk-level retries after the initial attempt.
+        /// </summary>
+        internal static int ChunkMaxRetries => _chunkMaxRetries;
+
+        /// <summary>
+        /// Gets the base delay (seconds) for chunk-level retry backoff.
+        /// </summary>
+        internal static int ChunkBaseDelaySeconds => _chunkBaseDelaySeconds;
+
+        /// <summary>
+        /// Gets the maximum delay (seconds) between chunk-level retries.
+        /// </summary>
+        internal static int ChunkMaxDelaySeconds => _chunkMaxDelaySeconds;
+
+        /// <summary>
         /// Configures the global limits from the provided <see cref="ProcessingSettings"/>.
         /// Called once during application startup from
         /// <see cref="DependencyInjection.ServiceCollectionExtensions.AddAiFileProcessorCore"/>.
@@ -54,6 +72,9 @@ namespace AIFileProcessor.Services
             _maxOutputFieldSize = settings.MaxOutputFieldSize > 0 ? settings.MaxOutputFieldSize : 32_768;
             _retryJitterSeconds = settings.RetryJitterSeconds >= 0 ? settings.RetryJitterSeconds : 5;
             _maxJsonDepth = settings.MaxJsonDepth > 0 ? settings.MaxJsonDepth : 16;
+            _chunkMaxRetries = settings.ChunkMaxRetries >= 0 ? settings.ChunkMaxRetries : 3;
+            _chunkBaseDelaySeconds = settings.ChunkBaseDelaySeconds > 0 ? settings.ChunkBaseDelaySeconds : 5;
+            _chunkMaxDelaySeconds = settings.ChunkMaxDelaySeconds > 0 ? settings.ChunkMaxDelaySeconds : 30;
         }
     }
 }

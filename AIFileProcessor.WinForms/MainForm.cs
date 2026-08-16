@@ -641,10 +641,10 @@ namespace AIFileProcessor
                     table.AppendLine($"Elapsed: {m.ElapsedMs} ms    Chunks: {m.ChunkCount}    Succeeded: {m.Succeeded}    Failed: {m.Failed}");
                     table.AppendLine($"Total Prompt Tokens: {m.TotalPromptTokens?.ToString() ?? "-"}    Total Completion Tokens: {m.TotalCompletionTokens?.ToString() ?? "-"}");
                     table.AppendLine();
-                    table.AppendLine("Chunk\tStartLine\tEndLine\tElapsedMs\tTTFBms\tPromptTokens\tCompletionTokens");
+                    table.AppendLine("Chunk\tStartLine\tEndLine\tElapsedMs\tTTFBms\tPromptTokens\tCompletionTokens\tRetries");
                     foreach (var c in m.Chunks)
                     {
-                        table.AppendLine($"{c.ChunkIndex}\t{c.StartLine}\t{c.EndLine}\t{c.Telemetry.ElapsedMs}\t{c.Telemetry.TimeToFirstByteMs?.ToString() ?? "-"}\t{c.Telemetry.PromptTokens?.ToString() ?? "-"}\t{c.Telemetry.CompletionTokens?.ToString() ?? "-"}");
+                        table.AppendLine($"{c.ChunkIndex}\t{c.StartLine}\t{c.EndLine}\t{c.Telemetry.ElapsedMs}\t{c.Telemetry.TimeToFirstByteMs?.ToString() ?? "-"}\t{c.Telemetry.PromptTokens?.ToString() ?? "-"}\t{c.Telemetry.CompletionTokens?.ToString() ?? "-"}\t{c.RetryAttempts}");
                     }
 
                     rtbMetrics.Text = table.ToString();

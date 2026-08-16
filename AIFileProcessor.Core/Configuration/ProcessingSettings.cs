@@ -64,5 +64,24 @@ namespace AIFileProcessor.Configuration
         /// all JsonSerializerOptions instances in the application. Default is 16.
         /// </summary>
         public int MaxJsonDepth { get; set; } = 16;
+
+        /// <summary>
+        /// Gets or sets the maximum number of chunk-level retries after the initial
+        /// attempt for a failed chunk. This is a second retry layer on top of the
+        /// per-provider service-level retry. Default is 3.
+        /// </summary>
+        public int ChunkMaxRetries { get; set; } = 3;
+
+        /// <summary>
+        /// Gets or sets the base delay, in seconds, before the first chunk-level retry;
+        /// doubled each subsequent retry. Default is 5.
+        /// </summary>
+        public int ChunkBaseDelaySeconds { get; set; } = 5;
+
+        /// <summary>
+        /// Gets or sets the maximum delay, in seconds, between chunk-level retries.
+        /// Default is 30.
+        /// </summary>
+        public int ChunkMaxDelaySeconds { get; set; } = 30;
     }
 }

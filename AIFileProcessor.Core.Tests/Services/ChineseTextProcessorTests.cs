@@ -11,6 +11,7 @@ using AIFileProcessor.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
+
 [Trait("Category", "Integration")]
 public class ChineseTextProcessorTests
 {
@@ -20,6 +21,7 @@ public class ChineseTextProcessorTests
     private const string ModelId = "test-model";
     private const string Prompt = "translate";
     private const string RealisticData = "我在超市买菜。";
+
     public ChineseTextProcessorTests()
     {
         _aiServiceMock.Setup(s => s.SupportsModel(ModelId)).Returns(true);
@@ -29,6 +31,15 @@ public class ChineseTextProcessorTests
         _aiServiceMock
             .Setup(s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<IAiServiceSettings>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIFileProcessor.Response.AiCallResult { Text = ValidJson });
+
+        // Configure ProcessingLimits to use zero delays so retry tests run instantly.
+        ProcessingLimits.Configure(new ProcessingSettings
+        {
+            ChunkMaxRetries = 3,
+            ChunkBaseDelaySeconds = 1,
+            ChunkMaxDelaySeconds = 1,
+            RetryJitterSeconds = 0,
+        });
     }
     private ChineseTextProcessor CreateProcessor() =>
         new(_loggerMock.Object, new[] { _aiServiceMock.Object });
@@ -144,6 +155,96 @@ public class ChineseTextProcessorTests
         _aiServiceMock.Verify(
             s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.AtLeastOnce);
+    }
+
+    // --- Chunk-level retry tests ---------------------------------------------
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_ChunkFailsOnFirstAttempt_SucceedsOnRetry()
+    {
+        var callCount = 0;
+        _aiServiceMock
+            .Setup(s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string _, string _, string _, CancellationToken _) =>
+            {
+                callCount++;
+                if (callCount == 1)
+                {
+                    throw new HttpRequestException("Transient failure");
+                }
+                return new AiCallResult { Text = ValidJson };
+            });
+
+        var processor = CreateProcessor();
+        var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, RealisticData, new ChunkingOptions(), CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.NotEmpty(result.Scratchpad);
+        Assert.Equal(2, callCount);
+    }
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_ChunkFailsAfterAllRetries_ThrowsInvalidOperationException()
+    {
+        _aiServiceMock
+            .Setup(s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Persistent failure"));
+
+        var processor = CreateProcessor();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => processor.ProcessChineseTextAsync(ModelId, Prompt, RealisticData, new ChunkingOptions(), CancellationToken.None));
+
+        Assert.Contains("Processing failed for lines", ex.Message);
+        Assert.IsType<HttpRequestException>(ex.InnerException);
+    }
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_ChunkRetryRecordsAttemptsInTelemetry()
+    {
+        var callCount = 0;
+        _aiServiceMock
+            .Setup(s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string _, string _, string _, CancellationToken _) =>
+            {
+                callCount++;
+                if (callCount == 1)
+                {
+                    throw new HttpRequestException("Transient failure");
+                }
+                return new AiCallResult { Text = ValidJson };
+            });
+
+        var processor = CreateProcessor();
+        var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, RealisticData, new ChunkingOptions(), CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.Metrics);
+        Assert.Single(result.Metrics.Chunks);
+        Assert.Equal(1, result.Metrics.Chunks[0].RetryAttempts);
+    }
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_CancellationDuringChunkRetry_PropagatesCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        _aiServiceMock
+            .Setup(s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string _, string _, string _, CancellationToken ct) =>
+            {
+                cts.Cancel();
+                throw new OperationCanceledException(ct);
+            });
+
+        var processor = CreateProcessor();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => processor.ProcessChineseTextAsync(ModelId, Prompt, RealisticData, new ChunkingOptions(), cts.Token));
+
+        // Verify only the initial attempt was made (no retries for cancellation)
+        _aiServiceMock.Verify(
+            s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }
 

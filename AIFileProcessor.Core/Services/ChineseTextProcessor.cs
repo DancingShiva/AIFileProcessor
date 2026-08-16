@@ -145,10 +145,26 @@ namespace AIFileProcessor.Services
                 var queueDelayMs = (long)(DateTime.UtcNow - queueStart).TotalMilliseconds;
                 try
                 {
-                    // Execute prompt asynchronously — use per-call settings if available
-                    AiCallResult aiResult = perCallSettings != null
-                        ? await aiService.ProcessTextAsync(modelId, prompt, chunk.Text, perCallSettings, ct)
-                        : await aiService.ProcessTextAsync(modelId, prompt, chunk.Text, ct);
+                    // Execute prompt asynchronously with chunk-level retry — use per-call settings if available.
+                    // The chunk-level retry wraps the service-level retry (already inside each AiServiceBase).
+                    // Chunk retry handles failures that exhaust the service-level retry, giving the chunk
+                    // a fresh service-level attempt cycle for each chunk-level retry.
+                    int chunkRetryAttempts = 0;
+                    AiCallResult aiResult = await TransientRetryPolicy.ExecuteAsync(
+                        async cancellationToken =>
+                        {
+                            return perCallSettings != null
+                                ? await aiService.ProcessTextAsync(modelId, prompt, chunk.Text, perCallSettings, cancellationToken).ConfigureAwait(false)
+                                : await aiService.ProcessTextAsync(modelId, prompt, chunk.Text, cancellationToken).ConfigureAwait(false);
+                        },
+                        ex => ex is not OperationCanceledException,
+                        ProcessingLimits.ChunkMaxRetries,
+                        ProcessingLimits.ChunkBaseDelaySeconds,
+                        ProcessingLimits.ChunkMaxDelaySeconds,
+                        logger,
+                        $"chunk {chunk.Index} (model {modelId})",
+                        ct,
+                        onAttempt: attempt => chunkRetryAttempts = attempt - 1).ConfigureAwait(false);
 
                     // Parse directly into a AiApiResponse using the specified constructor
                     var response = new AiApiResponse(aiResult.Text, serializerOptions);
@@ -164,6 +180,7 @@ namespace AIFileProcessor.Services
                         StartLine = startLine,
                         EndLine = endLine,
                         QueueDelayMs = queueDelayMs,
+                        RetryAttempts = chunkRetryAttempts,
                         Telemetry = aiResult.Telemetry ?? new Telemetry.CallTelemetry { StartUtc = DateTime.UtcNow, EndUtc = DateTime.UtcNow, Attempts = 1 }
                     };
 
