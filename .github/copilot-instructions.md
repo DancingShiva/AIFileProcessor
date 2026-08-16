@@ -36,9 +36,11 @@ public class Example
 
 When adding a new member, insert it at the correct position to maintain this ordering. Do not append to the end of the class by default.
 
-## Git Push Confirmation
+## Git Workflow
 
-- Always confirm before pushing to remote. User must explicitly approve pushes to ensure control over versioning.
+- **Never commit without explicit user instruction.** Only commit when the user says "commit" or explicitly asks to commit changes.
+- **Never push without explicit user instruction.** Only push when the user says "push" or explicitly asks to push to remote. Do not combine commit and push into one action — always commit first, then ask whether to push.
+- The user must explicitly approve each push to ensure control over versioning. This is non-negotiable.
 
 ## Deployment Targets
 
