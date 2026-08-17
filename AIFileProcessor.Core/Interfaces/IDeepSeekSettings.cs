@@ -5,6 +5,7 @@
 //-----------------------------------------------------------------------
 namespace AIFileProcessor.Interfaces
 {
+    using System.Collections.Generic;
     using AIFileProcessor.Models;
 
     /// <summary>
@@ -66,5 +67,10 @@ namespace AIFileProcessor.Interfaces
         /// Gets or sets the reasoning effort level for DeepSeek API calls. Null if not configured.
         /// </summary>
         ReasoningLevel? ReasoningLevel { get; set; }
+
+        /// <summary>
+        /// Gets or sets the arbitrary request headers to include when calling the provider.
+        /// </summary>
+        IDictionary<string, string?>? RequestHeaders { get; set; }
     }
 }

@@ -72,12 +72,34 @@ namespace AIFileProcessor.DependencyInjection
             {
                 var settings = sp.GetRequiredService<IOptions<DeepSeekSettings>>().Value;
                 client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 300);
+
+                if (settings.RequestHeaders != null)
+                {
+                    foreach (var header in settings.RequestHeaders)
+                    {
+                        if (!string.IsNullOrEmpty(header.Key) && !string.IsNullOrEmpty(header.Value))
+                        {
+                            client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
+                        }
+                    }
+                }
             });
 
             services.AddHttpClient<OpenAiService>((sp, client) =>
             {
                 var settings = sp.GetRequiredService<IOptions<OpenAiSettings>>().Value;
                 client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 300);
+
+                if (settings.RequestHeaders != null)
+                {
+                    foreach (var header in settings.RequestHeaders)
+                    {
+                        if (!string.IsNullOrEmpty(header.Key) && !string.IsNullOrEmpty(header.Value))
+                        {
+                            client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
+                        }
+                    }
+                }
             });
 
             // Register all three AI services as IAiService implementations so that
