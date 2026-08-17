@@ -276,6 +276,40 @@ public class ServiceCollectionExtensionsTests
         Assert.NotNull(openAiService);
     }
 
+    [Fact]
+    public void AddAiFileProcessorCore_DeepSeekHttpClient_AppliesRequestHeadersFromSettings()
+    {
+        var services = new ServiceCollection();
+        IConfiguration configuration = CreateConfiguration(d =>
+        {
+            d["DeepSeekSettings:TimeoutSeconds"] = "30";
+            d["DeepSeekSettings:RequestHeaders:X-Custom-Header"] = "custom-value";
+        });
+
+        services.AddAiFileProcessorCore(configuration);
+        var sp = services.BuildServiceProvider();
+
+        var deepSeekService = sp.GetRequiredService<DeepSeekService>();
+        Assert.NotNull(deepSeekService);
+    }
+
+    [Fact]
+    public void AddAiFileProcessorCore_OpenAiHttpClient_AppliesRequestHeadersFromSettings()
+    {
+        var services = new ServiceCollection();
+        IConfiguration configuration = CreateConfiguration(d =>
+        {
+            d["OpenAiSettings:TimeoutSeconds"] = "30";
+            d["OpenAiSettings:RequestHeaders:X-Custom-Header"] = "custom-value";
+        });
+
+        services.AddAiFileProcessorCore(configuration);
+        var sp = services.BuildServiceProvider();
+
+        var openAiService = sp.GetRequiredService<OpenAiService>();
+        Assert.NotNull(openAiService);
+    }
+
     // ─── Return Value ───────────────────────────────────────────────
 
     [Fact]

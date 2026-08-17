@@ -1177,8 +1177,9 @@ public class FileSettingsProviderTests
             var geminiSettings = new GeminiSettings { Temperature = 0.5, MaxTokens = 1000 };
             var openAiSettings = new OpenAiSettings { Temperature = 0.7, MaxTokens = 2000 };
 
-            var t1 = Task.Run(() => provider.SaveGeminiSettingsAsync(userId, geminiSettings, CancellationToken.None));
-            var t2 = Task.Run(() => provider.SaveOpenAiSettingsAsync(userId, openAiSettings, CancellationToken.None));
+            var ct = TestContext.Current.CancellationToken;
+            var t1 = Task.Run(() => provider.SaveGeminiSettingsAsync(userId, geminiSettings, ct), ct);
+            var t2 = Task.Run(() => provider.SaveOpenAiSettingsAsync(userId, openAiSettings, ct), ct);
             await Task.WhenAll(t1, t2);
 
             string fileContent = File.ReadAllText(GetTestUserSettingsFilePath(userId));
@@ -1208,8 +1209,9 @@ public class FileSettingsProviderTests
             var settings1 = new GeminiSettings { Temperature = 0.1, MaxTokens = 100 };
             var settings2 = new GeminiSettings { Temperature = 0.9, MaxTokens = 900 };
 
-            var t1 = Task.Run(() => provider.SaveGeminiSettingsAsync(userId, settings1, CancellationToken.None));
-            var t2 = Task.Run(() => provider.SaveGeminiSettingsAsync(userId, settings2, CancellationToken.None));
+            var ct = TestContext.Current.CancellationToken;
+            var t1 = Task.Run(() => provider.SaveGeminiSettingsAsync(userId, settings1, ct), ct);
+            var t2 = Task.Run(() => provider.SaveGeminiSettingsAsync(userId, settings2, ct), ct);
             await Task.WhenAll(t1, t2);
 
             // The file should be valid JSON (not corrupted) with one of the two values.
@@ -1236,22 +1238,24 @@ public class FileSettingsProviderTests
 
         try
         {
+            var ct = TestContext.Current.CancellationToken;
+
             // Pre-populate the file so reads have something to find.
             var initialSettings = new GeminiSettings { Temperature = 0.3, MaxTokens = 500 };
-            await provider.SaveGeminiSettingsAsync(userId, initialSettings, CancellationToken.None);
+            await provider.SaveGeminiSettingsAsync(userId, initialSettings, ct);
 
             var readResults = new List<JsonObject?>();
-            var writeTask = Task.Run(() =>
+            var writeTask = Task.Run(async () =>
             {
                 for (int i = 0; i < 20; i++)
                 {
-                    provider.SaveGeminiSettingsAsync(userId, new GeminiSettings { Temperature = 0.3 + (i * 0.01), MaxTokens = 500 + i }, CancellationToken.None).Wait();
+                    await provider.SaveGeminiSettingsAsync(userId, new GeminiSettings { Temperature = 0.3 + (i * 0.01), MaxTokens = 500 + i }, ct);
                 }
-            });
+            }, ct);
 
             for (int i = 0; i < 20; i++)
             {
-                var gemini = provider.GetGeminiSettingsAsync(userId, CancellationToken.None).Result;
+                var gemini = await provider.GetGeminiSettingsAsync(userId, ct);
                 readResults.Add(JsonNode.Parse(JsonSerializer.Serialize(gemini)) as JsonObject);
             }
 
@@ -1279,8 +1283,9 @@ public class FileSettingsProviderTests
             var geminiModel = new GeminiModelSettings { Temperature = 0.4, MaxTokens = 800 };
             var openAiModel = new OpenAiModelSettings { Temperature = 0.6, MaxTokens = 1200 };
 
-            var t1 = Task.Run(() => provider.SaveGeminiModelSettingsAsync("gemini-3-flash", userId, geminiModel, CancellationToken.None));
-            var t2 = Task.Run(() => provider.SaveOpenAiModelSettingsAsync("gpt-5.5", userId, openAiModel, CancellationToken.None));
+            var ct = TestContext.Current.CancellationToken;
+            var t1 = Task.Run(() => provider.SaveGeminiModelSettingsAsync("gemini-3-flash", userId, geminiModel, ct), ct);
+            var t2 = Task.Run(() => provider.SaveOpenAiModelSettingsAsync("gpt-5.5", userId, openAiModel, ct), ct);
             await Task.WhenAll(t1, t2);
 
             string fileContent = File.ReadAllText(GetTestUserSettingsFilePath(userId));

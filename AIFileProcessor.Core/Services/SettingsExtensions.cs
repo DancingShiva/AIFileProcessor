@@ -201,6 +201,11 @@ namespace AIFileProcessor.Services
             {
                 target.ReasoningLevel = source.ReasoningLevel;
             }
+
+            if (source.RequestHeaders != null)
+            {
+                target.RequestHeaders = source.RequestHeaders;
+            }
         }
 
         /// <summary>
@@ -266,6 +271,11 @@ namespace AIFileProcessor.Services
             if (source.ReasoningLevel.HasValue)
             {
                 target.ReasoningLevel = source.ReasoningLevel;
+            }
+
+            if (source.RequestHeaders != null)
+            {
+                target.RequestHeaders = source.RequestHeaders;
             }
         }
     }

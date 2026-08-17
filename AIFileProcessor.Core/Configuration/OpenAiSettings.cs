@@ -5,6 +5,7 @@
 //-----------------------------------------------------------------------
 namespace AIFileProcessor.Configuration
 {
+    using System.Collections.Generic;
     using System.Text.Json.Serialization;
     using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
@@ -53,5 +54,10 @@ namespace AIFileProcessor.Configuration
 
         /// <inheritdoc />
         public ReasoningLevel? ReasoningLevel { get; set; }
+
+        /// <summary>
+        /// Gets or sets the arbitrary request headers to include when calling the provider.
+        /// </summary>
+        public IDictionary<string, string?>? RequestHeaders { get; set; } = new Dictionary<string, string?>();
     }
 }

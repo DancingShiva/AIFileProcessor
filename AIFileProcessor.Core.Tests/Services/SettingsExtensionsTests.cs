@@ -170,6 +170,7 @@ public class SettingsExtensionsTests
             TimeoutSeconds = 60,
             OrganizationId = "override-org",
             Temperature = 0.7,
+            RequestHeaders = new Dictionary<string, string?> { ["X-Test"] = "val" },
         };
         var target = new OpenAiSettings { ApiKey = "machine-level-key" };
 
@@ -182,6 +183,8 @@ public class SettingsExtensionsTests
         Assert.Equal(60, target.TimeoutSeconds);
         Assert.Equal("override-org", target.OrganizationId);
         Assert.Equal(0.7, target.Temperature);
+        Assert.NotNull(target.RequestHeaders);
+        Assert.Equal("val", target.RequestHeaders!["X-Test"]);
     }
 
     [Fact]
@@ -242,6 +245,7 @@ public class SettingsExtensionsTests
             Temperature = 0.7,
             ModelName = "override-model",
             EnableReasoning = true,
+            RequestHeaders = new Dictionary<string, string?> { ["X-Test"] = "val" },
         };
         var target = new DeepSeekSettings { ApiKey = "machine-level-key" };
 
@@ -254,6 +258,8 @@ public class SettingsExtensionsTests
         Assert.Equal(0.7, target.Temperature);
         Assert.Equal("override-model", target.ModelName);
         Assert.True(target.EnableReasoning);
+        Assert.NotNull(target.RequestHeaders);
+        Assert.Equal("val", target.RequestHeaders!["X-Test"]);
     }
 
     [Fact]
