@@ -80,3 +80,4 @@ AIFileProcessor supports two deployment scenarios today, with a third planned:
 - **Test categorization**: `[Trait("Category", "Unit"|"Integration"|"WinForms")]` on all test classes.
 - **Data-driven tests**: Prefer `[Theory]` + `[MemberData]` for complex object test data; `[InlineData]` for simple constants.
 - **Copyright header**: `Midnight Mission Systems` copyright on all source files.
+- **Validate after edit**: After editing any structured file (JSON, XML, YAML, `.csproj`, `.editorconfig`), validate it in its native format before moving on. For JSON, run `Get-Content 'file.json' -Raw | ConvertFrom-Json | Out-Null` in PowerShell. For C#, run `dotnet build`. Never assume an edit is correct without validating it.
