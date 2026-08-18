@@ -17,6 +17,7 @@ namespace AIFileProcessor.Services
     internal static class ProcessingLimits
     {
         private static int _maxInputSize = 32_768;
+        private static int _maxInputLines = 400;
         private static int _maxOutputFieldSize = 32_768;
         private static int _retryJitterSeconds = 5;
         private static int _maxJsonDepth = 16;
@@ -28,6 +29,11 @@ namespace AIFileProcessor.Services
         /// Gets the maximum allowed input size (in characters).
         /// </summary>
         internal static int MaxInputSize => _maxInputSize;
+
+        /// <summary>
+        /// Gets the maximum allowed input line count.
+        /// </summary>
+        internal static int MaxInputLines => _maxInputLines;
 
         /// <summary>
         /// Gets the maximum allowed output field size (in characters).
@@ -69,6 +75,7 @@ namespace AIFileProcessor.Services
         {
             ArgumentNullException.ThrowIfNull(settings);
             _maxInputSize = settings.MaxInputSize > 0 ? settings.MaxInputSize : 32_768;
+            _maxInputLines = settings.MaxInputLines > 0 ? settings.MaxInputLines : 400;
             _maxOutputFieldSize = settings.MaxOutputFieldSize > 0 ? settings.MaxOutputFieldSize : 32_768;
             _retryJitterSeconds = settings.RetryJitterSeconds >= 0 ? settings.RetryJitterSeconds : 5;
             _maxJsonDepth = settings.MaxJsonDepth > 0 ? settings.MaxJsonDepth : 16;

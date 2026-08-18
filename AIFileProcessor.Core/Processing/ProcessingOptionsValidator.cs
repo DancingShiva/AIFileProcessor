@@ -7,7 +7,6 @@ namespace AIFileProcessor.Processing
 {
     using System.Collections.Generic;
     using AIFileProcessor.Models;
-    using AIFileProcessor.Services;
 
     /// <summary>
     /// Validates <see cref="ProcessingOptions"/> and returns a list of validation errors.
@@ -20,8 +19,10 @@ namespace AIFileProcessor.Processing
         /// </summary>
         /// <param name="options">The processing options to validate.</param>
         /// <param name="selectedModelId">The selected model ID, or null if no model is selected.</param>
+        /// <param name="maxInputSize">The maximum allowed input size in characters.</param>
+        /// <param name="maxInputLines">The maximum allowed input line count.</param>
         /// <returns>A list of validation error messages. An empty list indicates valid options.</returns>
-        public static List<string> Validate(ProcessingOptions options, string? selectedModelId = null)
+        public static List<string> Validate(ProcessingOptions options, string? selectedModelId = null, int maxInputSize = 32_768, int maxInputLines = 400)
         {
             var errors = new List<string>();
 
@@ -67,9 +68,17 @@ namespace AIFileProcessor.Processing
                 // the call is blocked before any tokens are spent.
                 errors.Add("The data file contains no Chinese text to process.");
             }
-            else if (options.Data.Length > ProcessingLimits.MaxInputSize)
+            else if (options.Data.Length > maxInputSize)
             {
-                errors.Add($"The data file exceeds the maximum allowed size of {ProcessingLimits.MaxInputSize:N0} characters.");
+                errors.Add($"The data file exceeds the maximum allowed size of {maxInputSize:N0} characters.");
+            }
+            else
+            {
+                int lineCount = CountLines(options.Data);
+                if (lineCount > maxInputLines)
+                {
+                    errors.Add($"The data file exceeds the maximum allowed line count of {maxInputLines:N0} lines.");
+                }
             }
 
             return errors;
@@ -97,6 +106,42 @@ namespace AIFileProcessor.Processing
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Counts the number of lines in the text by counting line separators
+        /// (\r\n, \r, \n) without allocating a string array.
+        /// </summary>
+        /// <param name="text">The text to count lines in.</param>
+        /// <returns>The number of lines (minimum 1 for non-empty text).</returns>
+        private static int CountLines(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return 0;
+            }
+
+            int count = 1;
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+                if (c == '\n')
+                {
+                    count++;
+                }
+                else if (c == '\r')
+                {
+                    count++;
+
+                    // Skip the \n in \r\n pairs to avoid double-counting
+                    if (i + 1 < text.Length && text[i + 1] == '\n')
+                    {
+                        i++;
+                    }
+                }
+            }
+
+            return count;
         }
     }
 }

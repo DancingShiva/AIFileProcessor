@@ -330,4 +330,54 @@ public class ProcessingOptionsValidatorTests
             },
             errors);
     }
+
+    // --- MaxInputLines validation ---
+
+    [Fact]
+    public void Validate_DataExceedsMaxInputLines_AddsLineCountError()
+    {
+        var options = CreateValidOptions();
+        // Build data with 401 lines of Chinese text
+        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 401));
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1", maxInputLines: 400);
+
+        Assert.Contains(errors, e => e.Contains("maximum allowed line count"));
+    }
+
+    [Fact]
+    public void Validate_DataAtMaxInputLines_NoLineCountError()
+    {
+        var options = CreateValidOptions();
+        // Build data with exactly 400 lines of Chinese text
+        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 400));
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1", maxInputLines: 400);
+
+        Assert.DoesNotContain(errors, e => e.Contains("maximum allowed line count"));
+    }
+
+    [Fact]
+    public void Validate_DataWithCRLFLineEndings_CountsLinesCorrectly()
+    {
+        var options = CreateValidOptions();
+        // Build data with 401 lines using \r\n separators
+        options.Data = string.Join("\r\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 401));
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1", maxInputLines: 400);
+
+        Assert.Contains(errors, e => e.Contains("maximum allowed line count"));
+    }
+
+    [Fact]
+    public void Validate_DefaultMaxInputLines_400LinesRejected()
+    {
+        var options = CreateValidOptions();
+        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 401));
+
+        // Use default parameters (no explicit maxInputLines)
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.Contains(errors, e => e.Contains("maximum allowed line count of 400"));
+    }
 }

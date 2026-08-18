@@ -46,6 +46,13 @@ namespace AIFileProcessor.Configuration
         public int MaxInputSize { get; set; } = 32_768;
 
         /// <summary>
+        /// Gets or sets the maximum allowed number of lines in the input data
+        /// sent for processing. Input exceeding this is rejected before any API
+        /// calls are made. Default is 400.
+        /// </summary>
+        public int MaxInputLines { get; set; } = 400;
+
+        /// <summary>
         /// Gets or sets the maximum allowed size (in characters) of any single
         /// output field returned by the AI model. Fields exceeding this are
         /// flagged as violations by the ResponseVerifier. Default is 32,768.
