@@ -21,6 +21,9 @@ appsettings.Development.json
 appsettings.Local.json
 *.dotnet-settings.json
 
+# VS Code user-specific workspace settings (chat model, extensions, etc.)
+.vscode/settings.local.json
+
 # NuGet
 *.nupkg
 *.snupkg
