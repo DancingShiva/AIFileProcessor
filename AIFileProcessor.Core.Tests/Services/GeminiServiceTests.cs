@@ -1,4 +1,4 @@
-﻿namespace AIFileProcessor.Core.Tests.Services;
+namespace AIFileProcessor.Core.Tests.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,12 +16,12 @@ using Xunit;
 public class GeminiServiceTests
 {
     private readonly Mock<ILogger<GeminiService>> _loggerMock = new();
-    private readonly Mock<IOptions<GeminiSettings>> _optionsMock = new();
+    private readonly Mock<IOptionsMonitor<GeminiSettings>> _optionsMock = new();
     private readonly HttpClient _httpClient = new();
     private readonly GeminiSettings _settings = new() { ApiKey = "test-key" };
     public GeminiServiceTests()
     {
-        _optionsMock.Setup(o => o.Value).Returns(_settings);
+        _optionsMock.Setup(o => o.CurrentValue).Returns(_settings);
     }
     // ─── Constructor ──────────────────────────────────────────────────
     [Fact]
@@ -39,8 +39,8 @@ public class GeminiServiceTests
     [Fact]
     public void Constructor_SettingsWithNullValue_ThrowsArgumentNullException()
     {
-        var nullOptionsMock = new Mock<IOptions<GeminiSettings>>();
-        nullOptionsMock.Setup(o => o.Value).Returns((GeminiSettings)null!);
+        var nullOptionsMock = new Mock<IOptionsMonitor<GeminiSettings>>();
+        nullOptionsMock.Setup(o => o.CurrentValue).Returns((GeminiSettings)null!);
         Assert.Throws<ArgumentNullException>(
             () => new GeminiService(_loggerMock.Object, nullOptionsMock.Object, _httpClient));
     }
@@ -162,8 +162,8 @@ public class GeminiServiceTests
     public async Task ProcessTextAsync_FourParam_WithEmptyApiKey_ThrowsInvalidOperationException()
     {
         var emptyKeySettings = new GeminiSettings { ApiKey = string.Empty };
-        var emptyOptionsMock = new Mock<IOptions<GeminiSettings>>();
-        emptyOptionsMock.Setup(o => o.Value).Returns(emptyKeySettings);
+        var emptyOptionsMock = new Mock<IOptionsMonitor<GeminiSettings>>();
+        emptyOptionsMock.Setup(o => o.CurrentValue).Returns(emptyKeySettings);
         var service = new GeminiService(_loggerMock.Object, emptyOptionsMock.Object, _httpClient);
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.ProcessTextAsync("gemini-3-flash", "prompt", "data", CancellationToken.None));

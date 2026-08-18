@@ -1,4 +1,4 @@
-﻿namespace AIFileProcessor.Core.Tests.Services;
+namespace AIFileProcessor.Core.Tests.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,12 +16,12 @@ using Xunit;
 public class DeepSeekServiceTests
 {
     private readonly Mock<ILogger<DeepSeekService>> _loggerMock = new();
-    private readonly Mock<IOptions<DeepSeekSettings>> _optionsMock = new();
+    private readonly Mock<IOptionsMonitor<DeepSeekSettings>> _optionsMock = new();
     private readonly HttpClient _httpClient = new();
     private readonly DeepSeekSettings _settings = new() { ApiKey = "test-key", ModelName = "deepseek-v4-flash" };
     public DeepSeekServiceTests()
     {
-        _optionsMock.Setup(o => o.Value).Returns(_settings);
+        _optionsMock.Setup(o => o.CurrentValue).Returns(_settings);
     }
     // ─── Constructor ──────────────────────────────────────────────────
     [Fact]
@@ -39,8 +39,8 @@ public class DeepSeekServiceTests
     [Fact]
     public void Constructor_SettingsWithNullValue_ThrowsArgumentNullException()
     {
-        var nullOptionsMock = new Mock<IOptions<DeepSeekSettings>>();
-        nullOptionsMock.Setup(o => o.Value).Returns((DeepSeekSettings)null!);
+        var nullOptionsMock = new Mock<IOptionsMonitor<DeepSeekSettings>>();
+        nullOptionsMock.Setup(o => o.CurrentValue).Returns((DeepSeekSettings)null!);
         Assert.Throws<ArgumentNullException>(
             () => new DeepSeekService(_loggerMock.Object, nullOptionsMock.Object, _httpClient));
     }
@@ -167,8 +167,8 @@ public class DeepSeekServiceTests
     public async Task ProcessTextAsync_FourParam_WithEmptyApiKey_ThrowsInvalidOperationException()
     {
         var emptyKeySettings = new DeepSeekSettings { ApiKey = string.Empty };
-        var emptyOptionsMock = new Mock<IOptions<DeepSeekSettings>>();
-        emptyOptionsMock.Setup(o => o.Value).Returns(emptyKeySettings);
+        var emptyOptionsMock = new Mock<IOptionsMonitor<DeepSeekSettings>>();
+        emptyOptionsMock.Setup(o => o.CurrentValue).Returns(emptyKeySettings);
         var service = new DeepSeekService(_loggerMock.Object, emptyOptionsMock.Object, _httpClient);
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.ProcessTextAsync("deepseek-v4-flash", "prompt", "data", CancellationToken.None));

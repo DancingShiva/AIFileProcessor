@@ -51,7 +51,7 @@ namespace AIFileProcessor.DependencyInjection
             // its own DI-managed HttpClient with the correct timeout and base address.
             services.AddHttpClient<GeminiService>((sp, client) =>
             {
-                var settings = sp.GetRequiredService<IOptions<GeminiSettings>>().Value;
+                var settings = sp.GetRequiredService<IOptionsMonitor<GeminiSettings>>().CurrentValue;
                 client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 300);
 
                 if (!string.IsNullOrWhiteSpace(settings.Endpoint))
@@ -73,7 +73,7 @@ namespace AIFileProcessor.DependencyInjection
 
             services.AddHttpClient<DeepSeekService>((sp, client) =>
             {
-                var settings = sp.GetRequiredService<IOptions<DeepSeekSettings>>().Value;
+                var settings = sp.GetRequiredService<IOptionsMonitor<DeepSeekSettings>>().CurrentValue;
                 client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 300);
 
                 if (settings.RequestHeaders != null)
@@ -90,7 +90,7 @@ namespace AIFileProcessor.DependencyInjection
 
             services.AddHttpClient<OpenAiService>((sp, client) =>
             {
-                var settings = sp.GetRequiredService<IOptions<OpenAiSettings>>().Value;
+                var settings = sp.GetRequiredService<IOptionsMonitor<OpenAiSettings>>().CurrentValue;
                 client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 300);
 
                 if (settings.RequestHeaders != null)

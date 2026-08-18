@@ -16,6 +16,7 @@ namespace AIFileProcessor.Services
     using AIFileProcessor.Response;
     using AIFileProcessor.Telemetry;
     using Microsoft.Extensions.Logging;
+    using Microsoft.Extensions.Options;
 
     /// <summary>
     /// Abstract base class for AI service implementations. Extracts the structural
@@ -28,17 +29,21 @@ namespace AIFileProcessor.Services
     public abstract class AiServiceBase<TSettings> : IAiService
         where TSettings : class
     {
+        private readonly IOptionsMonitor<TSettings> _settingsMonitor;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="AiServiceBase{TSettings}"/> class.
         /// </summary>
         /// <param name="logger">The logger instance for logging information and errors.</param>
-        /// <param name="defaultSettings">The default (constructor-injected) settings.</param>
+        /// <param name="settingsMonitor">The options monitor for the default settings, supporting hot-reload.</param>
         /// <param name="httpClient">The HTTP client for making requests, managed by IHttpClientFactory.</param>
-        protected AiServiceBase(ILogger logger, TSettings defaultSettings, HttpClient httpClient)
+        protected AiServiceBase(ILogger logger, IOptionsMonitor<TSettings> settingsMonitor, HttpClient httpClient)
         {
             Logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            DefaultSettings = defaultSettings ?? throw new ArgumentNullException(nameof(defaultSettings));
+            ArgumentNullException.ThrowIfNull(settingsMonitor);
             HttpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _settingsMonitor = settingsMonitor;
+            ArgumentNullException.ThrowIfNull(_settingsMonitor.CurrentValue);
         }
 
         /// <summary>
@@ -47,9 +52,10 @@ namespace AIFileProcessor.Services
         protected ILogger Logger { get; }
 
         /// <summary>
-        /// Gets the default (constructor-injected) settings.
+        /// Gets the default settings, resolved from <see cref="IOptionsMonitor{T}.CurrentValue"/>
+        /// on every access so changes to appsettings.json take effect without a restart.
         /// </summary>
-        protected TSettings DefaultSettings { get; }
+        protected TSettings DefaultSettings => _settingsMonitor.CurrentValue;
 
         /// <summary>
         /// Gets the HTTP client for making requests.

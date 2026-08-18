@@ -73,10 +73,10 @@ namespace AIFileProcessor.Services
         /// Initializes a new instance of the <see cref="OpenAiService"/> class.
         /// </summary>
         /// <param name="logger">The logger instance for logging information and errors.</param>
-        /// <param name="settings">The default OpenAI settings (from <c>IOptions&lt;T&gt;</c>).</param>
+        /// <param name="settings">The default OpenAI settings (from <c>IOptionsMonitor&lt;T&gt;</c>).</param>
         /// <param name="httpClient">The HTTP client for making requests, managed by IHttpClientFactory.</param>
-        public OpenAiService(ILogger<OpenAiService> logger, IOptions<OpenAiSettings> settings, HttpClient httpClient)
-            : base(logger, settings?.Value ?? throw new ArgumentNullException(nameof(settings)), httpClient)
+        public OpenAiService(ILogger<OpenAiService> logger, IOptionsMonitor<OpenAiSettings> settings, HttpClient httpClient)
+            : base(logger, settings ?? throw new ArgumentNullException(nameof(settings)), httpClient)
         {
         }
 

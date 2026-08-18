@@ -45,10 +45,10 @@ namespace AIFileProcessor.Services
         /// Initializes a new instance of the <see cref="DeepSeekService"/> class.
         /// </summary>
         /// <param name="logger">The logger instance for logging information and errors.</param>
-        /// <param name="settings">The default DeepSeek settings (from <c>IOptions&lt;T&gt;</c>).</param>
+        /// <param name="settings">The default DeepSeek settings (from <c>IOptionsMonitor&lt;T&gt;</c>).</param>
         /// <param name="httpClient">The HTTP client for making requests, managed by IHttpClientFactory.</param>
-        public DeepSeekService(ILogger<DeepSeekService> logger, IOptions<DeepSeekSettings> settings, HttpClient httpClient)
-            : base(logger, settings?.Value ?? throw new ArgumentNullException(nameof(settings)), httpClient)
+        public DeepSeekService(ILogger<DeepSeekService> logger, IOptionsMonitor<DeepSeekSettings> settings, HttpClient httpClient)
+            : base(logger, settings ?? throw new ArgumentNullException(nameof(settings)), httpClient)
         {
         }
 
