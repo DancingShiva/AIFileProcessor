@@ -7,81 +7,70 @@ namespace AIFileProcessor.Services
 {
     using System;
     using AIFileProcessor.Configuration;
+    using Microsoft.Extensions.Options;
 
     /// <summary>
-    /// Static holder for global processing limits configured from the
-    /// "Processing" section of appsettings.json. Set once during startup
-    /// via <see cref="Configure(ProcessingSettings)"/>. Consistent with
-    /// <see cref="ModelTokenLimits"/> and <see cref="AiModelCatalog"/>.
+    /// Provides hot-reloadable processing limits configured from the
+    /// "Processing" section of appsettings.json via <see cref="IOptionsMonitor{T}"/>.
+    /// Values are read from <see cref="IOptionsMonitor{T}.CurrentValue"/> on every
+    /// access, so changes to appsettings.json take effect without a restart.
     /// </summary>
-    internal static class ProcessingLimits
+    public class ProcessingLimits
     {
-        private static int _maxInputSize = 32_768;
-        private static int _maxInputLines = 400;
-        private static int _maxOutputFieldSize = 32_768;
-        private static int _retryJitterSeconds = 5;
-        private static int _maxJsonDepth = 16;
-        private static int _chunkMaxRetries = 3;
-        private static int _chunkBaseDelaySeconds = 5;
-        private static int _chunkMaxDelaySeconds = 30;
+        private readonly IOptionsMonitor<ProcessingSettings> _settingsMonitor;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ProcessingLimits"/> class.
+        /// </summary>
+        /// <param name="settingsMonitor">The options monitor for processing settings.</param>
+        public ProcessingLimits(IOptionsMonitor<ProcessingSettings> settingsMonitor)
+        {
+            _settingsMonitor = settingsMonitor ?? throw new ArgumentNullException(nameof(settingsMonitor));
+        }
 
         /// <summary>
         /// Gets the maximum allowed input size (in characters).
         /// </summary>
-        internal static int MaxInputSize => _maxInputSize;
+        public int MaxInputSize => Settings.MaxInputSize > 0 ? Settings.MaxInputSize : 32_768;
 
         /// <summary>
         /// Gets the maximum allowed input line count.
         /// </summary>
-        internal static int MaxInputLines => _maxInputLines;
+        public int MaxInputLines => Settings.MaxInputLines > 0 ? Settings.MaxInputLines : 400;
 
         /// <summary>
         /// Gets the maximum allowed output field size (in characters).
         /// </summary>
-        internal static int MaxOutputFieldSize => _maxOutputFieldSize;
+        public int MaxOutputFieldSize => Settings.MaxOutputFieldSize > 0 ? Settings.MaxOutputFieldSize : 32_768;
 
         /// <summary>
         /// Gets the maximum retry jitter (in seconds).
         /// </summary>
-        internal static int RetryJitterSeconds => _retryJitterSeconds;
+        public int RetryJitterSeconds => Settings.RetryJitterSeconds >= 0 ? Settings.RetryJitterSeconds : 5;
 
         /// <summary>
         /// Gets the maximum JSON depth for all JsonSerializerOptions instances.
         /// </summary>
-        internal static int MaxJsonDepth => _maxJsonDepth;
+        public int MaxJsonDepth => Settings.MaxJsonDepth > 0 ? Settings.MaxJsonDepth : 16;
 
         /// <summary>
         /// Gets the maximum number of chunk-level retries after the initial attempt.
         /// </summary>
-        internal static int ChunkMaxRetries => _chunkMaxRetries;
+        public int ChunkMaxRetries => Settings.ChunkMaxRetries >= 0 ? Settings.ChunkMaxRetries : 3;
 
         /// <summary>
         /// Gets the base delay (seconds) for chunk-level retry backoff.
         /// </summary>
-        internal static int ChunkBaseDelaySeconds => _chunkBaseDelaySeconds;
+        public int ChunkBaseDelaySeconds => Settings.ChunkBaseDelaySeconds > 0 ? Settings.ChunkBaseDelaySeconds : 5;
 
         /// <summary>
         /// Gets the maximum delay (seconds) between chunk-level retries.
         /// </summary>
-        internal static int ChunkMaxDelaySeconds => _chunkMaxDelaySeconds;
+        public int ChunkMaxDelaySeconds => Settings.ChunkMaxDelaySeconds > 0 ? Settings.ChunkMaxDelaySeconds : 30;
 
         /// <summary>
-        /// Configures the global limits from the provided <see cref="ProcessingSettings"/>.
-        /// Called once during application startup from
-        /// <see cref="DependencyInjection.ServiceCollectionExtensions.AddAiFileProcessorCore"/>.
+        /// Gets the current processing settings from the options monitor.
         /// </summary>
-        /// <param name="settings">The processing settings from configuration.</param>
-        internal static void Configure(ProcessingSettings settings)
-        {
-            ArgumentNullException.ThrowIfNull(settings);
-            _maxInputSize = settings.MaxInputSize > 0 ? settings.MaxInputSize : 32_768;
-            _maxInputLines = settings.MaxInputLines > 0 ? settings.MaxInputLines : 400;
-            _maxOutputFieldSize = settings.MaxOutputFieldSize > 0 ? settings.MaxOutputFieldSize : 32_768;
-            _retryJitterSeconds = settings.RetryJitterSeconds >= 0 ? settings.RetryJitterSeconds : 5;
-            _maxJsonDepth = settings.MaxJsonDepth > 0 ? settings.MaxJsonDepth : 16;
-            _chunkMaxRetries = settings.ChunkMaxRetries >= 0 ? settings.ChunkMaxRetries : 3;
-            _chunkBaseDelaySeconds = settings.ChunkBaseDelaySeconds > 0 ? settings.ChunkBaseDelaySeconds : 5;
-            _chunkMaxDelaySeconds = settings.ChunkMaxDelaySeconds > 0 ? settings.ChunkMaxDelaySeconds : 30;
-        }
+        private ProcessingSettings Settings => _settingsMonitor.CurrentValue;
     }
 }

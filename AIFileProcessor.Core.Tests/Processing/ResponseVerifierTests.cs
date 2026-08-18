@@ -552,7 +552,7 @@ public class ResponseVerifierTests
     {
         // Spaced Hanzi: each unit is 2 chars + space separator. Add 2 to ensure
         // the total exceeds MaxFieldLength (integer division rounds down).
-        var oversized = string.Join(' ', Enumerable.Repeat("你好", (ResponseVerifier.MaxFieldLength / 3) + 2));
+        var oversized = string.Join(' ', Enumerable.Repeat("你好", (32_768 / 3) + 2));
         var response = CreateResponse(new ProcessedSentenceRow
         {
             Chinese = oversized,
@@ -567,7 +567,7 @@ public class ResponseVerifierTests
     [Fact]
     public void Verify_EnglishFieldExceedingMaxLength_ReturnsViolation()
     {
-        var oversized = new string('a', ResponseVerifier.MaxFieldLength + 1);
+        var oversized = new string('a', 32_768 + 1);
         var response = CreateResponse(new ProcessedSentenceRow
         {
             Chinese = "你 好",
@@ -584,7 +584,7 @@ public class ResponseVerifierTests
     [Fact]
     public void Verify_GlossExceedingMaxLength_ReturnsViolation()
     {
-        var oversized = new string('x', ResponseVerifier.MaxFieldLength + 1);
+        var oversized = new string('x', 32_768 + 1);
         var response = CreateResponse(new ProcessedSentenceRow
         {
             Chinese = "你 好",
@@ -603,7 +603,7 @@ public class ResponseVerifierTests
     [Fact]
     public void Verify_FieldAtMaxLength_DoesNotViolate()
     {
-        var maxLength = new string('你', ResponseVerifier.MaxFieldLength);
+        var maxLength = new string('你', 32_768);
         var response = CreateResponse(new ProcessedSentenceRow
         {
             Chinese = maxLength,

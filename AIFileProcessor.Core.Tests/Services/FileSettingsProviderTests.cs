@@ -59,20 +59,32 @@ public class FileSettingsProviderTests
         }
     }
 
+    private static ProcessingLimits CreateProcessingLimits()
+    {
+        var settings = new ProcessingSettings();
+        return new ProcessingLimits(new TestOptionsMonitor<ProcessingSettings>(settings));
+    }
+
+    private static FileSettingsProvider CreateProvider(Mock<IConfiguration> configMock)
+        => new(configMock.Object, CreateProcessingLimits());
+
+    private static FileSettingsProvider CreateProvider()
+        => new(CreateConfigMock().Object, CreateProcessingLimits());
+
     // --- Constructor --------------------------------------------------
 
     [Fact]
     public void Constructor_NullConfiguration_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(
-            () => new FileSettingsProvider(null!));
+            () => new FileSettingsProvider(null!, CreateProcessingLimits()));
     }
 
     [Fact]
     public void Constructor_ValidConfiguration_CreatesInstance()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         Assert.NotNull(provider);
     }
 
@@ -82,7 +94,7 @@ public class FileSettingsProviderTests
     public async Task GetGeminiSettingsAsync_NullUserId_ThrowsArgumentNullException()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
 
         await Assert.ThrowsAsync<ArgumentNullException>(
             () => provider.GetGeminiSettingsAsync(null!, CancellationToken.None));
@@ -92,7 +104,7 @@ public class FileSettingsProviderTests
     public async Task GetGeminiSettingsAsync_NoOverrideFile_ReturnsDefaultSettings()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -115,7 +127,7 @@ public class FileSettingsProviderTests
     public async Task GetGeminiSettingsAsync_WithOverrides_MergesNonSecretProperties()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -149,7 +161,7 @@ public class FileSettingsProviderTests
     public async Task GetGeminiSettingsAsync_WithOverrides_PreservesApiKeyFromConfig()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -181,7 +193,7 @@ public class FileSettingsProviderTests
     public async Task GetGeminiSettingsAsync_WithEmptyOverrideSection_ReturnsDefaults()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -213,7 +225,7 @@ public class FileSettingsProviderTests
     public async Task GetGeminiSettingsAsync_OverridesAllProperties_AllOverwritten()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -273,7 +285,7 @@ public class FileSettingsProviderTests
     public async Task GetOpenAiSettingsAsync_NullUserId_ThrowsArgumentNullException()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
 
         await Assert.ThrowsAsync<ArgumentNullException>(
             () => provider.GetOpenAiSettingsAsync(null!, CancellationToken.None));
@@ -283,7 +295,7 @@ public class FileSettingsProviderTests
     public async Task GetOpenAiSettingsAsync_NoOverrideFile_ReturnsDefaultSettings()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -306,7 +318,7 @@ public class FileSettingsProviderTests
     public async Task GetOpenAiSettingsAsync_WithOverrides_MergesNonSecretProperties()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -342,7 +354,7 @@ public class FileSettingsProviderTests
     public async Task GetOpenAiSettingsAsync_WithOverrides_PreservesApiKeyFromConfig()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -372,7 +384,7 @@ public class FileSettingsProviderTests
     public async Task GetOpenAiSettingsAsync_WithEmptyOverrideSection_ReturnsDefaults()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -404,7 +416,7 @@ public class FileSettingsProviderTests
     public async Task GetDeepSeekSettingsAsync_NullUserId_ThrowsArgumentNullException()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
 
         await Assert.ThrowsAsync<ArgumentNullException>(
             () => provider.GetDeepSeekSettingsAsync(null!, CancellationToken.None));
@@ -414,7 +426,7 @@ public class FileSettingsProviderTests
     public async Task GetDeepSeekSettingsAsync_NoOverrideFile_ReturnsDefaultSettings()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -437,7 +449,7 @@ public class FileSettingsProviderTests
     public async Task GetDeepSeekSettingsAsync_WithOverrides_MergesNonSecretProperties()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -473,7 +485,7 @@ public class FileSettingsProviderTests
     public async Task GetDeepSeekSettingsAsync_WithOverrides_PreservesApiKeyFromConfig()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -503,7 +515,7 @@ public class FileSettingsProviderTests
     public async Task GetDeepSeekSettingsAsync_WithEmptyOverrideSection_ReturnsDefaults()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -535,7 +547,7 @@ public class FileSettingsProviderTests
     public async Task SaveGeminiSettingsAsync_NullUserId_ThrowsArgumentNullException()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         var settings = new GeminiSettings();
 
         await Assert.ThrowsAsync<ArgumentNullException>(
@@ -546,7 +558,7 @@ public class FileSettingsProviderTests
     public async Task SaveGeminiSettingsAsync_NullSettings_ThrowsArgumentNullException()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -564,7 +576,7 @@ public class FileSettingsProviderTests
     public async Task SaveGeminiSettingsAsync_ValidArguments_WritesFileWithSettings()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -603,7 +615,7 @@ public class FileSettingsProviderTests
     public async Task SaveGeminiSettingsAsync_ApiKeyNotWrittenToFile()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -630,7 +642,7 @@ public class FileSettingsProviderTests
     public async Task SaveGeminiSettingsAsync_ExistingFile_PreservesOtherSections()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -672,7 +684,7 @@ public class FileSettingsProviderTests
     public async Task SaveOpenAiSettingsAsync_NullUserId_ThrowsArgumentNullException()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         var settings = new OpenAiSettings();
 
         await Assert.ThrowsAsync<ArgumentNullException>(
@@ -683,7 +695,7 @@ public class FileSettingsProviderTests
     public async Task SaveOpenAiSettingsAsync_NullSettings_ThrowsArgumentNullException()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -701,7 +713,7 @@ public class FileSettingsProviderTests
     public async Task SaveOpenAiSettingsAsync_ValidArguments_WritesFileWithSettings()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -740,7 +752,7 @@ public class FileSettingsProviderTests
     public async Task SaveOpenAiSettingsAsync_ApiKeyNotWrittenToFile()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -767,7 +779,7 @@ public class FileSettingsProviderTests
     public async Task SaveOpenAiSettingsAsync_ExistingFile_PreservesOtherSections()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -806,7 +818,7 @@ public class FileSettingsProviderTests
     public async Task SaveDeepSeekSettingsAsync_NullUserId_ThrowsArgumentNullException()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         var settings = new DeepSeekSettings();
 
         await Assert.ThrowsAsync<ArgumentNullException>(
@@ -817,7 +829,7 @@ public class FileSettingsProviderTests
     public async Task SaveDeepSeekSettingsAsync_NullSettings_ThrowsArgumentNullException()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -835,7 +847,7 @@ public class FileSettingsProviderTests
     public async Task SaveDeepSeekSettingsAsync_ValidArguments_WritesFileWithSettings()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -874,7 +886,7 @@ public class FileSettingsProviderTests
     public async Task SaveDeepSeekSettingsAsync_ApiKeyNotWrittenToFile()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -901,7 +913,7 @@ public class FileSettingsProviderTests
     public async Task SaveDeepSeekSettingsAsync_ExistingFile_PreservesOtherSections()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -940,7 +952,7 @@ public class FileSettingsProviderTests
     public async Task GetProcessingOptionsAsync_NullUserId_ThrowsArgumentNullException()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
 
         await Assert.ThrowsAsync<ArgumentNullException>(
             () => provider.GetProcessingOptionsAsync(null!, CancellationToken.None));
@@ -950,7 +962,7 @@ public class FileSettingsProviderTests
     public async Task GetProcessingOptionsAsync_NoOverrideFile_ReturnsDefaultOptions()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -977,7 +989,7 @@ public class FileSettingsProviderTests
     public async Task GetProcessingOptionsAsync_WithOverrides_ReturnsOverriddenOptions()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -1020,7 +1032,7 @@ public class FileSettingsProviderTests
     public async Task GetProcessingOptionsAsync_WithEmptyOverrideSection_ReturnsDefaults()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -1052,7 +1064,7 @@ public class FileSettingsProviderTests
     public async Task SaveProcessingOptionsAsync_NullUserId_ThrowsArgumentNullException()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         var options = new ProcessingOptions();
 
         await Assert.ThrowsAsync<ArgumentNullException>(
@@ -1063,7 +1075,7 @@ public class FileSettingsProviderTests
     public async Task SaveProcessingOptionsAsync_NullOptions_ThrowsArgumentNullException()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -1081,7 +1093,7 @@ public class FileSettingsProviderTests
     public async Task SaveProcessingOptionsAsync_ValidArguments_WritesFileWithOptions()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -1130,7 +1142,7 @@ public class FileSettingsProviderTests
     public async Task SaveProcessingOptionsAsync_ExistingFile_PreservesOtherSections()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -1169,7 +1181,7 @@ public class FileSettingsProviderTests
     public async Task SaveGeminiSettings_ConcurrentWrites_DifferentSections_BothSettingsPreserved()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -1201,7 +1213,7 @@ public class FileSettingsProviderTests
     public async Task SaveGeminiSettings_ConcurrentWrites_SameSection_FileNotCorrupted()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -1233,7 +1245,7 @@ public class FileSettingsProviderTests
     public async Task ReadUserOverrides_DuringWrite_ReturnsValidJson()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -1275,7 +1287,7 @@ public class FileSettingsProviderTests
     public async Task SaveModelSection_ConcurrentWrites_DifferentModels_BothPreserved()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try
@@ -1307,7 +1319,7 @@ public class FileSettingsProviderTests
     public async Task MigrateLegacyProviderToModelSettings_ConcurrentMigration_MigrationHappensOnce()
     {
         var configMock = CreateConfigMock();
-        var provider = new FileSettingsProvider(configMock.Object);
+        var provider = CreateProvider(configMock);
         string userId = $"test-{Guid.NewGuid():N}";
 
         try

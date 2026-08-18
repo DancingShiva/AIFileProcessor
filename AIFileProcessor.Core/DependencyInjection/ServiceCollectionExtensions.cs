@@ -42,7 +42,10 @@ namespace AIFileProcessor.DependencyInjection
             var processingSettings = new ProcessingSettings();
             configuration.GetSection("Processing").Bind(processingSettings);
             ModelTokenLimits.Configure(processingSettings.ModelTokenLimitsMap, processingSettings.DefaultTokenLimit);
-            ProcessingLimits.Configure(processingSettings);
+
+            // Register IOptionsMonitor<ProcessingSettings> for hot-reloadable processing limits.
+            services.Configure<ProcessingSettings>(configuration.GetSection("Processing"));
+            services.AddSingleton<ProcessingLimits>();
 
             // Register Typed HttpClients against concrete service types so each gets
             // its own DI-managed HttpClient with the correct timeout and base address.

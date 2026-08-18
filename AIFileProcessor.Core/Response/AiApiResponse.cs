@@ -10,7 +10,6 @@ namespace AIFileProcessor.Response
     using System.Text.Json;
     using System.Text.Json.Serialization;
     using AIFileProcessor.Extensions;
-    using AIFileProcessor.Services;
 
     /// <summary>
     /// Handles the response from the AI API. Parses JSON responses that may vary
@@ -27,7 +26,7 @@ namespace AIFileProcessor.Response
             PropertyNameCaseInsensitive = true,
             AllowTrailingCommas = true,
             ReadCommentHandling = JsonCommentHandling.Skip,
-            MaxDepth = ProcessingLimits.MaxJsonDepth,
+            MaxDepth = 16,
         };
 
         /// <summary>

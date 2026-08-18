@@ -22,17 +22,21 @@ namespace AIFileProcessor.Services
     /// </summary>
     /// <param name="logger">The logger instance for logging information and errors.</param>
     /// <param name="aiServices">The AI services to execute prompts against.</param>
-    public class ChineseTextProcessor(ILogger<ChineseTextProcessor> logger, IEnumerable<IAiService> aiServices) : IChineseTextProcessor
+    /// <param name="processingLimits">The hot-reloadable processing limits.</param>
+    public class ChineseTextProcessor(
+        ILogger<ChineseTextProcessor> logger,
+        IEnumerable<IAiService> aiServices,
+        ProcessingLimits processingLimits) : IChineseTextProcessor
     {
         // Define the separators as a static readonly field
         private static readonly string[] _lineSeparators = ["\r\n", "\r", "\n"];
 
-        private static readonly JsonSerializerOptions _defaultSerializerOptions = new()
+        private readonly JsonSerializerOptions _defaultSerializerOptions = new()
         {
             PropertyNameCaseInsensitive = true,
             AllowTrailingCommas = true,
             ReadCommentHandling = JsonCommentHandling.Skip,
-            MaxDepth = ProcessingLimits.MaxJsonDepth,
+            MaxDepth = processingLimits.MaxJsonDepth,
         };
 
         /// <summary>
@@ -158,9 +162,9 @@ namespace AIFileProcessor.Services
                                 : await aiService.ProcessTextAsync(modelId, prompt, chunk.Text, cancellationToken).ConfigureAwait(false);
                         },
                         ex => ex is not OperationCanceledException,
-                        ProcessingLimits.ChunkMaxRetries,
-                        ProcessingLimits.ChunkBaseDelaySeconds,
-                        ProcessingLimits.ChunkMaxDelaySeconds,
+                        processingLimits.ChunkMaxRetries,
+                        processingLimits.ChunkBaseDelaySeconds,
+                        processingLimits.ChunkMaxDelaySeconds,
                         logger,
                         $"chunk {chunk.Index} (model {modelId})",
                         ct,

@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AIFileProcessor.Interfaces;
 using AIFileProcessor.Models;
+using AIFileProcessor.Configuration;
 using AIFileProcessor.Response;
 using AIFileProcessor.Telemetry;
 using AIFileProcessor.Services;
@@ -37,7 +38,7 @@ public class ChineseTextProcessorMetricsTests
         };
         aiService.Setup(s => s.ProcessTextAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiCallResult { Text = ValidJson, Telemetry = callTelemetry });
-        var processor = new ChineseTextProcessor(logger.Object, new[] { aiService.Object });
+        var processor = new ChineseTextProcessor(logger.Object, new[] { aiService.Object }, new ProcessingLimits(new TestOptionsMonitor<ProcessingSettings>(new ProcessingSettings())));
         // Act
         var result = await processor.ProcessChineseTextAsync(modelId, prompt, data, new ChunkingOptions(), CancellationToken.None);
         // Assert

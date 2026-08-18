@@ -36,6 +36,7 @@ namespace AIFileProcessor.Services
         /// <param name="operationName">Operation/model name included in log messages.</param>
         /// <param name="ct">A token to cancel the operation and any retry delay.</param>
         /// <param name="onAttempt">Optional callback invoked before each attempt with the 1-based attempt number. Used to record retry counts for telemetry.</param>
+        /// <param name="retryJitterSeconds">Maximum jitter (seconds) added to each retry delay to prevent thundering-herd storms. Zero disables jitter.</param>
         /// <returns>The result of a successful execution.</returns>
         public static async Task<T> ExecuteAsync<T>(
             Func<CancellationToken, Task<T>> action,
@@ -46,7 +47,8 @@ namespace AIFileProcessor.Services
             ILogger logger,
             string operationName,
             CancellationToken ct,
-            Action<int>? onAttempt = null)
+            Action<int>? onAttempt = null,
+            int retryJitterSeconds = 0)
         {
             ArgumentNullException.ThrowIfNull(action);
             ArgumentNullException.ThrowIfNull(isTransient);
@@ -70,8 +72,8 @@ namespace AIFileProcessor.Services
                 catch (Exception ex) when (attempt < retries && isTransient(ex))
                 {
                     int computedBaseDelay = Math.Min(baseDelay * (int)Math.Pow(2, attempt), maxDelay);
-                    int jitterSeconds = ProcessingLimits.RetryJitterSeconds > 0
-                        ? _jitterRandom.Next(0, ProcessingLimits.RetryJitterSeconds + 1)
+                    int jitterSeconds = retryJitterSeconds > 0
+                        ? _jitterRandom.Next(0, retryJitterSeconds + 1)
                         : 0;
                     int delaySeconds = computedBaseDelay + jitterSeconds;
                     logger.LogWarning(

@@ -34,19 +34,13 @@ namespace AIFileProcessor.Processing
         };
 
         /// <summary>
-        /// Gets the maximum length for any single AI-generated string field. Fields
-        /// beyond this are treated as injection attempts and rejected. Configured
-        /// from the "Processing:MaxOutputFieldSize" setting in appsettings.json.
-        /// </summary>
-        internal static int MaxFieldLength => ProcessingLimits.MaxOutputFieldSize;
-
-        /// <summary>
         /// Verifies the response and returns a list of formatted violation messages,
         /// one per rule breach. An empty list means no format violations were found.
         /// </summary>
         /// <param name="response">The parsed AI response to verify.</param>
+        /// <param name="maxFieldLength">The maximum allowed length for any single AI-generated string field.</param>
         /// <returns>A read-only list of <c>VERIFY:</c>-prefixed violation messages.</returns>
-        public static IReadOnlyList<string> Verify(AiApiResponse response)
+        public static IReadOnlyList<string> Verify(AiApiResponse response, int maxFieldLength = 32_768)
         {
             var violations = new List<string>();
 
@@ -70,7 +64,7 @@ namespace AIFileProcessor.Processing
                 // Structural and size checks (Gaps 2 and 3) run before Breakdown
                 // enumeration so that malformed rows are caught even when the
                 // Breakdown list is null or empty.
-                ValidateStructuralIntegrity(row, rowIndex, violations);
+                ValidateStructuralIntegrity(row, rowIndex, violations, maxFieldLength);
 
                 // INVALID line consistency: if P is "N/A", then B and R must also
                 // be "N/A" (empty breakdown, no audio reordering entries).
@@ -190,16 +184,16 @@ namespace AIFileProcessor.Processing
         /// semantic rule evaluation. These catch injection attempts that try to
         /// break the tab-delimited format or flood fields with oversized content.
         /// </summary>
-        private static void ValidateStructuralIntegrity(ProcessedSentenceRow row, int rowIndex, List<string> violations)
+        private static void ValidateStructuralIntegrity(ProcessedSentenceRow row, int rowIndex, List<string> violations, int maxFieldLength)
         {
             int lineNumber = rowIndex + 1;
 
             // Field length ceiling. Applies to C, P, E, L, Id.
-            ValidateFieldLength(row.Id, "Id", lineNumber, violations);
-            ValidateFieldLength(row.Chinese, "Chinese", lineNumber, violations);
-            ValidateFieldLength(row.Pinyin, "Pinyin", lineNumber, violations);
-            ValidateFieldLength(row.English, "English", lineNumber, violations);
-            ValidateFieldLength(row.Length, "Length", lineNumber, violations);
+            ValidateFieldLength(row.Id, "Id", lineNumber, violations, maxFieldLength);
+            ValidateFieldLength(row.Chinese, "Chinese", lineNumber, violations, maxFieldLength);
+            ValidateFieldLength(row.Pinyin, "Pinyin", lineNumber, violations, maxFieldLength);
+            ValidateFieldLength(row.English, "English", lineNumber, violations, maxFieldLength);
+            ValidateFieldLength(row.Length, "Length", lineNumber, violations, maxFieldLength);
 
             // Tab-delimited structural integrity. The pipe delimiter '|' must
             // never appear inside a tab-delimited column, and tabs/newlines are
@@ -232,12 +226,12 @@ namespace AIFileProcessor.Processing
                     BreakdownEntry entry = row.Breakdown[i];
                     int segIndex = i + 1;
 
-                    ValidateFieldLength(entry.Chinese, $"segment {segIndex} Chinese", lineNumber, violations);
-                    ValidateFieldLength(entry.Pinyin, $"segment {segIndex} Pinyin", lineNumber, violations);
-                    ValidateFieldLength(entry.Gloss, $"segment {segIndex} Gloss", lineNumber, violations);
-                    ValidateFieldLength(entry.PartOfSpeech, $"segment {segIndex} PartOfSpeech", lineNumber, violations);
-                    ValidateFieldLength(entry.HskLevel, $"segment {segIndex} HskLevel", lineNumber, violations);
-                    ValidateFieldLength(entry.Note, $"segment {segIndex} Note", lineNumber, violations);
+                    ValidateFieldLength(entry.Chinese, $"segment {segIndex} Chinese", lineNumber, violations, maxFieldLength);
+                    ValidateFieldLength(entry.Pinyin, $"segment {segIndex} Pinyin", lineNumber, violations, maxFieldLength);
+                    ValidateFieldLength(entry.Gloss, $"segment {segIndex} Gloss", lineNumber, violations, maxFieldLength);
+                    ValidateFieldLength(entry.PartOfSpeech, $"segment {segIndex} PartOfSpeech", lineNumber, violations, maxFieldLength);
+                    ValidateFieldLength(entry.HskLevel, $"segment {segIndex} HskLevel", lineNumber, violations, maxFieldLength);
+                    ValidateFieldLength(entry.Note, $"segment {segIndex} Note", lineNumber, violations, maxFieldLength);
 
                     // The Breakdown column is pipe-delimited; raw '||' in a field is a
                     // structural violation (the field should contain single '|' only).
@@ -261,11 +255,11 @@ namespace AIFileProcessor.Processing
         /// <summary>
         /// Checks that a single field does not exceed the maximum length ceiling.
         /// </summary>
-        private static void ValidateFieldLength(string? field, string fieldName, int lineNumber, List<string> violations)
+        private static void ValidateFieldLength(string? field, string fieldName, int lineNumber, List<string> violations, int maxFieldLength)
         {
-            if (field != null && field.Length > MaxFieldLength)
+            if (field != null && field.Length > maxFieldLength)
             {
-                violations.Add($"VERIFY: line {lineNumber} {fieldName} exceeds maximum length of {MaxFieldLength} characters ({field.Length}).");
+                violations.Add($"VERIFY: line {lineNumber} {fieldName} exceeds maximum length of {maxFieldLength} characters ({field.Length}).");
             }
         }
 

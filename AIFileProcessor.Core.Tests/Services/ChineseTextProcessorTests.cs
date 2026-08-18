@@ -32,17 +32,21 @@ public class ChineseTextProcessorTests
             .Setup(s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<IAiServiceSettings>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIFileProcessor.Response.AiCallResult { Text = ValidJson });
 
-        // Configure ProcessingLimits to use zero delays so retry tests run instantly.
-        ProcessingLimits.Configure(new ProcessingSettings
-        {
-            ChunkMaxRetries = 3,
-            ChunkBaseDelaySeconds = 1,
-            ChunkMaxDelaySeconds = 1,
-            RetryJitterSeconds = 0,
-        });
+        // Configure ProcessingLimits to use minimal delays so retry tests run instantly.
+        _processingLimits = new ProcessingLimits(
+            new TestOptionsMonitor<ProcessingSettings>(new ProcessingSettings
+            {
+                ChunkMaxRetries = 3,
+                ChunkBaseDelaySeconds = 1,
+                ChunkMaxDelaySeconds = 1,
+                RetryJitterSeconds = 0,
+            }));
     }
+
+    private ProcessingLimits _processingLimits = null!;
+
     private ChineseTextProcessor CreateProcessor() =>
-        new(_loggerMock.Object, new[] { _aiServiceMock.Object });
+        new(_loggerMock.Object, new[] { _aiServiceMock.Object }, _processingLimits);
     // --- ProcessChineseTextAsync (4-param overload, providerSettings = null) -----
     [Fact]
     public async Task ProcessChineseTextAsync_WithoutSettings_NullData_ReturnsEmptyResponse()

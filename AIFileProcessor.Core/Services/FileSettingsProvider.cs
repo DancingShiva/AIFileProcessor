@@ -31,20 +31,8 @@ namespace AIFileProcessor.Services
         private const string AppFolderName = "AIFileProcessor";
         private const string SettingsFileName = "settings.json";
 
-        private static readonly JsonSerializerOptions ReadOptions = new()
-        {
-            PropertyNameCaseInsensitive = true,
-            AllowTrailingCommas = true,
-            ReadCommentHandling = JsonCommentHandling.Skip,
-            MaxDepth = ProcessingLimits.MaxJsonDepth,
-        };
-
-        private static readonly JsonSerializerOptions WriteOptions = new()
-        {
-            WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            MaxDepth = ProcessingLimits.MaxJsonDepth,
-        };
+        private readonly JsonSerializerOptions _readOptions;
+        private readonly JsonSerializerOptions _writeOptions;
 
         private readonly IConfiguration _configuration;
 
@@ -52,9 +40,26 @@ namespace AIFileProcessor.Services
         /// Initializes a new instance of the <see cref="FileSettingsProvider"/> class.
         /// </summary>
         /// <param name="configuration">The application configuration providing default settings.</param>
-        public FileSettingsProvider(IConfiguration configuration)
+        /// <param name="processingLimits">The hot-reloadable processing limits.</param>
+        public FileSettingsProvider(IConfiguration configuration, ProcessingLimits processingLimits)
         {
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(processingLimits);
+
+            _readOptions = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas = true,
+                ReadCommentHandling = JsonCommentHandling.Skip,
+                MaxDepth = processingLimits.MaxJsonDepth,
+            };
+
+            _writeOptions = new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                MaxDepth = processingLimits.MaxJsonDepth,
+            };
         }
 
         /// <inheritdoc/>
@@ -69,7 +74,7 @@ namespace AIFileProcessor.Services
             if (userOverrides != null && userOverrides["GeminiSettings"] is JsonObject geminiOverride)
             {
                 string json = geminiOverride.ToJsonString();
-                var overrideSettings = JsonSerializer.Deserialize<GeminiSettings>(json, ReadOptions);
+                var overrideSettings = JsonSerializer.Deserialize<GeminiSettings>(json, _readOptions);
                 if (overrideSettings != null)
                 {
                     // ApiKey is always from IConfiguration (machine-level); never from per-user file.
@@ -93,7 +98,7 @@ namespace AIFileProcessor.Services
             if (userOverrides != null && userOverrides["OpenAiSettings"] is JsonObject openAiOverride)
             {
                 string json = openAiOverride.ToJsonString();
-                var overrideSettings = JsonSerializer.Deserialize<OpenAiSettings>(json, ReadOptions);
+                var overrideSettings = JsonSerializer.Deserialize<OpenAiSettings>(json, _readOptions);
                 if (overrideSettings != null)
                 {
                     // ApiKey is always from IConfiguration (machine-level); never from per-user file.
@@ -117,7 +122,7 @@ namespace AIFileProcessor.Services
             if (userOverrides != null && userOverrides["DeepSeekSettings"] is JsonObject deepSeekOverride)
             {
                 string json = deepSeekOverride.ToJsonString();
-                var overrideSettings = JsonSerializer.Deserialize<DeepSeekSettings>(json, ReadOptions);
+                var overrideSettings = JsonSerializer.Deserialize<DeepSeekSettings>(json, _readOptions);
                 if (overrideSettings != null)
                 {
                     // ApiKey is always from IConfiguration (machine-level); never from per-user file.
@@ -168,7 +173,7 @@ namespace AIFileProcessor.Services
             if (userOverrides != null && userOverrides["ProcessingOptions"] is JsonObject optionsNode)
             {
                 string json = optionsNode.ToJsonString();
-                var options = JsonSerializer.Deserialize<ProcessingOptions>(json, ReadOptions);
+                var options = JsonSerializer.Deserialize<ProcessingOptions>(json, _readOptions);
                 if (options != null)
                 {
                     return Task.FromResult(options);
@@ -238,7 +243,7 @@ namespace AIFileProcessor.Services
                     if (legacyRoot != null && legacyRoot["GeminiSettings"] is JsonObject legacyOverride)
                     {
                         string legacyJson = legacyOverride.ToJsonString();
-                        var legacySettings = JsonSerializer.Deserialize<GeminiSettings>(legacyJson, ReadOptions);
+                        var legacySettings = JsonSerializer.Deserialize<GeminiSettings>(legacyJson, _readOptions);
                         if (legacySettings != null)
                         {
                             legacySettings.CopyOnto(migrated);
@@ -278,7 +283,7 @@ namespace AIFileProcessor.Services
                 && geminiModels[modelId] is JsonObject userModelOverride)
             {
                 string json = userModelOverride.ToJsonString();
-                var overrideSettings = JsonSerializer.Deserialize<GeminiModelSettings>(json, ReadOptions);
+                var overrideSettings = JsonSerializer.Deserialize<GeminiModelSettings>(json, _readOptions);
                 if (overrideSettings != null)
                 {
                     overrideSettings.CopyOnto(modelSettings);
@@ -340,7 +345,7 @@ namespace AIFileProcessor.Services
                     if (legacyRoot != null && legacyRoot["OpenAiSettings"] is JsonObject legacyOverride)
                     {
                         string legacyJson = legacyOverride.ToJsonString();
-                        var legacySettings = JsonSerializer.Deserialize<OpenAiSettings>(legacyJson, ReadOptions);
+                        var legacySettings = JsonSerializer.Deserialize<OpenAiSettings>(legacyJson, _readOptions);
                         if (legacySettings != null)
                         {
                             legacySettings.CopyOnto(migrated);
@@ -370,7 +375,7 @@ namespace AIFileProcessor.Services
                 && openAiModels[modelId] is JsonObject userModelOverride)
             {
                 string json = userModelOverride.ToJsonString();
-                var overrideSettings = JsonSerializer.Deserialize<OpenAiModelSettings>(json, ReadOptions);
+                var overrideSettings = JsonSerializer.Deserialize<OpenAiModelSettings>(json, _readOptions);
                 if (overrideSettings != null)
                 {
                     overrideSettings.CopyOnto(modelSettings);
@@ -432,7 +437,7 @@ namespace AIFileProcessor.Services
                     if (legacyRoot != null && legacyRoot["DeepSeekSettings"] is JsonObject legacyOverride)
                     {
                         string legacyJson = legacyOverride.ToJsonString();
-                        var legacySettings = JsonSerializer.Deserialize<DeepSeekSettings>(legacyJson, ReadOptions);
+                        var legacySettings = JsonSerializer.Deserialize<DeepSeekSettings>(legacyJson, _readOptions);
                         if (legacySettings != null)
                         {
                             legacySettings.CopyOnto(migrated);
@@ -462,7 +467,7 @@ namespace AIFileProcessor.Services
                 && deepSeekModels[modelId] is JsonObject userModelOverride)
             {
                 string json = userModelOverride.ToJsonString();
-                var overrideSettings = JsonSerializer.Deserialize<DeepSeekModelSettings>(json, ReadOptions);
+                var overrideSettings = JsonSerializer.Deserialize<DeepSeekModelSettings>(json, _readOptions);
                 if (overrideSettings != null)
                 {
                     overrideSettings.CopyOnto(modelSettings);
@@ -661,7 +666,7 @@ namespace AIFileProcessor.Services
         /// <param name="userId">The user identifier.</param>
         /// <param name="sectionName">The JSON section name (e.g., "GeminiSettings").</param>
         /// <param name="settings">The settings instance to save.</param>
-        private static void SaveSection<T>(string userId, string sectionName, T settings)
+        private void SaveSection<T>(string userId, string sectionName, T settings)
             where T : class
         {
             WithUserFileLock(userId, () =>
@@ -676,14 +681,14 @@ namespace AIFileProcessor.Services
 
                 JsonObject? rootNode = ReadUserOverridesInternal(userId) ?? new JsonObject();
 
-                string sectionJson = JsonSerializer.Serialize(settings, WriteOptions);
+                string sectionJson = JsonSerializer.Serialize(settings, _writeOptions);
                 var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
 
                 // ApiKey is [JsonIgnore] on the settings models, so it is never
                 // present in the serialized JSON — no manual stripping needed.
                 rootNode[sectionName] = sectionNode;
 
-                File.WriteAllText(filePath, rootNode.ToJsonString(WriteOptions));
+                File.WriteAllText(filePath, rootNode.ToJsonString(_writeOptions));
             });
         }
 
@@ -746,7 +751,7 @@ namespace AIFileProcessor.Services
                         return; // malformed legacy data: skip migration rather than corrupt the file
                     }
 
-                    string sectionJson = JsonSerializer.Serialize(modelSettings, WriteOptions);
+                    string sectionJson = JsonSerializer.Serialize(modelSettings, _writeOptions);
                     var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
                     modelsSection[modelId] = sectionNode;
 
@@ -757,7 +762,7 @@ namespace AIFileProcessor.Services
                         Directory.CreateDirectory(directory);
                     }
 
-                    File.WriteAllText(filePath, root.ToJsonString(WriteOptions));
+                    File.WriteAllText(filePath, root.ToJsonString(_writeOptions));
                 }
             });
         }
@@ -781,12 +786,12 @@ namespace AIFileProcessor.Services
                 rootNode[modelsSectionName] ??= new JsonObject();
                 if (rootNode[modelsSectionName] is JsonObject modelsSection)
                 {
-                    string sectionJson = JsonSerializer.Serialize(settings, WriteOptions);
+                    string sectionJson = JsonSerializer.Serialize(settings, _writeOptions);
                     var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
                     modelsSection[modelId] = sectionNode;
                 }
 
-                File.WriteAllText(filePath, rootNode.ToJsonString(WriteOptions));
+                File.WriteAllText(filePath, rootNode.ToJsonString(_writeOptions));
             });
         }
     }

@@ -81,3 +81,4 @@ AIFileProcessor supports two deployment scenarios today, with a third planned:
 - **Data-driven tests**: Prefer `[Theory]` + `[MemberData]` for complex object test data; `[InlineData]` for simple constants.
 - **Copyright header**: `Midnight Mission Systems` copyright on all source files.
 - **Validate after edit**: After editing any structured file (JSON, XML, YAML, `.csproj`, `.editorconfig`), validate it in its native format before moving on. For JSON, run `Get-Content 'file.json' -Raw | ConvertFrom-Json | Out-Null` in PowerShell. For C#, run `dotnet build`. Never assume an edit is correct without validating it.
+- **Clean before build**: Always run `dotnet clean` before `dotnet build` when verifying changes. This ensures a full rebuild from scratch with no stale artifacts. Do not use `--no-incremental` as a substitute for `dotnet clean`.
