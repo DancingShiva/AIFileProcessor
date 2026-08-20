@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using AIFileProcessor.Configuration;
 using AIFileProcessor.Interfaces;
 using AIFileProcessor.Models;
+using AIFileProcessor.Exceptions;
 using AIFileProcessor.Processing;
 using AIFileProcessor.Response;
 using AIFileProcessor.Services;
@@ -93,7 +94,7 @@ public class PipelineFlowTests
                 It.IsAny<IDictionary<string, IAiServiceSettings>>(), It.IsAny<ChunkingOptions>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(response);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await Assert.ThrowsAsync<InjectionAftermathException>(async () =>
             await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken));
     }
 
@@ -113,7 +114,7 @@ public class PipelineFlowTests
                 It.IsAny<IDictionary<string, IAiServiceSettings>>(), It.IsAny<ChunkingOptions>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(response);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await Assert.ThrowsAsync<InjectionAftermathException>(async () =>
             await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken));
     }
 
@@ -296,6 +297,6 @@ public class PipelineFlowTests
         Mock<IAiService>? aiService = null)
     {
         var aiServices = aiService != null ? new[] { aiService.Object } : System.Array.Empty<IAiService>();
-        return new ProcessingOrchestrator(factory, settings.Object, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices);
+        return new ProcessingOrchestrator(factory, settings.Object, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices, new ProcessingLimits(new TestOptionsMonitor<ProcessingSettings>(new ProcessingSettings())));
     }
 }

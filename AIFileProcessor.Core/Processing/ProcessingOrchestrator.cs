@@ -11,6 +11,7 @@ namespace AIFileProcessor.Processing
     using System.Threading;
     using System.Threading.Tasks;
     using AIFileProcessor.Configuration;
+    using AIFileProcessor.Exceptions;
     using AIFileProcessor.Extensions;
     using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
@@ -31,6 +32,7 @@ namespace AIFileProcessor.Processing
         private readonly IUserContext _userContext;
         private readonly ILogger<ProcessingOrchestrator> _logger;
         private readonly IEnumerable<IAiService> _aiServices;
+        private readonly ProcessingLimits _processingLimits;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ProcessingOrchestrator"/> class.
@@ -40,24 +42,28 @@ namespace AIFileProcessor.Processing
         /// <param name="userContext">The current user context for per-user settings resolution.</param>
         /// <param name="logger">The logger instance for diagnostic messages.</param>
         /// <param name="aiServices">All registered AI services, used to determine which provider supports the requested model.</param>
+        /// <param name="processingLimits">The hot-reloadable processing limits.</param>
         public ProcessingOrchestrator(
             Func<IChineseTextProcessor> chineseTextProcessorFactory,
             ISettingsProvider settingsProvider,
             IUserContext userContext,
             ILogger<ProcessingOrchestrator> logger,
-            IEnumerable<IAiService> aiServices)
+            IEnumerable<IAiService> aiServices,
+            ProcessingLimits processingLimits)
         {
             ArgumentNullException.ThrowIfNull(chineseTextProcessorFactory);
             ArgumentNullException.ThrowIfNull(settingsProvider);
             ArgumentNullException.ThrowIfNull(userContext);
             ArgumentNullException.ThrowIfNull(logger);
             ArgumentNullException.ThrowIfNull(aiServices);
+            ArgumentNullException.ThrowIfNull(processingLimits);
 
             _chineseTextProcessorFactory = chineseTextProcessorFactory;
             _settingsProvider = settingsProvider;
             _userContext = userContext;
             _logger = logger;
             _aiServices = aiServices;
+            _processingLimits = processingLimits;
         }
 
         /// <summary>
@@ -211,7 +217,7 @@ namespace AIFileProcessor.Processing
 
             // Always-on deterministic verification (no API cost). Findings are
             // appended to Corrections alongside the model-reported corrections.
-            IReadOnlyList<string> violations = ResponseVerifier.Verify(results);
+            IReadOnlyList<string> violations = ResponseVerifier.Verify(results, _processingLimits.MaxOutputFieldSize);
             foreach (string finding in violations)
             {
                 results.Corrections ??= [];
@@ -226,7 +232,7 @@ namespace AIFileProcessor.Processing
             {
                 ResponseVerifier.AbortOnInjectionViolations(violations);
             }
-            catch (InvalidOperationException ex)
+            catch (InjectionAftermathException ex)
             {
                 // Sanitize so the Corrections log carries the full details before
                 // the run is torn down.

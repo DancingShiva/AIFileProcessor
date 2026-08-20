@@ -11,6 +11,7 @@ namespace AIFileProcessor.Services
     using System.Net.Http;
     using System.Threading;
     using System.Threading.Tasks;
+    using AIFileProcessor.Exceptions;
     using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
     using AIFileProcessor.Response;
@@ -215,7 +216,7 @@ namespace AIFileProcessor.Services
 
             if (string.IsNullOrWhiteSpace(apiKey))
             {
-                throw new InvalidOperationException($"{ProviderName} API key is not configured.");
+                throw new ApiKeyNotConfiguredException(ProviderName);
             }
         }
     }

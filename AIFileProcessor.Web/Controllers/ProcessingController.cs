@@ -8,6 +8,7 @@ namespace AIFileProcessor.Web.Controllers
     using System;
     using System.Threading;
     using System.Threading.Tasks;
+    using AIFileProcessor.Exceptions;
     using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
     using AIFileProcessor.Processing;
@@ -147,13 +148,17 @@ namespace AIFileProcessor.Web.Controllers
                 _logger.LogInformation("Processing was cancelled.");
                 return StatusCode(StatusCodes.Status499ClientClosedRequest, "Processing cancelled.");
             }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("API key is not configured", StringComparison.OrdinalIgnoreCase))
+            catch (ApiKeyNotConfiguredException ex)
             {
                 _logger.LogWarning("API key missing for model {ModelId}.", request.ModelId);
                 return BadRequest(ex.Message);
             }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("injection", StringComparison.OrdinalIgnoreCase)
-                && ex.Message.Contains("aborted", StringComparison.OrdinalIgnoreCase))
+            catch (PromptInjectionDetectedException ex)
+            {
+                _logger.LogWarning("Prompt injection detected in input for model {ModelId}.", request.ModelId);
+                return BadRequest(ex.Message);
+            }
+            catch (InjectionAftermathException ex)
             {
                 string errorId = Guid.NewGuid().ToString("N")[..8];
                 _logger.LogWarning(ex, "Processing aborted for model {ModelId} due to prompt-injection detection. Error ID: {ErrorId}", request.ModelId, errorId);

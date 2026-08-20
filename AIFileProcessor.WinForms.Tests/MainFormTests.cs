@@ -54,7 +54,8 @@ public class MainFormTests
             _settingsProviderMock.Object,
             _userContextMock.Object,
             new Mock<ILogger<ProcessingOrchestrator>>().Object,
-            _aiServices)
+            _aiServices,
+            new ProcessingLimits(new TestOptionsMonitor<ProcessingSettings>(new ProcessingSettings())))
         { CallBase = true };
     }
 

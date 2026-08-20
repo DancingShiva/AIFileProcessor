@@ -112,7 +112,7 @@ public class ChineseTextProcessorMetricsTests
         var aiServices = new Mock<IAiService>();
         aiServices.Setup(s => s.SupportsModel(It.IsAny<string>())).Returns(true);
         Func<IChineseTextProcessor> factory = () => chineseProcessorMock.Object;
-        var orchestrator = new AIFileProcessor.Processing.ProcessingOrchestrator(factory, settingsMock.Object, userCtxMock.Object, new Mock<ILogger<AIFileProcessor.Processing.ProcessingOrchestrator>>().Object, new[] { aiServices.Object });
+        var orchestrator = new AIFileProcessor.Processing.ProcessingOrchestrator(factory, settingsMock.Object, userCtxMock.Object, new Mock<ILogger<AIFileProcessor.Processing.ProcessingOrchestrator>>().Object, new[] { aiServices.Object }, new ProcessingLimits(new TestOptionsMonitor<ProcessingSettings>(new ProcessingSettings())));
         var options = new AIFileProcessor.Models.ProcessingOptions
         {
             ModelId = modelId,

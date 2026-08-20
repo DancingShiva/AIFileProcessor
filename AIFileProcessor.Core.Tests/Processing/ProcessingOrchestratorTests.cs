@@ -1,4 +1,4 @@
-﻿namespace AIFileProcessor.Core.Tests.Processing;
+namespace AIFileProcessor.Core.Tests.Processing;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 using AIFileProcessor.Configuration;
 using AIFileProcessor.Interfaces;
 using AIFileProcessor.Models;
+using AIFileProcessor.Exceptions;
 using AIFileProcessor.Processing;
 using AIFileProcessor.Response;
+using AIFileProcessor.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -65,7 +67,7 @@ public class ProcessingOrchestratorTests
         Mock<IAiService>? aiService = null)
     {
         var aiServices = aiService != null ? new[] { aiService.Object } : Array.Empty<IAiService>();
-        return new ProcessingOrchestrator(factory, settings.Object, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices);
+        return new ProcessingOrchestrator(factory, settings.Object, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices, new ProcessingLimits(new TestOptionsMonitor<ProcessingSettings>(new ProcessingSettings())));
     }
     // ---- Constructor tests ----
     [Fact]
@@ -74,7 +76,7 @@ public class ProcessingOrchestratorTests
         var (settings, userCtx, _, _, aiService) = CreateMocks();
         var aiServices = new[] { aiService.Object };
         Assert.Throws<ArgumentNullException>(() =>
-            new ProcessingOrchestrator(null!, settings.Object, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices));
+            new ProcessingOrchestrator(null!, settings.Object, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices, new ProcessingLimits(new TestOptionsMonitor<ProcessingSettings>(new ProcessingSettings()))));
     }
     [Fact]
     public void Constructor_NullSettingsProvider_ThrowsArgumentNullException()
@@ -82,7 +84,7 @@ public class ProcessingOrchestratorTests
         var (_, userCtx, _, factory, aiService) = CreateMocks();
         var aiServices = new[] { aiService.Object };
         Assert.Throws<ArgumentNullException>(() =>
-            new ProcessingOrchestrator(factory, null!, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices));
+            new ProcessingOrchestrator(factory, null!, userCtx.Object, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices, new ProcessingLimits(new TestOptionsMonitor<ProcessingSettings>(new ProcessingSettings()))));
     }
     [Fact]
     public void Constructor_NullUserContext_ThrowsArgumentNullException()
@@ -90,7 +92,7 @@ public class ProcessingOrchestratorTests
         var (settings, _, _, factory, aiService) = CreateMocks();
         var aiServices = new[] { aiService.Object };
         Assert.Throws<ArgumentNullException>(() =>
-            new ProcessingOrchestrator(factory, settings.Object, null!, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices));
+            new ProcessingOrchestrator(factory, settings.Object, null!, new Mock<ILogger<ProcessingOrchestrator>>().Object, aiServices, new ProcessingLimits(new TestOptionsMonitor<ProcessingSettings>(new ProcessingSettings()))));
     }
     [Fact]
     public void Constructor_AllArgumentsValid_CreatesInstance()
@@ -105,7 +107,7 @@ public class ProcessingOrchestratorTests
         var (settings, userCtx, _, factory, aiService) = CreateMocks();
         var aiServices = new[] { aiService.Object };
         Assert.Throws<ArgumentNullException>(() =>
-            new ProcessingOrchestrator(factory, settings.Object, userCtx.Object, null!, aiServices));
+            new ProcessingOrchestrator(factory, settings.Object, userCtx.Object, null!, aiServices, new ProcessingLimits(new TestOptionsMonitor<ProcessingSettings>(new ProcessingSettings()))));
     }
     // ---- ProcessAsync tests ----
     [Fact]
@@ -391,7 +393,7 @@ public class ProcessingOrchestratorTests
     }
     // ---- Injection abort tests ----
     [Fact]
-    public async Task ProcessAsync_InjectionViolation_ThrowsInvalidOperationException()
+    public async Task ProcessAsync_InjectionViolation_ThrowsInjectionAftermathException()
     {
         var (settings, userCtx, processor, factory, aiService) = CreateMocks();
         var orchestrator = CreateOrchestrator(settings, userCtx, factory, aiService);
@@ -418,7 +420,7 @@ public class ProcessingOrchestratorTests
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<IDictionary<string, IAiServiceSettings>>(), It.IsAny<ChunkingOptions>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(response);
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await Assert.ThrowsAsync<InjectionAftermathException>(async () =>
             await orchestrator.ProcessAsync(options, TestContext.Current.CancellationToken));
     }
     [Fact]

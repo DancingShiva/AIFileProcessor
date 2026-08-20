@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AIFileProcessor.Configuration;
 using AIFileProcessor.Models;
+using AIFileProcessor.Exceptions;
 using AIFileProcessor.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -139,13 +140,13 @@ public class OpenAiServiceTests
     }
     // ─── ProcessTextAsync (4-param overload) ──────────────────────────
     [Fact]
-    public async Task ProcessTextAsync_FourParam_WithEmptyApiKey_ThrowsInvalidOperationException()
+    public async Task ProcessTextAsync_FourParam_WithEmptyApiKey_ThrowsApiKeyNotConfiguredException()
     {
         var emptyKeySettings = new OpenAiSettings { ApiKey = string.Empty };
         var emptyOptionsMock = new Mock<IOptionsMonitor<OpenAiSettings>>();
         emptyOptionsMock.Setup(o => o.CurrentValue).Returns(emptyKeySettings);
         var service = new OpenAiService(_loggerMock.Object, emptyOptionsMock.Object, _httpClient);
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<ApiKeyNotConfiguredException>(
             () => service.ProcessTextAsync("gpt-5.5", "prompt", "data", CancellationToken.None));
     }
     [Fact]
@@ -185,11 +186,11 @@ public class OpenAiServiceTests
             () => service.ProcessTextAsync("gpt-5.5", "prompt", "data", new GeminiSettings(), CancellationToken.None));
     }
     [Fact]
-    public async Task ProcessTextAsync_FiveParam_WithEmptyApiKey_ThrowsInvalidOperationException()
+    public async Task ProcessTextAsync_FiveParam_WithEmptyApiKey_ThrowsApiKeyNotConfiguredException()
     {
         var emptyKeySettings = new OpenAiSettings { ApiKey = string.Empty };
         var service = new OpenAiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<ApiKeyNotConfiguredException>(
             () => service.ProcessTextAsync("gpt-5.5", "prompt", "data", emptyKeySettings, CancellationToken.None));
     }
     [Fact]

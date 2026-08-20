@@ -8,6 +8,7 @@ namespace AIFileProcessor.Services
     using System;
     using System.Collections.Generic;
     using System.Security.Cryptography;
+    using AIFileProcessor.Exceptions;
 
     /// <summary>
     /// Scans user-supplied data for common prompt-injection patterns before it is
@@ -110,9 +111,7 @@ namespace AIFileProcessor.Services
             {
                 if (lower.Contains(pattern, StringComparison.Ordinal))
                 {
-                    throw new InvalidOperationException(
-                        $"Input rejected: potential prompt injection detected (pattern: '{pattern}'). " +
-                        "The data contains text that matches a known prompt-injection pattern and will not be sent to the AI model.");
+                    throw new PromptInjectionDetectedException(pattern);
                 }
             }
         }

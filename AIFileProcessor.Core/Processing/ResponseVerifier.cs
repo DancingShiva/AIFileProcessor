@@ -7,6 +7,7 @@ namespace AIFileProcessor.Processing
 {
     using System;
     using System.Collections.Generic;
+    using AIFileProcessor.Exceptions;
     using AIFileProcessor.Response;
     using AIFileProcessor.Services;
 
@@ -127,9 +128,7 @@ namespace AIFileProcessor.Processing
 
             if (hasInjection)
             {
-                throw new InvalidOperationException(
-                    "Processing aborted: prompt-injection aftermath detected in AI response. " +
-                    "One or more output fields contained injection patterns or data-delimiter tags.");
+                throw new InjectionAftermathException(violations);
             }
         }
 

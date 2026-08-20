@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AIFileProcessor.Configuration;
 using AIFileProcessor.Models;
+using AIFileProcessor.Exceptions;
 using AIFileProcessor.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -164,13 +165,13 @@ public class DeepSeekServiceTests
     }
     // ─── ProcessTextAsync (4-param overload) ──────────────────────────
     [Fact]
-    public async Task ProcessTextAsync_FourParam_WithEmptyApiKey_ThrowsInvalidOperationException()
+    public async Task ProcessTextAsync_FourParam_WithEmptyApiKey_ThrowsApiKeyNotConfiguredException()
     {
         var emptyKeySettings = new DeepSeekSettings { ApiKey = string.Empty };
         var emptyOptionsMock = new Mock<IOptionsMonitor<DeepSeekSettings>>();
         emptyOptionsMock.Setup(o => o.CurrentValue).Returns(emptyKeySettings);
         var service = new DeepSeekService(_loggerMock.Object, emptyOptionsMock.Object, _httpClient);
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<ApiKeyNotConfiguredException>(
             () => service.ProcessTextAsync("deepseek-v4-flash", "prompt", "data", CancellationToken.None));
     }
     [Fact]
@@ -210,11 +211,11 @@ public class DeepSeekServiceTests
             () => service.ProcessTextAsync("deepseek-v4-flash", "prompt", "data", new GeminiSettings(), CancellationToken.None));
     }
     [Fact]
-    public async Task ProcessTextAsync_FiveParam_WithEmptyApiKey_ThrowsInvalidOperationException()
+    public async Task ProcessTextAsync_FiveParam_WithEmptyApiKey_ThrowsApiKeyNotConfiguredException()
     {
         var emptyKeySettings = new DeepSeekSettings { ApiKey = string.Empty };
         var service = new DeepSeekService(_loggerMock.Object, _optionsMock.Object, _httpClient);
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<ApiKeyNotConfiguredException>(
             () => service.ProcessTextAsync("deepseek-v4-flash", "prompt", "data", emptyKeySettings, CancellationToken.None));
     }
     [Fact]

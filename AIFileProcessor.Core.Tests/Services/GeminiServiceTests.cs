@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AIFileProcessor.Configuration;
 using AIFileProcessor.Models;
+using AIFileProcessor.Exceptions;
 using AIFileProcessor.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -159,13 +160,13 @@ public class GeminiServiceTests
     }
     // ─── ProcessTextAsync (4-param overload with CancellationToken) ───
     [Fact]
-    public async Task ProcessTextAsync_FourParam_WithEmptyApiKey_ThrowsInvalidOperationException()
+    public async Task ProcessTextAsync_FourParam_WithEmptyApiKey_ThrowsApiKeyNotConfiguredException()
     {
         var emptyKeySettings = new GeminiSettings { ApiKey = string.Empty };
         var emptyOptionsMock = new Mock<IOptionsMonitor<GeminiSettings>>();
         emptyOptionsMock.Setup(o => o.CurrentValue).Returns(emptyKeySettings);
         var service = new GeminiService(_loggerMock.Object, emptyOptionsMock.Object, _httpClient);
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<ApiKeyNotConfiguredException>(
             () => service.ProcessTextAsync("gemini-3-flash", "prompt", "data", CancellationToken.None));
     }
     [Fact]
@@ -205,11 +206,11 @@ public class GeminiServiceTests
             () => service.ProcessTextAsync("gemini-3-flash", "prompt", "data", new OpenAiSettings(), CancellationToken.None));
     }
     [Fact]
-    public async Task ProcessTextAsync_FiveParam_WithEmptyApiKey_ThrowsInvalidOperationException()
+    public async Task ProcessTextAsync_FiveParam_WithEmptyApiKey_ThrowsApiKeyNotConfiguredException()
     {
         var emptyKeySettings = new GeminiSettings { ApiKey = string.Empty };
         var service = new GeminiService(_loggerMock.Object, _optionsMock.Object, _httpClient);
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<ApiKeyNotConfiguredException>(
             () => service.ProcessTextAsync("gemini-3-flash", "prompt", "data", emptyKeySettings, CancellationToken.None));
     }
     [Fact]

@@ -6,6 +6,7 @@
 namespace AIFileProcessor.Core.Tests.Processing;
 
 using System.Collections.Generic;
+using AIFileProcessor.Exceptions;
 using AIFileProcessor.Processing;
 using AIFileProcessor.Response;
 using Xunit;
@@ -686,14 +687,14 @@ public class ResponseVerifierTests
     // ─── Abort on injection violations ─────────────────────────────────────
 
     [Fact]
-    public void AbortOnInjectionViolations_WithInjectionViolations_ThrowsInvalidOperationException()
+    public void AbortOnInjectionViolations_WithInjectionViolations_ThrowsInjectionAftermathException()
     {
         var violations = new List<string>
         {
             "VERIFY: line 1 INJECTION: Chinese field contains injection pattern 'ignore previous instructions'.",
         };
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InjectionAftermathException>(() =>
             ResponseVerifier.AbortOnInjectionViolations(violations));
     }
 
@@ -718,7 +719,7 @@ public class ResponseVerifierTests
             "VERIFY: line 1 INJECTION: DATA_BEGIN tag leaked into Chinese field.",
         };
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InjectionAftermathException>(() =>
             ResponseVerifier.AbortOnInjectionViolations(violations));
     }
 }
