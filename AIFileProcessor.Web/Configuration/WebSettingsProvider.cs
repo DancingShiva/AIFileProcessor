@@ -23,21 +23,10 @@ namespace AIFileProcessor.Web.Configuration
     /// supplied via the request body.
     /// Defaults are read from <see cref="IConfiguration"/> (appsettings.json).
     /// </summary>
-    public class WebSettingsProvider : ISettingsProvider
+    public class WebSettingsProvider(IConfiguration configuration, IHttpContextAccessor httpContextAccessor) : ISettingsProvider
     {
-        private readonly IConfiguration _configuration;
-        private readonly IHttpContextAccessor _httpContextAccessor;
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="WebSettingsProvider"/> class.
-        /// </summary>
-        /// <param name="configuration">The application configuration providing default settings.</param>
-        /// <param name="httpContextAccessor">The HTTP context accessor for obtaining per-request data.</param>
-        public WebSettingsProvider(IConfiguration configuration, IHttpContextAccessor httpContextAccessor)
-        {
-            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-            _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
-        }
+        private readonly IConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
 
         /// <inheritdoc/>
         public Task<GeminiSettings> GetGeminiSettingsAsync(string userId, CancellationToken ct = default)
@@ -70,6 +59,16 @@ namespace AIFileProcessor.Web.Configuration
         }
 
         /// <inheritdoc/>
+        public Task<OllamaSettings> GetOllamaSettingsAsync(string userId, CancellationToken ct = default)
+        {
+            var settings = new OllamaSettings();
+            _configuration.GetSection("OllamaSettings").Bind(settings);
+
+            ApplyRequestOverrides(settings);
+            return Task.FromResult(settings);
+        }
+
+        /// <inheritdoc/>
         public Task SaveGeminiSettingsAsync(string userId, GeminiSettings settings, CancellationToken ct = default)
         {
             // Web mode: settings are client-side (localStorage), not persisted server-side.
@@ -85,6 +84,12 @@ namespace AIFileProcessor.Web.Configuration
 
         /// <inheritdoc/>
         public Task SaveDeepSeekSettingsAsync(string userId, DeepSeekSettings settings, CancellationToken ct = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public Task SaveOllamaSettingsAsync(string userId, OllamaSettings settings, CancellationToken ct = default)
         {
             return Task.CompletedTask;
         }
@@ -177,6 +182,31 @@ namespace AIFileProcessor.Web.Configuration
         }
 
         /// <inheritdoc/>
+        public async Task<OllamaModelSettings> GetOllamaModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        {
+            var modelSettings = new OllamaModelSettings();
+            var caps = await GetProcessingSettingsAsync(ct).ConfigureAwait(false);
+
+            _configuration.GetSection("OllamaSettings").Bind(modelSettings);
+            string modelSection = $"OllamaModels:{modelId}";
+            if (_configuration.GetSection(modelSection).Exists())
+            {
+                _configuration.GetSection(modelSection).Bind(modelSettings);
+            }
+
+            modelSettings.ChunkSize = Math.Max(1, Math.Min(modelSettings.ChunkSize ?? caps.ChunkSizeDefault, caps.ChunkSizeCap));
+            modelSettings.MaxConcurrentChunks = Math.Max(1, Math.Min(modelSettings.MaxConcurrentChunks ?? caps.MaxConcurrentChunksDefault, caps.MaxConcurrentChunksCap));
+
+            HttpContext? ctx = _httpContextAccessor.HttpContext;
+            if (ctx != null && ctx.Items.TryGetValue("OllamaPreferences", out var prefsObj) && prefsObj is OllamaSettings prefs)
+            {
+                prefs.CopyOnto(modelSettings);
+            }
+
+            return modelSettings;
+        }
+
+        /// <inheritdoc/>
         public Task SaveGeminiModelSettingsAsync(string modelId, string userId, GeminiModelSettings settings, CancellationToken ct = default)
         {
             return Task.CompletedTask;
@@ -190,6 +220,12 @@ namespace AIFileProcessor.Web.Configuration
 
         /// <inheritdoc/>
         public Task SaveDeepSeekModelSettingsAsync(string modelId, string userId, DeepSeekModelSettings settings, CancellationToken ct = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public Task SaveOllamaModelSettingsAsync(string modelId, string userId, OllamaModelSettings settings, CancellationToken ct = default)
         {
             return Task.CompletedTask;
         }
@@ -252,6 +288,24 @@ namespace AIFileProcessor.Web.Configuration
             }
 
             if (ctx.Items.TryGetValue("DeepSeekPreferences", out var prefsObj) && prefsObj is DeepSeekSettings prefs)
+            {
+                prefs.CopyOnto(settings);
+            }
+        }
+
+        /// <summary>
+        /// Overrides settings with non-secret preferences from the current HTTP request.
+        /// </summary>
+        /// <param name="settings">The Ollama settings to apply request overrides to.</param>
+        private void ApplyRequestOverrides(OllamaSettings settings)
+        {
+            HttpContext? ctx = _httpContextAccessor.HttpContext;
+            if (ctx == null)
+            {
+                return;
+            }
+
+            if (ctx.Items.TryGetValue("OllamaPreferences", out var prefsObj) && prefsObj is OllamaSettings prefs)
             {
                 prefs.CopyOnto(settings);
             }

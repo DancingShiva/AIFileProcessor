@@ -26,11 +26,12 @@ namespace AIFileProcessor
         private readonly IEnumerable<IAiService> _aiServices;
         private readonly ISettingsProvider _settingsProvider;
         private readonly IUserContext _userContext;
-        private Dictionary<string, ReasoningLevel> _modelReasoningLevels = new();
-        private Dictionary<string, int> _modelMaxTokens = new();
-        private Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> _geminiModelChunking = new();
-        private Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> _openAiModelChunking = new();
-        private Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> _deepSeekModelChunking = new();
+        private Dictionary<string, ReasoningLevel> _modelReasoningLevels = [];
+        private Dictionary<string, int> _modelMaxTokens = [];
+        private Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> _geminiModelChunking = [];
+        private Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> _openAiModelChunking = [];
+        private Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> _deepSeekModelChunking = [];
+        private Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> _ollamaModelChunking = [];
         private ProcessingSettings _processingSettings = new();
 
         public SettingsForm(
@@ -69,13 +70,20 @@ namespace AIFileProcessor
                 UpdateDeepSeekMaxTokensValue();
                 UpdateDeepSeekChunkingValue();
             };
+            this.ddlOllamaModel.SelectedIndexChanged += (s, e) =>
+            {
+                UpdateOllamaMaxTokensLimit();
+                UpdateOllamaReasoningLevels();
+                UpdateOllamaMaxTokensValue();
+                UpdateOllamaChunkingValue();
+            };
         }
 
         private static void FillComboBox(ComboBox comboBox, List<AiModelInfo> models)
         {
             comboBox.DisplayMember = nameof(AiModelInfo.ModelName);
             comboBox.ValueMember = nameof(AiModelInfo.ModelId);
-            comboBox.Items.AddRange(models.ToArray());
+            comboBox.Items.AddRange([.. models]);
         }
 
         private static void SelectModelByModelId(ComboBox comboBox, string? modelId)
@@ -125,6 +133,14 @@ namespace AIFileProcessor
         private static string? GetModelId(ComboBox comboBox)
         {
             return comboBox.SelectedItem is AiModelInfo model ? model.ModelId : null;
+        }
+
+        private static void SaveChunkingForModel(NumericUpDown nudChunkSize, NumericUpDown nudMaxConcurrent, Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> store, string? modelId)
+        {
+            if (!string.IsNullOrWhiteSpace(modelId))
+            {
+                store[modelId] = ((int)nudChunkSize.Value, (int)nudMaxConcurrent.Value);
+            }
         }
 
         private void SelectReasoningLevelForModel(ComboBox comboBox, string? modelId)
@@ -190,6 +206,11 @@ namespace AIFileProcessor
             UpdateMaxTokensForModel(nudDeepSeekMaxTokens, chkDeepSeekMaxTokensNull, GetModelId(ddlDeepSeekModel));
         }
 
+        private void UpdateOllamaMaxTokensValue()
+        {
+            UpdateMaxTokensForModel(nudOllamaMaxTokens, chkOllamaMaxTokensNull, GetModelId(ddlOllamaModel));
+        }
+
         private void UpdateChunkingForModel(NumericUpDown nudChunkSize, NumericUpDown nudMaxConcurrent, Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> store, string? modelId)
         {
             if (!string.IsNullOrWhiteSpace(modelId) && store.TryGetValue(modelId, out var values))
@@ -201,14 +222,6 @@ namespace AIFileProcessor
             {
                 nudChunkSize.Value = Math.Min(_processingSettings.ChunkSizeDefault, nudChunkSize.Maximum);
                 nudMaxConcurrent.Value = Math.Min(_processingSettings.MaxConcurrentChunksDefault, nudMaxConcurrent.Maximum);
-            }
-        }
-
-        private void SaveChunkingForModel(NumericUpDown nudChunkSize, NumericUpDown nudMaxConcurrent, Dictionary<string, (int ChunkSize, int MaxConcurrentChunks)> store, string? modelId)
-        {
-            if (!string.IsNullOrWhiteSpace(modelId))
-            {
-                store[modelId] = ((int)nudChunkSize.Value, (int)nudMaxConcurrent.Value);
             }
         }
 
@@ -225,6 +238,11 @@ namespace AIFileProcessor
         private void UpdateDeepSeekChunkingValue()
         {
             UpdateChunkingForModel(nudDeepSeekChunkSize, nudDeepSeekMaxConcurrentChunks, _deepSeekModelChunking, GetModelId(ddlDeepSeekModel));
+        }
+
+        private void UpdateOllamaChunkingValue()
+        {
+            UpdateChunkingForModel(nudOllamaChunkSize, nudOllamaMaxConcurrentChunks, _ollamaModelChunking, GetModelId(ddlOllamaModel));
         }
 
         private void PopulateModelDropdowns(IEnumerable<IAiService> aiServices)
@@ -249,6 +267,10 @@ namespace AIFileProcessor
                 {
                     FillComboBox(ddlDeepSeekModel, models);
                 }
+                else if (service is OllamaService)
+                {
+                    FillComboBox(ddlOllamaModel, models);
+                }
             }
         }
 
@@ -270,6 +292,12 @@ namespace AIFileProcessor
             PopulateReasoningDropdown(ddlDeepSeekReasoning, modelId, _aiServices);
         }
 
+        private void UpdateOllamaReasoningLevels()
+        {
+            var modelId = ddlOllamaModel.SelectedItem is AiModelInfo model ? model.ModelId : null;
+            PopulateReasoningDropdown(ddlOllamaReasoning, modelId, _aiServices);
+        }
+
         private void SettingsForm_Load(object sender, EventArgs e)
         {
             // Fire-and-forget: LoadSettingsAsync handles its own errors via a MessageBox.
@@ -288,6 +316,18 @@ namespace AIFileProcessor
                 nudOpenAiMaxConcurrentChunks.Maximum = Math.Max(nudOpenAiMaxConcurrentChunks.Maximum, _processingSettings.MaxConcurrentChunksCap);
                 nudDeepSeekChunkSize.Maximum = Math.Max(nudDeepSeekChunkSize.Maximum, _processingSettings.ChunkSizeCap);
                 nudDeepSeekMaxConcurrentChunks.Maximum = Math.Max(nudDeepSeekMaxConcurrentChunks.Maximum, _processingSettings.MaxConcurrentChunksCap);
+                nudOllamaChunkSize.Maximum = Math.Max(nudOllamaChunkSize.Maximum, _processingSettings.ChunkSizeCap);
+                nudOllamaMaxConcurrentChunks.Maximum = Math.Max(nudOllamaMaxConcurrentChunks.Maximum, _processingSettings.MaxConcurrentChunksCap);
+
+                // Refresh the Ollama model catalog from the live server before loading settings,
+                // so the dropdown reflects actually-installed local models plus configured cloud models.
+                var ollamaService = _aiServices.OfType<OllamaService>().FirstOrDefault();
+                if (ollamaService != null)
+                {
+                    await ollamaService.RefreshModelCatalogAsync().ConfigureAwait(true);
+                    ddlOllamaModel.Items.Clear();
+                    FillComboBox(ddlOllamaModel, [.. ollamaService.GetSupportedModels()]);
+                }
 
                 // Load per-model reasoning levels and MaxTokens from ProcessingOptions (single source of truth)
                 var processingOptions = await _settingsProvider.GetProcessingOptionsAsync(_userContext.UserId).ConfigureAwait(true);
@@ -381,6 +421,73 @@ namespace AIFileProcessor
                     _deepSeekModelChunking[deepSeekModelId] = (dm.ChunkSize ?? _processingSettings.ChunkSizeDefault, dm.MaxConcurrentChunks ?? _processingSettings.MaxConcurrentChunksDefault);
                     UpdateDeepSeekChunkingValue();
                 }
+
+                // Load Ollama Settings
+                var ollama = await _settingsProvider.GetOllamaSettingsAsync(_userContext.UserId).ConfigureAwait(true);
+                txtOllamaEndpoint.Text = ollama.Endpoint ?? string.Empty;
+                SelectModelByModelId(ddlOllamaModel, ollama.ModelName);
+                UpdateOllamaReasoningLevels();
+                SelectReasoningLevelForModel(ddlOllamaReasoning, GetModelId(ddlOllamaModel));
+                nudOllamaTimeout.Value = ollama.TimeoutSeconds;
+                nudOllamaMaxTokens.Maximum = ModelTokenLimits.GetHardMax("Ollama", GetModelId(ddlOllamaModel));
+                UpdateMaxTokensForModel(nudOllamaMaxTokens, chkOllamaMaxTokensNull, GetModelId(ddlOllamaModel));
+                nudOllamaContext.Value = ollama.ContextWindow ?? 0;
+                chkOllamaContextNull.Checked = !ollama.ContextWindow.HasValue;
+                nudOllamaTemp.Value = (decimal)(ollama.Temperature ?? 0.0);
+                chkOllamaTempNull.Checked = !ollama.Temperature.HasValue;
+                nudOllamaTopP.Value = (decimal)(ollama.TopP ?? 0.0);
+                chkOllamaTopPNull.Checked = !ollama.TopP.HasValue;
+                nudOllamaTopK.Value = ollama.TopK ?? 0;
+                chkOllamaTopKNull.Checked = !ollama.TopK.HasValue;
+                nudOllamaMinP.Value = (decimal)(ollama.MinP ?? 0.0);
+                chkOllamaMinPNull.Checked = !ollama.MinP.HasValue;
+                nudOllamaRepeatPenalty.Value = (decimal)(ollama.RepeatPenalty ?? 0.0);
+                chkOllamaRepeatPenaltyNull.Checked = !ollama.RepeatPenalty.HasValue;
+                nudOllamaRepeatLastN.Value = Math.Clamp(ollama.RepeatLastN ?? 0, (int)nudOllamaRepeatLastN.Minimum, (int)nudOllamaRepeatLastN.Maximum);
+                chkOllamaRepeatLastNNull.Checked = !ollama.RepeatLastN.HasValue;
+                nudOllamaPresencePenalty.Value = (decimal)(ollama.PresencePenalty ?? 0.0);
+                chkOllamaPresencePenaltyNull.Checked = !ollama.PresencePenalty.HasValue;
+                nudOllamaFrequencyPenalty.Value = (decimal)(ollama.FrequencyPenalty ?? 0.0);
+                chkOllamaFrequencyPenaltyNull.Checked = !ollama.FrequencyPenalty.HasValue;
+                nudOllamaSeed.Value = ollama.Seed ?? 0;
+                chkOllamaSeedNull.Checked = !ollama.Seed.HasValue;
+                txtOllamaStop.Text = ollama.Stop != null ? string.Join(", ", ollama.Stop) : string.Empty;
+                nudOllamaTypicalP.Value = (decimal)(ollama.TypicalP ?? 0.0);
+                chkOllamaTypicalPNull.Checked = !ollama.TypicalP.HasValue;
+                nudOllamaTfsZ.Value = (decimal)(ollama.TfsZ ?? 0.0);
+                chkOllamaTfsZNull.Checked = !ollama.TfsZ.HasValue;
+                nudOllamaMiroStat.Value = Math.Clamp(ollama.MiroStat ?? 0, (int)nudOllamaMiroStat.Minimum, (int)nudOllamaMiroStat.Maximum);
+                chkOllamaMiroStatNull.Checked = !ollama.MiroStat.HasValue;
+                nudOllamaMiroStatTau.Value = (decimal)(ollama.MiroStatTau ?? 0.0);
+                chkOllamaMiroStatTauNull.Checked = !ollama.MiroStatTau.HasValue;
+                nudOllamaMiroStatEta.Value = (decimal)(ollama.MiroStatEta ?? 0.0);
+                chkOllamaMiroStatEtaNull.Checked = !ollama.MiroStatEta.HasValue;
+                nudOllamaNumKeep.Value = Math.Clamp(ollama.NumKeep ?? 0, (int)nudOllamaNumKeep.Minimum, (int)nudOllamaNumKeep.Maximum);
+                chkOllamaNumKeepNull.Checked = !ollama.NumKeep.HasValue;
+                nudOllamaNumBatch.Value = Math.Max(nudOllamaNumBatch.Minimum, ollama.NumBatch ?? 0);
+                chkOllamaNumBatchNull.Checked = !ollama.NumBatch.HasValue;
+                nudOllamaNumThread.Value = ollama.NumThread ?? 0;
+                chkOllamaNumThreadNull.Checked = !ollama.NumThread.HasValue;
+                nudOllamaNumGpu.Value = ollama.NumGpu ?? 0;
+                chkOllamaNumGpuNull.Checked = !ollama.NumGpu.HasValue;
+                chkOllamaNumaNull.Checked = !ollama.Numa.HasValue;
+                chkOllamaNuma.Checked = ollama.Numa ?? false;
+                chkOllamaUseMlockNull.Checked = !ollama.UseMlock.HasValue;
+                chkOllamaUseMlock.Checked = ollama.UseMlock ?? false;
+                chkOllamaUseMmapNull.Checked = !ollama.UseMmap.HasValue;
+                chkOllamaUseMmap.Checked = ollama.UseMmap ?? true;
+                chkOllamaLowVramNull.Checked = !ollama.LowVram.HasValue;
+                chkOllamaLowVram.Checked = ollama.LowVram ?? false;
+                txtOllamaKeepAlive.Text = ollama.KeepAlive ?? string.Empty;
+
+                // Load per-model chunking for the selected Ollama model
+                var ollamaModelId = GetModelId(ddlOllamaModel);
+                if (!string.IsNullOrWhiteSpace(ollamaModelId))
+                {
+                    var olm = await _settingsProvider.GetOllamaModelSettingsAsync(ollamaModelId, _userContext.UserId).ConfigureAwait(true);
+                    _ollamaModelChunking[ollamaModelId] = (olm.ChunkSize ?? _processingSettings.ChunkSizeDefault, olm.MaxConcurrentChunks ?? _processingSettings.MaxConcurrentChunksDefault);
+                    UpdateOllamaChunkingValue();
+                }
             }
             catch (Exception ex)
             {
@@ -472,13 +579,74 @@ namespace AIFileProcessor
                     }
                 }
 
+                // Save Ollama Settings (ApiKey is not included — it comes from machine configuration/env vars)
+                var stopSequences = new List<string>();
+                if (!string.IsNullOrWhiteSpace(txtOllamaStop.Text))
+                {
+                    foreach (var part in txtOllamaStop.Text.Split(','))
+                    {
+                        if (!string.IsNullOrWhiteSpace(part))
+                        {
+                            stopSequences.Add(part.Trim());
+                        }
+                    }
+                }
+
+                var ollama = new OllamaSettings
+                {
+                    Endpoint = string.IsNullOrWhiteSpace(txtOllamaEndpoint.Text) ? string.Empty : txtOllamaEndpoint.Text,
+                    ModelName = ddlOllamaModel.SelectedItem is AiModelInfo ollamaModel ? ollamaModel.ModelId : string.Empty,
+                    TimeoutSeconds = (int)nudOllamaTimeout.Value,
+                    MaxTokens = chkOllamaMaxTokensNull.Checked ? null : (int)nudOllamaMaxTokens.Value,
+                    ContextWindow = chkOllamaContextNull.Checked ? null : (int)nudOllamaContext.Value,
+                    Temperature = chkOllamaTempNull.Checked ? null : (double)nudOllamaTemp.Value,
+                    TopP = chkOllamaTopPNull.Checked ? null : (double)nudOllamaTopP.Value,
+                    TopK = chkOllamaTopKNull.Checked ? null : (int)nudOllamaTopK.Value,
+                    MinP = chkOllamaMinPNull.Checked ? null : (double)nudOllamaMinP.Value,
+                    RepeatPenalty = chkOllamaRepeatPenaltyNull.Checked ? null : (double)nudOllamaRepeatPenalty.Value,
+                    RepeatLastN = chkOllamaRepeatLastNNull.Checked ? null : (int)nudOllamaRepeatLastN.Value,
+                    PresencePenalty = chkOllamaPresencePenaltyNull.Checked ? null : (double)nudOllamaPresencePenalty.Value,
+                    FrequencyPenalty = chkOllamaFrequencyPenaltyNull.Checked ? null : (double)nudOllamaFrequencyPenalty.Value,
+                    Seed = chkOllamaSeedNull.Checked ? null : (int)nudOllamaSeed.Value,
+                    Stop = stopSequences,
+                    TypicalP = chkOllamaTypicalPNull.Checked ? null : (double)nudOllamaTypicalP.Value,
+                    TfsZ = chkOllamaTfsZNull.Checked ? null : (double)nudOllamaTfsZ.Value,
+                    MiroStat = chkOllamaMiroStatNull.Checked ? null : (int)nudOllamaMiroStat.Value,
+                    MiroStatTau = chkOllamaMiroStatTauNull.Checked ? null : (double)nudOllamaMiroStatTau.Value,
+                    MiroStatEta = chkOllamaMiroStatEtaNull.Checked ? null : (double)nudOllamaMiroStatEta.Value,
+                    NumKeep = chkOllamaNumKeepNull.Checked ? null : (int)nudOllamaNumKeep.Value,
+                    NumBatch = chkOllamaNumBatchNull.Checked ? null : (int)nudOllamaNumBatch.Value,
+                    NumThread = chkOllamaNumThreadNull.Checked ? null : (int)nudOllamaNumThread.Value,
+                    NumGpu = chkOllamaNumGpuNull.Checked ? null : (int)nudOllamaNumGpu.Value,
+                    Numa = chkOllamaNumaNull.Checked ? null : chkOllamaNuma.Checked,
+                    UseMlock = chkOllamaUseMlockNull.Checked ? null : chkOllamaUseMlock.Checked,
+                    UseMmap = chkOllamaUseMmapNull.Checked ? null : chkOllamaUseMmap.Checked,
+                    LowVram = chkOllamaLowVramNull.Checked ? null : chkOllamaLowVram.Checked,
+                    KeepAlive = string.IsNullOrWhiteSpace(txtOllamaKeepAlive.Text) ? null : txtOllamaKeepAlive.Text.Trim(),
+                };
+                await _settingsProvider.SaveOllamaSettingsAsync(_userContext.UserId, ollama).ConfigureAwait(true);
+
+                // Save per-model Ollama chunking for the currently selected model
+                var ollamaModelId = GetModelId(ddlOllamaModel);
+                if (!string.IsNullOrWhiteSpace(ollamaModelId))
+                {
+                    SaveChunkingForModel(nudOllamaChunkSize, nudOllamaMaxConcurrentChunks, _ollamaModelChunking, ollamaModelId);
+                    if (_ollamaModelChunking.TryGetValue(ollamaModelId, out var olchunk))
+                    {
+                        var olm = new OllamaModelSettings { ChunkSize = olchunk.ChunkSize, MaxConcurrentChunks = olchunk.MaxConcurrentChunks };
+                        await _settingsProvider.SaveOllamaModelSettingsAsync(ollamaModelId, _userContext.UserId, olm).ConfigureAwait(true);
+                    }
+                }
+
                 // Save per-model reasoning levels and MaxTokens to ProcessingOptions (single source of truth)
                 SaveReasoningLevelForModel(ddlGeminiReasoning, GetModelId(ddlGeminiModel));
                 SaveReasoningLevelForModel(ddlOpenAiReasoning, GetModelId(ddlOpenAiModel));
                 SaveReasoningLevelForModel(ddlDeepSeekReasoning, GetModelId(ddlDeepSeekModel));
+                SaveReasoningLevelForModel(ddlOllamaReasoning, GetModelId(ddlOllamaModel));
                 SaveMaxTokensForModel(nudGeminiMaxTokens, chkGeminiMaxTokensNull, GetModelId(ddlGeminiModel));
                 SaveMaxTokensForModel(nudOpenAiMaxTokens, chkOpenAiMaxTokensNull, GetModelId(ddlOpenAiModel));
                 SaveMaxTokensForModel(nudDeepSeekMaxTokens, chkDeepSeekMaxTokensNull, GetModelId(ddlDeepSeekModel));
+                SaveMaxTokensForModel(nudOllamaMaxTokens, chkOllamaMaxTokensNull, GetModelId(ddlOllamaModel));
 
                 var options = await _settingsProvider.GetProcessingOptionsAsync(_userContext.UserId).ConfigureAwait(true);
                 options.ModelReasoningLevels = _modelReasoningLevels;
@@ -541,6 +709,74 @@ namespace AIFileProcessor
             nudDeepSeekTemp.Enabled = !chkDeepSeekTempNull.Checked;
         }
 
+        private void ChkOllamaNull_CheckedChanged(object sender, EventArgs e)
+        {
+            var nullCheckToControl = new (CheckBox NullCheck, Control Control)[]
+            {
+                (chkOllamaMaxTokensNull, nudOllamaMaxTokens),
+                (chkOllamaContextNull, nudOllamaContext),
+                (chkOllamaTempNull, nudOllamaTemp),
+                (chkOllamaTopPNull, nudOllamaTopP),
+                (chkOllamaTopKNull, nudOllamaTopK),
+                (chkOllamaMinPNull, nudOllamaMinP),
+                (chkOllamaRepeatPenaltyNull, nudOllamaRepeatPenalty),
+                (chkOllamaRepeatLastNNull, nudOllamaRepeatLastN),
+                (chkOllamaPresencePenaltyNull, nudOllamaPresencePenalty),
+                (chkOllamaFrequencyPenaltyNull, nudOllamaFrequencyPenalty),
+                (chkOllamaSeedNull, nudOllamaSeed),
+                (chkOllamaTypicalPNull, nudOllamaTypicalP),
+                (chkOllamaTfsZNull, nudOllamaTfsZ),
+                (chkOllamaMiroStatNull, nudOllamaMiroStat),
+                (chkOllamaMiroStatTauNull, nudOllamaMiroStatTau),
+                (chkOllamaMiroStatEtaNull, nudOllamaMiroStatEta),
+                (chkOllamaNumKeepNull, nudOllamaNumKeep),
+                (chkOllamaNumBatchNull, nudOllamaNumBatch),
+                (chkOllamaNumThreadNull, nudOllamaNumThread),
+                (chkOllamaNumGpuNull, nudOllamaNumGpu),
+                (chkOllamaNumaNull, chkOllamaNuma),
+                (chkOllamaUseMlockNull, chkOllamaUseMlock),
+                (chkOllamaUseMmapNull, chkOllamaUseMmap),
+                (chkOllamaLowVramNull, chkOllamaLowVram),
+            };
+
+            foreach (var pair in nullCheckToControl)
+            {
+                pair.Control.Enabled = !pair.NullCheck.Checked;
+            }
+        }
+
+        private async void BtnOllamaRefreshModels_Click(object sender, EventArgs e)
+        {
+            var ollamaService = _aiServices.OfType<OllamaService>().FirstOrDefault();
+            if (ollamaService == null)
+            {
+                return;
+            }
+
+            string? selectedModelId = GetModelId(ddlOllamaModel);
+            try
+            {
+                btnOllamaRefreshModels.Enabled = false;
+                await ollamaService.RefreshModelCatalogAsync().ConfigureAwait(true);
+
+                ddlOllamaModel.Items.Clear();
+                FillComboBox(ddlOllamaModel, [.. ollamaService.GetSupportedModels()]);
+                SelectModelByModelId(ddlOllamaModel, selectedModelId);
+                UpdateOllamaReasoningLevels();
+                UpdateOllamaMaxTokensLimit();
+                UpdateOllamaMaxTokensValue();
+                UpdateOllamaChunkingValue();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to refresh the Ollama model list: {ex.Message}", "Refresh Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                btnOllamaRefreshModels.Enabled = true;
+            }
+        }
+
         private void UpdateGeminiMaxTokensLimit()
         {
             var modelId = ddlGeminiModel.SelectedItem is AiModelInfo model ? model.ModelId : null;
@@ -568,6 +804,16 @@ namespace AIFileProcessor
             if (nudDeepSeekMaxTokens.Value > nudDeepSeekMaxTokens.Maximum)
             {
                 nudDeepSeekMaxTokens.Value = nudDeepSeekMaxTokens.Maximum;
+            }
+        }
+
+        private void UpdateOllamaMaxTokensLimit()
+        {
+            var modelId = ddlOllamaModel.SelectedItem is AiModelInfo model ? model.ModelId : null;
+            nudOllamaMaxTokens.Maximum = ModelTokenLimits.GetHardMax("Ollama", modelId);
+            if (nudOllamaMaxTokens.Value > nudOllamaMaxTokens.Maximum)
+            {
+                nudOllamaMaxTokens.Value = nudOllamaMaxTokens.Maximum;
             }
         }
     }

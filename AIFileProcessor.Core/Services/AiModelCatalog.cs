@@ -24,7 +24,7 @@ namespace AIFileProcessor.Services
         /// added, add its key here and to the <see cref="GetProviderKey"/> switch.
         /// </summary>
         internal static readonly HashSet<string> KnownProviderKeys =
-            ["Gemini", "OpenAI", "DeepSeek"];
+            ["Gemini", "OpenAI", "DeepSeek", "Ollama"];
 
         /// <summary>
         /// Determines whether any model in <paramref name="models"/> matches the
@@ -44,11 +44,11 @@ namespace AIFileProcessor.Services
                 return false;
             }
 
-            string normalized = modelNameOrId.Trim().ToLowerInvariant();
+            string normalized = modelNameOrId.Trim();
             foreach (var model in models)
             {
-                if (model.ModelId.Trim().ToLowerInvariant() == normalized
-                    || model.ModelName.Trim().ToLowerInvariant() == normalized)
+                if (string.Equals(model.ModelId.Trim(), normalized, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(model.ModelName.Trim(), normalized, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }
@@ -101,6 +101,7 @@ namespace AIFileProcessor.Services
                 "GeminiService" => "Gemini",
                 "OpenAiService" => "OpenAI",
                 "DeepSeekService" => "DeepSeek",
+                "OllamaService" => "Ollama",
                 _ => null,
             };
         }

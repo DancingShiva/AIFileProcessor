@@ -22,6 +22,7 @@ dotnet_diagnostic.SA1300.severity = none    # SA1300: Element must begin with up
 dotnet_diagnostic.SA1309.severity = none    # SA1309: Field names must not begin with an underscore
 dotnet_diagnostic.SA1413.severity = none    # SA1413: Use trailing comma in multi-line initializers
 dotnet_diagnostic.SA1501.severity = none    # SA1501: Statement must not be on a single line
+dotnet_diagnostic.IDE0060.severity = none   # IDE0060: Remove unused parameter (API contract requires the param)
 
 # temporary commenting out XML documentation rules until we can add documentation to all public members
 dotnet_diagnostic.SA1600.severity = none    # SA1600: Elements must be documented

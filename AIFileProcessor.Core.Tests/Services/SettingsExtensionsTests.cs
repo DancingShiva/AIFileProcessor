@@ -289,4 +289,118 @@ public class SettingsExtensionsTests
         Assert.Equal("target-model", target.ModelName);
         Assert.True(target.EnableReasoning);
     }
+
+    // --- OllamaSettings.CopyOnto --------------------------------------
+
+    [Fact]
+    public void CopyOnto_Ollama_NullSource_DoesNotThrow()
+    {
+        OllamaSettings source = null!;
+        var target = new OllamaSettings();
+
+        source.CopyOnto(target);
+    }
+
+    [Fact]
+    public void CopyOnto_Ollama_AllOptionsSet_OverwritesTarget()
+    {
+        var source = new OllamaSettings
+        {
+            ApiKey = "should-not-copy",
+            Endpoint = "http://other-host:11434",
+            ModelName = "qwen3:14b",
+            TimeoutSeconds = 900,
+            Temperature = 0.8,
+            TopP = 0.9,
+            TopK = 50,
+            ContextWindow = 32768,
+            MaxTokens = 4096,
+            RepeatPenalty = 1.2,
+            Seed = 7,
+            Stop = ["<stop>"],
+            MinP = 0.1,
+            TypicalP = 0.8,
+            TfsZ = 1.5,
+            MiroStat = 2,
+            MiroStatTau = 4.0,
+            MiroStatEta = 0.1,
+            PresencePenalty = 0.4,
+            FrequencyPenalty = 0.2,
+            RepeatLastN = 128,
+            NumGpu = 40,
+            NumBatch = 1024,
+            NumThread = 16,
+            NumKeep = 8,
+            Numa = true,
+            UseMlock = true,
+            UseMmap = false,
+            LowVram = true,
+            KeepAlive = "10m",
+            EnableThinking = true,
+            ReasoningLevel = AIFileProcessor.Models.ReasoningLevel.High,
+            MaxRetries = 4,
+            BaseDelay = 2,
+            MaxDelay = 90,
+            RequestHeaders = new Dictionary<string, string?> { ["X-Test"] = "1" },
+        };
+
+        var target = new OllamaSettings { ApiKey = "machine-key" };
+        source.CopyOnto(target);
+
+        Assert.Equal("machine-key", target.ApiKey); // never overlaid
+        Assert.Equal("http://other-host:11434", target.Endpoint);
+        Assert.Equal("qwen3:14b", target.ModelName);
+        Assert.Equal(900, target.TimeoutSeconds);
+        Assert.Equal(0.8, target.Temperature);
+        Assert.Equal(0.9, target.TopP);
+        Assert.Equal(50, target.TopK);
+        Assert.Equal(32768, target.ContextWindow);
+        Assert.Equal(4096, target.MaxTokens);
+        Assert.Equal(1.2, target.RepeatPenalty);
+        Assert.Equal(7, target.Seed);
+        Assert.Equal(["<stop>"], target.Stop);
+        Assert.Equal(0.1, target.MinP);
+        Assert.Equal(0.8, target.TypicalP);
+        Assert.Equal(1.5, target.TfsZ);
+        Assert.Equal(2, target.MiroStat);
+        Assert.Equal(4.0, target.MiroStatTau);
+        Assert.Equal(0.1, target.MiroStatEta);
+        Assert.Equal(0.4, target.PresencePenalty);
+        Assert.Equal(0.2, target.FrequencyPenalty);
+        Assert.Equal(128, target.RepeatLastN);
+        Assert.Equal(40, target.NumGpu);
+        Assert.Equal(1024, target.NumBatch);
+        Assert.Equal(16, target.NumThread);
+        Assert.Equal(8, target.NumKeep);
+        Assert.True(target.Numa);
+        Assert.True(target.UseMlock);
+        Assert.False(target.UseMmap);
+        Assert.True(target.LowVram);
+        Assert.Equal("10m", target.KeepAlive);
+        Assert.True(target.EnableThinking);
+        Assert.Equal(AIFileProcessor.Models.ReasoningLevel.High, target.ReasoningLevel);
+        Assert.Equal(4, target.MaxRetries);
+        Assert.Equal(2, target.BaseDelay);
+        Assert.Equal(90, target.MaxDelay);
+        Assert.Equal("1", target.RequestHeaders!["X-Test"]);
+    }
+
+    [Fact]
+    public void CopyOnto_Ollama_NullOptionsNotOverwritten_PreservesTargetDefaults()
+    {
+        var source = new OllamaSettings(); // all options null/empty
+        var target = new OllamaSettings
+        {
+            Temperature = 0.3,
+            ContextWindow = 16384,
+            KeepAlive = "5m",
+        };
+
+        source.CopyOnto(target);
+
+        Assert.Equal(0.3, target.Temperature);
+        Assert.Equal(16384, target.ContextWindow);
+        Assert.Equal("5m", target.KeepAlive);
+        Assert.Equal(new Uri("http://localhost:11434").AbsoluteUri.TrimEnd('/'), target.Endpoint); // default kept (empty source does not overwrite)
+    }
 }

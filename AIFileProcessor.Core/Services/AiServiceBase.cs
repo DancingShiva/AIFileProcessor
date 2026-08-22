@@ -74,19 +74,26 @@ namespace AIFileProcessor.Services
         /// </summary>
         protected abstract string ProviderName { get; }
 
+        /// <summary>
+        /// Gets a value indicating whether an API key is required to make requests.
+        /// Defaults to <c>true</c>; providers that front unauthenticated local
+        /// servers (e.g., Ollama) override this to <c>false</c>.
+        /// </summary>
+        protected virtual bool RequiresApiKey => true;
+
         /// <inheritdoc/>
-        public IEnumerable<AiModelInfo> GetSupportedModels() => SupportedModels;
+        public IEnumerable<AiModelInfo> GetSupportedModels() => ResolveSupportedModels();
 
         /// <inheritdoc/>
         public bool SupportsModel(string modelNameOrId)
         {
-            return AiModelCatalog.SupportsModel(SupportedModels, modelNameOrId);
+            return AiModelCatalog.SupportsModel(ResolveSupportedModels(), modelNameOrId);
         }
 
         /// <inheritdoc/>
         public IReadOnlyList<ReasoningLevel> GetSupportedReasoningLevels(string modelId)
         {
-            return AiModelCatalog.GetReasoningLevels(SupportedModels, modelId);
+            return AiModelCatalog.GetReasoningLevels(ResolveSupportedModels(), modelId);
         }
 
         /// <inheritdoc/>
@@ -168,6 +175,16 @@ namespace AIFileProcessor.Services
             CancellationToken ct);
 
         /// <summary>
+        /// Resolves the effective supported-model catalog for this provider.
+        /// Defaults to the static <see cref="SupportedModels"/> list. Providers
+        /// whose model set is dynamic (e.g., Ollama discovering local and cloud
+        /// models at runtime) override this to return a refreshed catalog.
+        /// The result must be non-null.
+        /// </summary>
+        /// <returns>The effective supported-model list.</returns>
+        protected virtual IReadOnlyList<AiModelInfo> ResolveSupportedModels() => SupportedModels;
+
+        /// <summary>
         /// Determines whether an exception represents a transient failure worth
         /// retrying. Checks the common cases (HTTP 429/5xx, timeout, cancellation)
         /// and then delegates to <see cref="IsProviderTransient"/> for SDK-specific
@@ -214,7 +231,7 @@ namespace AIFileProcessor.Services
         {
             AiServiceGuard.RequireValidRequest(modelId, prompt, data);
 
-            if (string.IsNullOrWhiteSpace(apiKey))
+            if (RequiresApiKey && string.IsNullOrWhiteSpace(apiKey))
             {
                 throw new ApiKeyNotConfiguredException(ProviderName);
             }

@@ -18,5 +18,23 @@ namespace AIFileProcessor
         internal ComboBox Test_ddlOpenAiModel => ddlOpenAiModel;
 
         internal ComboBox Test_ddlDeepSeekModel => ddlDeepSeekModel;
+
+        internal ComboBox Test_ddlOllamaModel => ddlOllamaModel;
+
+        internal TextBox Test_txtOllamaEndpoint => txtOllamaEndpoint;
+
+        internal TextBox Test_txtOllamaKeepAlive => txtOllamaKeepAlive;
+
+        internal ComboBox Test_ddlOllamaReasoning => ddlOllamaReasoning;
+
+        internal Button Test_btnOllamaRefreshModels => btnOllamaRefreshModels;
+
+        internal NumericUpDown Test_nudOllamaChunkSize => nudOllamaChunkSize;
+
+        internal NumericUpDown Test_nudOllamaMaxConcurrentChunks => nudOllamaMaxConcurrentChunks;
+
+        internal NumericUpDown Test_nudOllamaTemp => nudOllamaTemp;
+
+        internal CheckBox Test_chkOllamaTempNull => chkOllamaTempNull;
     }
 }

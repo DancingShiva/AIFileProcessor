@@ -71,16 +71,14 @@ namespace AIFileProcessor.Services
             _configuration.GetSection("GeminiSettings").Bind(settings);
 
             JsonObject? userOverrides = ReadUserOverrides(userId);
-            if (userOverrides != null && userOverrides["GeminiSettings"] is JsonObject geminiOverride)
+            if (userOverrides is not null && userOverrides["GeminiSettings"] is JsonObject geminiOverride)
             {
                 string json = geminiOverride.ToJsonString();
                 var overrideSettings = JsonSerializer.Deserialize<GeminiSettings>(json, _readOptions);
-                if (overrideSettings != null)
-                {
-                    // ApiKey is always from IConfiguration (machine-level); never from per-user file.
-                    // CopyOnto skips ApiKey, so the env-var-provided key is preserved.
-                    overrideSettings.CopyOnto(settings);
-                }
+
+                // ApiKey is always from IConfiguration (machine-level); never from per-user file.
+                // CopyOnto skips ApiKey, so the env-var-provided key is preserved.
+                overrideSettings?.CopyOnto(settings);
             }
 
             return Task.FromResult(settings);
@@ -95,16 +93,14 @@ namespace AIFileProcessor.Services
             _configuration.GetSection("OpenAiSettings").Bind(settings);
 
             JsonObject? userOverrides = ReadUserOverrides(userId);
-            if (userOverrides != null && userOverrides["OpenAiSettings"] is JsonObject openAiOverride)
+            if (userOverrides is not null && userOverrides["OpenAiSettings"] is JsonObject openAiOverride)
             {
                 string json = openAiOverride.ToJsonString();
                 var overrideSettings = JsonSerializer.Deserialize<OpenAiSettings>(json, _readOptions);
-                if (overrideSettings != null)
-                {
-                    // ApiKey is always from IConfiguration (machine-level); never from per-user file.
-                    // CopyOnto skips ApiKey, so the env-var-provided key is preserved.
-                    overrideSettings.CopyOnto(settings);
-                }
+
+                // ApiKey is always from IConfiguration (machine-level); never from per-user file.
+                // CopyOnto skips ApiKey, so the env-var-provided key is preserved.
+                overrideSettings?.CopyOnto(settings);
             }
 
             return Task.FromResult(settings);
@@ -119,16 +115,36 @@ namespace AIFileProcessor.Services
             _configuration.GetSection("DeepSeekSettings").Bind(settings);
 
             JsonObject? userOverrides = ReadUserOverrides(userId);
-            if (userOverrides != null && userOverrides["DeepSeekSettings"] is JsonObject deepSeekOverride)
+            if (userOverrides is not null && userOverrides["DeepSeekSettings"] is JsonObject deepSeekOverride)
             {
                 string json = deepSeekOverride.ToJsonString();
                 var overrideSettings = JsonSerializer.Deserialize<DeepSeekSettings>(json, _readOptions);
-                if (overrideSettings != null)
-                {
-                    // ApiKey is always from IConfiguration (machine-level); never from per-user file.
-                    // CopyOnto skips ApiKey, so the env-var-provided key is preserved.
-                    overrideSettings.CopyOnto(settings);
-                }
+
+                // ApiKey is always from IConfiguration (machine-level); never from per-user file.
+                // CopyOnto skips ApiKey, so the env-var-provided key is preserved.
+                overrideSettings?.CopyOnto(settings);
+            }
+
+            return Task.FromResult(settings);
+        }
+
+        /// <inheritdoc/>
+        public Task<OllamaSettings> GetOllamaSettingsAsync(string userId, CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+
+            var settings = new OllamaSettings();
+            _configuration.GetSection("OllamaSettings").Bind(settings);
+
+            JsonObject? userOverrides = ReadUserOverrides(userId);
+            if (userOverrides is not null && userOverrides["OllamaSettings"] is JsonObject ollamaOverride)
+            {
+                string json = ollamaOverride.ToJsonString();
+                var overrideSettings = JsonSerializer.Deserialize<OllamaSettings>(json, _readOptions);
+
+                // ApiKey is always from IConfiguration (machine-level); never from per-user file.
+                // CopyOnto skips ApiKey, so the env-var-provided key is preserved.
+                overrideSettings?.CopyOnto(settings);
             }
 
             return Task.FromResult(settings);
@@ -165,16 +181,26 @@ namespace AIFileProcessor.Services
         }
 
         /// <inheritdoc/>
+        public Task SaveOllamaSettingsAsync(string userId, OllamaSettings settings, CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            ArgumentNullException.ThrowIfNull(settings);
+
+            SaveSection(userId, "OllamaSettings", settings);
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc/>
         public Task<ProcessingOptions> GetProcessingOptionsAsync(string userId, CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(userId);
 
             JsonObject? userOverrides = ReadUserOverrides(userId);
-            if (userOverrides != null && userOverrides["ProcessingOptions"] is JsonObject optionsNode)
+            if (userOverrides is not null && userOverrides["ProcessingOptions"] is JsonObject optionsNode)
             {
                 string json = optionsNode.ToJsonString();
                 var options = JsonSerializer.Deserialize<ProcessingOptions>(json, _readOptions);
-                if (options != null)
+                if (options is not null)
                 {
                     return Task.FromResult(options);
                 }
@@ -240,14 +266,11 @@ namespace AIFileProcessor.Services
                     _configuration.GetSection("GeminiSettings").Bind(migrated);
 
                     JsonObject? legacyRoot = ReadUserOverridesInternal(userId);
-                    if (legacyRoot != null && legacyRoot["GeminiSettings"] is JsonObject legacyOverride)
+                    if (legacyRoot is not null && legacyRoot["GeminiSettings"] is JsonObject legacyOverride)
                     {
                         string legacyJson = legacyOverride.ToJsonString();
                         var legacySettings = JsonSerializer.Deserialize<GeminiSettings>(legacyJson, _readOptions);
-                        if (legacySettings != null)
-                        {
-                            legacySettings.CopyOnto(migrated);
-                        }
+                        legacySettings?.CopyOnto(migrated);
                     }
 
                     return new GeminiModelSettings
@@ -279,12 +302,12 @@ namespace AIFileProcessor.Services
 
             // Apply per-user overrides (same clamping)
             JsonObject? userOverrides = ReadUserOverrides(userId);
-            if (userOverrides != null && userOverrides["GeminiModels"] is JsonObject geminiModels
+            if (userOverrides is not null && userOverrides["GeminiModels"] is JsonObject geminiModels
                 && geminiModels[modelId] is JsonObject userModelOverride)
             {
                 string json = userModelOverride.ToJsonString();
                 var overrideSettings = JsonSerializer.Deserialize<GeminiModelSettings>(json, _readOptions);
-                if (overrideSettings != null)
+                if (overrideSettings is not null)
                 {
                     overrideSettings.CopyOnto(modelSettings);
                     overrideSettings.ChunkSize = modelSettings.ChunkSize;
@@ -342,14 +365,11 @@ namespace AIFileProcessor.Services
                     _configuration.GetSection("OpenAiSettings").Bind(migrated);
 
                     JsonObject? legacyRoot = ReadUserOverridesInternal(userId);
-                    if (legacyRoot != null && legacyRoot["OpenAiSettings"] is JsonObject legacyOverride)
+                    if (legacyRoot is not null && legacyRoot["OpenAiSettings"] is JsonObject legacyOverride)
                     {
                         string legacyJson = legacyOverride.ToJsonString();
                         var legacySettings = JsonSerializer.Deserialize<OpenAiSettings>(legacyJson, _readOptions);
-                        if (legacySettings != null)
-                        {
-                            legacySettings.CopyOnto(migrated);
-                        }
+                        legacySettings?.CopyOnto(migrated);
                     }
 
                     return new OpenAiModelSettings
@@ -371,12 +391,12 @@ namespace AIFileProcessor.Services
 
             // Apply per-user overrides (same clamping)
             JsonObject? userOverrides = ReadUserOverrides(userId);
-            if (userOverrides != null && userOverrides["OpenAiModels"] is JsonObject openAiModels
+            if (userOverrides is not null && userOverrides["OpenAiModels"] is JsonObject openAiModels
                 && openAiModels[modelId] is JsonObject userModelOverride)
             {
                 string json = userModelOverride.ToJsonString();
                 var overrideSettings = JsonSerializer.Deserialize<OpenAiModelSettings>(json, _readOptions);
-                if (overrideSettings != null)
+                if (overrideSettings is not null)
                 {
                     overrideSettings.CopyOnto(modelSettings);
                     overrideSettings.ChunkSize = modelSettings.ChunkSize;
@@ -434,14 +454,11 @@ namespace AIFileProcessor.Services
                     _configuration.GetSection("DeepSeekSettings").Bind(migrated);
 
                     JsonObject? legacyRoot = ReadUserOverridesInternal(userId);
-                    if (legacyRoot != null && legacyRoot["DeepSeekSettings"] is JsonObject legacyOverride)
+                    if (legacyRoot is not null && legacyRoot["DeepSeekSettings"] is JsonObject legacyOverride)
                     {
                         string legacyJson = legacyOverride.ToJsonString();
                         var legacySettings = JsonSerializer.Deserialize<DeepSeekSettings>(legacyJson, _readOptions);
-                        if (legacySettings != null)
-                        {
-                            legacySettings.CopyOnto(migrated);
-                        }
+                        legacySettings?.CopyOnto(migrated);
                     }
 
                     return new DeepSeekModelSettings
@@ -463,12 +480,65 @@ namespace AIFileProcessor.Services
 
             // Apply per-user overrides (same clamping)
             JsonObject? userOverrides = ReadUserOverrides(userId);
-            if (userOverrides != null && userOverrides["DeepSeekModels"] is JsonObject deepSeekModels
+            if (userOverrides is not null && userOverrides["DeepSeekModels"] is JsonObject deepSeekModels
                 && deepSeekModels[modelId] is JsonObject userModelOverride)
             {
                 string json = userModelOverride.ToJsonString();
                 var overrideSettings = JsonSerializer.Deserialize<DeepSeekModelSettings>(json, _readOptions);
-                if (overrideSettings != null)
+                if (overrideSettings is not null)
+                {
+                    overrideSettings.CopyOnto(modelSettings);
+                    overrideSettings.ChunkSize = modelSettings.ChunkSize;
+                    overrideSettings.MaxConcurrentChunks = modelSettings.MaxConcurrentChunks;
+                }
+            }
+
+            return modelSettings;
+        }
+
+        /// <inheritdoc/>
+        public async Task<OllamaModelSettings> GetOllamaModelSettingsAsync(string modelId, string userId, CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            ArgumentNullException.ThrowIfNull(modelId);
+
+            var modelSettings = new OllamaModelSettings();
+            var processing = await GetProcessingSettingsAsync(ct).ConfigureAwait(false);
+
+            // Start with provider-level defaults
+            _configuration.GetSection("OllamaSettings").Bind(modelSettings);
+
+            // Overlay per-model defaults from appsettings.json
+            string modelSection = $"OllamaModels:{modelId}";
+            if (_configuration.GetSection(modelSection).Exists())
+            {
+                _configuration.GetSection(modelSection).Bind(modelSettings);
+            }
+
+            // Clamp to global caps
+            var caps = processing;
+            if (modelSettings.ChunkSize.HasValue)
+            {
+                modelSettings.ChunkSize = Math.Max(1, Math.Min(modelSettings.ChunkSize.Value, caps.ChunkSizeCap));
+            }
+
+            modelSettings.ChunkSize ??= caps.ChunkSizeDefault;
+
+            if (modelSettings.MaxConcurrentChunks.HasValue)
+            {
+                modelSettings.MaxConcurrentChunks = Math.Max(1, Math.Min(modelSettings.MaxConcurrentChunks.Value, caps.MaxConcurrentChunksCap));
+            }
+
+            modelSettings.MaxConcurrentChunks ??= caps.MaxConcurrentChunksDefault;
+
+            // Apply per-user overrides (same clamping)
+            JsonObject? userOverrides = ReadUserOverrides(userId);
+            if (userOverrides is not null && userOverrides["OllamaModels"] is JsonObject ollamaModels
+                && ollamaModels[modelId] is JsonObject userModelOverride)
+            {
+                string json = userModelOverride.ToJsonString();
+                var overrideSettings = JsonSerializer.Deserialize<OllamaModelSettings>(json, _readOptions);
+                if (overrideSettings is not null)
                 {
                     overrideSettings.CopyOnto(modelSettings);
                     overrideSettings.ChunkSize = modelSettings.ChunkSize;
@@ -509,6 +579,17 @@ namespace AIFileProcessor.Services
             ArgumentNullException.ThrowIfNull(settings);
 
             SaveModelSection(userId, "DeepSeekModels", modelId, settings);
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        public Task SaveOllamaModelSettingsAsync(string modelId, string userId, OllamaModelSettings settings, CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            ArgumentNullException.ThrowIfNull(modelId);
+            ArgumentNullException.ThrowIfNull(settings);
+
+            SaveModelSection(userId, "OllamaModels", modelId, settings);
             return Task.CompletedTask;
         }
 
@@ -679,7 +760,7 @@ namespace AIFileProcessor.Services
                     Directory.CreateDirectory(directory);
                 }
 
-                JsonObject? rootNode = ReadUserOverridesInternal(userId) ?? new JsonObject();
+                JsonObject? rootNode = ReadUserOverridesInternal(userId) ?? [];
 
                 string sectionJson = JsonSerializer.Serialize(settings, _writeOptions);
                 var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
@@ -780,7 +861,7 @@ namespace AIFileProcessor.Services
                     Directory.CreateDirectory(directory);
                 }
 
-                JsonObject? rootNode = ReadUserOverridesInternal(userId) ?? new JsonObject();
+                JsonObject? rootNode = ReadUserOverridesInternal(userId) ?? [];
 
                 // Ensure the models section exists
                 rootNode[modelsSectionName] ??= new JsonObject();

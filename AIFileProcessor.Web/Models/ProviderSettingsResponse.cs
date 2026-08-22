@@ -27,5 +27,10 @@ namespace AIFileProcessor.Web.Models
         /// Gets or sets the DeepSeek settings (API key excluded).
         /// </summary>
         public DeepSeekSettings DeepSeekSettings { get; set; } = new();
+
+        /// <summary>
+        /// Gets or sets the Ollama settings (API key excluded).
+        /// </summary>
+        public OllamaSettings OllamaSettings { get; set; } = new();
     }
 }

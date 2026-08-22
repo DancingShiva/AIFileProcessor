@@ -6,6 +6,7 @@
 namespace AIFileProcessor.DependencyInjection
 {
     using System;
+    using System.Collections.Generic;
     using AIFileProcessor.Configuration;
     using AIFileProcessor.Interfaces;
     using AIFileProcessor.Processing;
@@ -37,6 +38,8 @@ namespace AIFileProcessor.DependencyInjection
             services.Configure<DeepSeekSettings>(configuration.GetSection("DeepSeekSettings"));
             services.Configure<GeminiSettings>(configuration.GetSection("GeminiSettings"));
             services.Configure<OpenAiSettings>(configuration.GetSection("OpenAiSettings"));
+            services.Configure<OllamaSettings>(configuration.GetSection("OllamaSettings"));
+            services.Configure<Dictionary<string, OllamaModelSettings>>(configuration.GetSection("OllamaModels"));
 
             // Configure per-model token limits from the Processing section of appsettings.json.
             var processingSettings = new ProcessingSettings();
@@ -105,11 +108,35 @@ namespace AIFileProcessor.DependencyInjection
                 }
             });
 
-            // Register all three AI services as IAiService implementations so that
+            services.AddHttpClient<OllamaService>((sp, client) =>
+            {
+                var settings = sp.GetRequiredService<IOptionsMonitor<OllamaSettings>>().CurrentValue;
+                client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 600);
+
+                client.BaseAddress = new Uri(
+                    string.IsNullOrWhiteSpace(settings.Endpoint)
+                        ? "http://localhost:11434"
+                        : settings.Endpoint,
+                    UriKind.Absolute);
+
+                if (settings.RequestHeaders != null)
+                {
+                    foreach (var header in settings.RequestHeaders)
+                    {
+                        if (!string.IsNullOrEmpty(header.Key) && !string.IsNullOrEmpty(header.Value))
+                        {
+                            client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
+                        }
+                    }
+                }
+            });
+
+            // Register all four AI services as IAiService implementations so that
             // IEnumerable<IAiService> resolves all of them.
             services.AddTransient<IAiService>(sp => sp.GetRequiredService<GeminiService>());
             services.AddTransient<IAiService>(sp => sp.GetRequiredService<DeepSeekService>());
             services.AddTransient<IAiService>(sp => sp.GetRequiredService<OpenAiService>());
+            services.AddTransient<IAiService>(sp => sp.GetRequiredService<OllamaService>());
 
             // Register core services
             services.AddSingleton<IFileOps, FileOps>();

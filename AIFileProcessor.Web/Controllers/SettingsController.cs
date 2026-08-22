@@ -21,27 +21,14 @@ namespace AIFileProcessor.Web.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    public class SettingsController : ControllerBase
+    public class SettingsController(
+        ISettingsProvider settingsProvider,
+        IUserContext userContext,
+        ILogger<SettingsController> logger) : ControllerBase
     {
-        private readonly ISettingsProvider _settingsProvider;
-        private readonly IUserContext _userContext;
-        private readonly ILogger<SettingsController> _logger;
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="SettingsController"/> class.
-        /// </summary>
-        /// <param name="settingsProvider">The settings provider for resolving settings.</param>
-        /// <param name="userContext">The current user context.</param>
-        /// <param name="logger">The logger instance.</param>
-        public SettingsController(
-            ISettingsProvider settingsProvider,
-            IUserContext userContext,
-            ILogger<SettingsController> logger)
-        {
-            _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
-            _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        }
+        private readonly ISettingsProvider _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
+        private readonly IUserContext _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
+        private readonly ILogger<SettingsController> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         /// <summary>
         /// Gets the current settings for all three AI providers. API keys are
@@ -55,6 +42,7 @@ namespace AIFileProcessor.Web.Controllers
             var gemini = await _settingsProvider.GetGeminiSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
             var openAi = await _settingsProvider.GetOpenAiSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
             var deepSeek = await _settingsProvider.GetDeepSeekSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
+            var ollama = await _settingsProvider.GetOllamaSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
 
             // ApiKey is [JsonIgnore] on the settings models, so it is automatically
             // excluded from the JSON response — no manual stripping needed.
@@ -63,6 +51,7 @@ namespace AIFileProcessor.Web.Controllers
                 GeminiSettings = gemini,
                 OpenAiSettings = openAi,
                 DeepSeekSettings = deepSeek,
+                OllamaSettings = ollama,
             });
         }
 

@@ -115,6 +115,7 @@ namespace AIFileProcessor.Processing
                     "Gemini" => await _settingsProvider.GetGeminiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false),
                     "OpenAI" => await _settingsProvider.GetOpenAiModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false),
                     "DeepSeek" => await _settingsProvider.GetDeepSeekModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false),
+                    "Ollama" => await _settingsProvider.GetOllamaModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false),
                     _ => throw new NotSupportedException($"No registered IAiService supports the model '{options.ModelId}'."),
                 };
             }
@@ -162,6 +163,21 @@ namespace AIFileProcessor.Processing
                     {
                         lastException = ex;
                         _logger.LogWarning(ex, "Fallback: DeepSeek settings resolution failed for model {ModelId}.", options.ModelId);
+                    }
+                }
+
+                if (lastException != null)
+                {
+                    try
+                    {
+                        providerKey = "Ollama";
+                        modelProcessingSettings = await _settingsProvider.GetOllamaModelSettingsAsync(options.ModelId, _userContext.UserId, ct).ConfigureAwait(false);
+                        lastException = null;
+                    }
+                    catch (Exception ex)
+                    {
+                        lastException = ex;
+                        _logger.LogWarning(ex, "Fallback: Ollama settings resolution failed for model {ModelId}.", options.ModelId);
                     }
                 }
 

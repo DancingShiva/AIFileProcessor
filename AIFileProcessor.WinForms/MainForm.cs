@@ -144,6 +144,10 @@ namespace AIFileProcessor
             FillModelListBox();
             LoadLastProcessingOptions();
 
+            // Refresh the Ollama model catalog from the live server after initial population,
+            // so the dropdown reflects actually-installed local models plus configured cloud models.
+            _ = RefreshOllamaModelsAsync();
+
             ddlModel.SelectedIndexChanged += (s, e) => OnModelSelectionChanged();
             ddlReasoning.SelectedIndexChanged += (s, e) => OnReasoningSelectionChanged();
             pnlMetricsGraph.Paint += panelMetricsGraph_Paint;
@@ -956,6 +960,59 @@ namespace AIFileProcessor
                 {
                     ddlModel.Items.Add(model);
                 }
+            }
+        }
+
+        private async Task RefreshOllamaModelsAsync()
+        {
+            try
+            {
+                var ollamaService = _aiServices.OfType<OllamaService>().FirstOrDefault();
+                if (ollamaService == null)
+                {
+                    return;
+                }
+
+                await ollamaService.RefreshModelCatalogAsync().ConfigureAwait(true);
+
+                // Re-populate the dropdown: remove old Ollama models and insert refreshed ones.
+                // Preserve the current selection if possible.
+                string? selectedModelId = (ddlModel.SelectedItem as AiModelInfo)?.ModelId;
+
+                // Remove existing Ollama models from the dropdown.
+                var ollamaModelIds = new HashSet<string>(
+                    ollamaService.GetSupportedModels().Select(m => m.ModelId),
+                    StringComparer.OrdinalIgnoreCase);
+                for (int i = ddlModel.Items.Count - 1; i >= 0; i--)
+                {
+                    if (ddlModel.Items[i] is AiModelInfo info && ollamaModelIds.Contains(info.ModelId))
+                    {
+                        ddlModel.Items.RemoveAt(i);
+                    }
+                }
+
+                // Add the refreshed Ollama models in alphabetical order by model name.
+                foreach (var model in ollamaService.GetSupportedModels().OrderBy(m => m.ModelName, StringComparer.OrdinalIgnoreCase))
+                {
+                    ddlModel.Items.Add(model);
+                }
+
+                // Restore selection if the model still exists.
+                if (selectedModelId != null)
+                {
+                    for (int i = 0; i < ddlModel.Items.Count; i++)
+                    {
+                        if (ddlModel.Items[i] is AiModelInfo info && info.ModelId == selectedModelId)
+                        {
+                            ddlModel.SelectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to refresh Ollama model catalog.");
             }
         }
 

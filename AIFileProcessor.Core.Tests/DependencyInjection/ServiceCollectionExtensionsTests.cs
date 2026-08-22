@@ -107,6 +107,52 @@ public class ServiceCollectionExtensionsTests
         Assert.Equal(90, settings.TimeoutSeconds);
     }
 
+    [Fact]
+    public void AddAiFileProcessorCore_BindsOllamaSettings_FromConfiguration()
+    {
+        var services = new ServiceCollection();
+        IConfiguration configuration = CreateConfiguration(d =>
+        {
+            d["OllamaSettings:ApiKey"] = "ollama-cloud-key";
+            d["OllamaSettings:Endpoint"] = "https://ollama.example.com";
+            d["OllamaSettings:TimeoutSeconds"] = "600";
+        });
+
+        services.AddAiFileProcessorCore(configuration);
+        var sp = services.BuildServiceProvider();
+
+        var settings = sp.GetRequiredService<IOptions<OllamaSettings>>().Value;
+
+        Assert.Equal("ollama-cloud-key", settings.ApiKey);
+        Assert.Equal("https://ollama.example.com", settings.Endpoint);
+        Assert.Equal(600, settings.TimeoutSeconds);
+    }
+
+    [Fact]
+    public void AddAiFileProcessorCore_BindsOllamaModelSettings_FromConfiguration()
+    {
+        var services = new ServiceCollection();
+        IConfiguration configuration = CreateConfiguration(d =>
+        {
+            // Note: model ids containing ':' cannot be expressed via ':'-delimited
+            // in-memory configuration keys (they add an unintended nesting level).
+            // Real appsettings.json binds such keys literally within a section.
+            d["OllamaModels:llama3:ChunkSize"] = "20";
+            d["OllamaModels:llama3:MaxConcurrentChunks"] = "2";
+            d["OllamaModels:llama3:SupportsThinking"] = "true";
+        });
+
+        services.AddAiFileProcessorCore(configuration);
+        var sp = services.BuildServiceProvider();
+
+        var modelSettings = sp.GetRequiredService<IOptions<Dictionary<string, OllamaModelSettings>>>().Value;
+
+        Assert.True(modelSettings.ContainsKey("llama3"));
+        Assert.Equal(20, modelSettings["llama3"].ChunkSize);
+        Assert.Equal(2, modelSettings["llama3"].MaxConcurrentChunks);
+        Assert.True(modelSettings["llama3"].SupportsThinking);
+    }
+
     // ─── Service Registrations ──────────────────────────────────────
 
     [Fact]
@@ -132,10 +178,39 @@ public class ServiceCollectionExtensionsTests
         // Func<IChineseTextProcessor> (transient)
         Assert.Contains(services, d => d.ServiceType == typeof(Func<IChineseTextProcessor>) && d.Lifetime == ServiceLifetime.Transient);
 
-        // Three IAiService registrations
+        // Four IAiService registrations (Gemini, OpenAI, DeepSeek, Ollama)
         var aiServiceDescs = services.Where(d => d.ServiceType == typeof(IAiService)).ToList();
-        Assert.Equal(3, aiServiceDescs.Count);
+        Assert.Equal(4, aiServiceDescs.Count);
         Assert.All(aiServiceDescs, d => Assert.Equal(ServiceLifetime.Transient, d.Lifetime));
+    }
+
+    [Fact]
+    public void AddAiFileProcessorCore_RegistersHttpClientForOllamaService()
+    {
+        var services = new ServiceCollection();
+        IConfiguration configuration = CreateConfiguration();
+
+        services.AddAiFileProcessorCore(configuration);
+
+        Assert.Contains(services, d => d.ServiceType == typeof(OllamaService));
+    }
+
+    [Fact]
+    public void AddAiFileProcessorCore_ResolvesFourAiServices()
+    {
+        var services = new ServiceCollection();
+        IConfiguration configuration = CreateConfiguration();
+
+        services.AddAiFileProcessorCore(configuration);
+        var sp = services.BuildServiceProvider();
+
+        var resolved = sp.GetServices<IAiService>().ToList();
+
+        Assert.Equal(4, resolved.Count);
+        Assert.Contains(resolved, s => s is GeminiService);
+        Assert.Contains(resolved, s => s is OpenAiService);
+        Assert.Contains(resolved, s => s is DeepSeekService);
+        Assert.Contains(resolved, s => s is OllamaService);
     }
 
     // ─── HttpClient Registrations ───────────────────────────────────

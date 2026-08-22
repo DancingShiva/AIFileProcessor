@@ -278,5 +278,196 @@ namespace AIFileProcessor.Services
                 target.RequestHeaders = source.RequestHeaders;
             }
         }
+
+        /// <summary>
+        /// Copies non-null/non-default property values from <paramref name="source"/>
+        /// onto <paramref name="target"/>. ApiKey is never overlaid — it is always
+        /// sourced from machine-level IConfiguration.
+        /// </summary>
+        /// <param name="source">The override settings (from per-user file).</param>
+        /// <param name="target">The target settings (from defaults) to update in place.</param>
+        public static void CopyOnto(this OllamaSettings source, OllamaSettings target)
+        {
+            if (source == null || target == null)
+            {
+                return;
+            }
+
+            // ApiKey is always from machine-level IConfiguration; never overlaid from per-user files.
+            if (!string.IsNullOrEmpty(source.Endpoint))
+            {
+                target.Endpoint = source.Endpoint;
+            }
+
+            if (!string.IsNullOrEmpty(source.ModelName))
+            {
+                target.ModelName = source.ModelName;
+            }
+
+            if (source.TimeoutSeconds != 0)
+            {
+                target.TimeoutSeconds = source.TimeoutSeconds;
+            }
+
+            if (source.MaxTokens.HasValue)
+            {
+                target.MaxTokens = source.MaxTokens;
+            }
+
+            if (source.Temperature.HasValue)
+            {
+                target.Temperature = source.Temperature;
+            }
+
+            if (source.TopP.HasValue)
+            {
+                target.TopP = source.TopP;
+            }
+
+            if (source.TopK.HasValue)
+            {
+                target.TopK = source.TopK;
+            }
+
+            if (source.ContextWindow.HasValue)
+            {
+                target.ContextWindow = source.ContextWindow;
+            }
+
+            if (source.RepeatPenalty.HasValue)
+            {
+                target.RepeatPenalty = source.RepeatPenalty;
+            }
+
+            if (source.Seed.HasValue)
+            {
+                target.Seed = source.Seed;
+            }
+
+            if (source.Stop != null)
+            {
+                target.Stop = source.Stop;
+            }
+
+            if (source.MinP.HasValue)
+            {
+                target.MinP = source.MinP;
+            }
+
+            if (source.TypicalP.HasValue)
+            {
+                target.TypicalP = source.TypicalP;
+            }
+
+            if (source.TfsZ.HasValue)
+            {
+                target.TfsZ = source.TfsZ;
+            }
+
+            if (source.MiroStat.HasValue)
+            {
+                target.MiroStat = source.MiroStat;
+            }
+
+            if (source.MiroStatTau.HasValue)
+            {
+                target.MiroStatTau = source.MiroStatTau;
+            }
+
+            if (source.MiroStatEta.HasValue)
+            {
+                target.MiroStatEta = source.MiroStatEta;
+            }
+
+            if (source.PresencePenalty.HasValue)
+            {
+                target.PresencePenalty = source.PresencePenalty;
+            }
+
+            if (source.FrequencyPenalty.HasValue)
+            {
+                target.FrequencyPenalty = source.FrequencyPenalty;
+            }
+
+            if (source.RepeatLastN.HasValue)
+            {
+                target.RepeatLastN = source.RepeatLastN;
+            }
+
+            if (source.NumGpu.HasValue)
+            {
+                target.NumGpu = source.NumGpu;
+            }
+
+            if (source.NumBatch.HasValue)
+            {
+                target.NumBatch = source.NumBatch;
+            }
+
+            if (source.NumThread.HasValue)
+            {
+                target.NumThread = source.NumThread;
+            }
+
+            if (source.NumKeep.HasValue)
+            {
+                target.NumKeep = source.NumKeep;
+            }
+
+            if (source.Numa.HasValue)
+            {
+                target.Numa = source.Numa;
+            }
+
+            if (source.UseMlock.HasValue)
+            {
+                target.UseMlock = source.UseMlock;
+            }
+
+            if (source.UseMmap.HasValue)
+            {
+                target.UseMmap = source.UseMmap;
+            }
+
+            if (source.LowVram.HasValue)
+            {
+                target.LowVram = source.LowVram;
+            }
+
+            if (!string.IsNullOrWhiteSpace(source.KeepAlive))
+            {
+                target.KeepAlive = source.KeepAlive;
+            }
+
+            if (source.EnableThinking.HasValue)
+            {
+                target.EnableThinking = source.EnableThinking;
+            }
+
+            if (source.ReasoningLevel.HasValue)
+            {
+                target.ReasoningLevel = source.ReasoningLevel;
+            }
+
+            if (source.MaxRetries != 0)
+            {
+                target.MaxRetries = source.MaxRetries;
+            }
+
+            if (source.BaseDelay != 0)
+            {
+                target.BaseDelay = source.BaseDelay;
+            }
+
+            if (source.MaxDelay != 0)
+            {
+                target.MaxDelay = source.MaxDelay;
+            }
+
+            if (source.RequestHeaders != null)
+            {
+                target.RequestHeaders = source.RequestHeaders;
+            }
+        }
     }
 }

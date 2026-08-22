@@ -44,6 +44,15 @@ namespace AIFileProcessor.Interfaces
         Task<DeepSeekSettings> GetDeepSeekSettingsAsync(string userId, CancellationToken ct = default);
 
         /// <summary>
+        /// Gets the Ollama settings for the specified user, merging defaults
+        /// with any per-user overrides.
+        /// </summary>
+        /// <param name="userId">The user identifier whose settings to resolve.</param>
+        /// <param name="ct">A token to cancel the operation.</param>
+        /// <returns>The resolved <see cref="OllamaSettings"/> for the user.</returns>
+        Task<OllamaSettings> GetOllamaSettingsAsync(string userId, CancellationToken ct = default);
+
+        /// <summary>
         /// Persists the specified Gemini settings as per-user overrides.
         /// </summary>
         /// <param name="userId">The user identifier whose settings to save.</param>
@@ -69,6 +78,15 @@ namespace AIFileProcessor.Interfaces
         /// <param name="ct">A token to cancel the operation.</param>
         /// <returns>A task representing the asynchronous save operation.</returns>
         Task SaveDeepSeekSettingsAsync(string userId, DeepSeekSettings settings, CancellationToken ct = default);
+
+        /// <summary>
+        /// Persists the specified Ollama settings as per-user overrides.
+        /// </summary>
+        /// <param name="userId">The user identifier whose settings to save.</param>
+        /// <param name="settings">The settings to persist.</param>
+        /// <param name="ct">A token to cancel the operation.</param>
+        /// <returns>A task representing the asynchronous save operation.</returns>
+        Task SaveOllamaSettingsAsync(string userId, OllamaSettings settings, CancellationToken ct = default);
 
         /// <summary>
         /// Gets the last-used processing options for the specified user.
@@ -118,6 +136,16 @@ namespace AIFileProcessor.Interfaces
         Task<DeepSeekModelSettings> GetDeepSeekModelSettingsAsync(string modelId, string userId, CancellationToken ct = default);
 
         /// <summary>
+        /// Gets the resolved per-model Ollama settings for the specified user and model,
+        /// merging defaults → per-model default → per-user override, capped by global limits.
+        /// </summary>
+        /// <param name="modelId">The model identifier whose settings to resolve.</param>
+        /// <param name="userId">The user identifier whose settings to retrieve.</param>
+        /// <param name="ct">A token to cancel the operation.</param>
+        /// <returns>The resolved per-model Ollama settings.</returns>
+        Task<OllamaModelSettings> GetOllamaModelSettingsAsync(string modelId, string userId, CancellationToken ct = default);
+
+        /// <summary>
         /// Persists the specified per-model Gemini settings as per-user overrides.
         /// </summary>
         /// <param name="modelId">The model identifier whose settings to save.</param>
@@ -146,6 +174,16 @@ namespace AIFileProcessor.Interfaces
         /// <param name="ct">A token to cancel the operation.</param>
         /// <returns>A task representing the asynchronous save operation.</returns>
         Task SaveDeepSeekModelSettingsAsync(string modelId, string userId, DeepSeekModelSettings settings, CancellationToken ct = default);
+
+        /// <summary>
+        /// Persists the specified per-model Ollama settings as per-user overrides.
+        /// </summary>
+        /// <param name="modelId">The model identifier whose settings to save.</param>
+        /// <param name="userId">The user identifier whose settings to persist.</param>
+        /// <param name="settings">The per-model Ollama settings to save.</param>
+        /// <param name="ct">A token to cancel the operation.</param>
+        /// <returns>A task representing the asynchronous save operation.</returns>
+        Task SaveOllamaModelSettingsAsync(string modelId, string userId, OllamaModelSettings settings, CancellationToken ct = default);
 
         /// <summary>
         /// Gets the global processing settings (defaults and caps) for the current machine.
