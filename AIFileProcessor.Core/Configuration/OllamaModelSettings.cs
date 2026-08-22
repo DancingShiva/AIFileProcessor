@@ -32,8 +32,10 @@ namespace AIFileProcessor.Configuration
         /// <summary>
         /// Gets or sets a value indicating whether this model supports the Ollama
         /// thinking capability (<c>think</c> parameter). Used to surface the
-        /// reasoning toggle in the UI for thinking-capable models.
+        /// reasoning toggle in the UI for thinking-capable models. Null means
+        /// "use the dynamic value discovered from the Ollama server"; true/false
+        /// is a user override that takes precedence over the server-reported capability.
         /// </summary>
-        public bool SupportsThinking { get; set; }
+        public bool? SupportsThinking { get; set; }
     }
 }

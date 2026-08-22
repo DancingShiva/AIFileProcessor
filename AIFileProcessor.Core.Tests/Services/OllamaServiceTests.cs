@@ -10,6 +10,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using AIFileProcessor.Configuration;
+using AIFileProcessor.Interfaces;
 using AIFileProcessor.Models;
 using AIFileProcessor.Services;
 using Microsoft.Extensions.Logging;
@@ -28,13 +29,17 @@ public class OllamaServiceTests
 
     private readonly Mock<ILogger<OllamaService>> _loggerMock = new();
     private readonly Mock<IOptionsMonitor<OllamaSettings>> _optionsMock = new();
-    private readonly Mock<IOptionsMonitor<Dictionary<string, OllamaModelSettings>>> _modelOptionsMock = new();
+    private readonly Mock<ISettingsProvider> _settingsProviderMock = new();
+    private readonly Mock<IUserContext> _userContextMock = new();
     private readonly OllamaSettings _settings = new() { Endpoint = "http://localhost:11434" };
 
     public OllamaServiceTests()
     {
         _optionsMock.Setup(o => o.CurrentValue).Returns(_settings);
-        _modelOptionsMock.Setup(o => o.CurrentValue).Returns([]);
+        _userContextMock.Setup(u => u.UserId).Returns("test-user");
+        _settingsProviderMock
+            .Setup(s => s.GetOllamaModelSettingsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OllamaModelSettings());
     }
 
     private OllamaService CreateService(HttpMessageHandler handler)
@@ -43,7 +48,8 @@ public class OllamaServiceTests
             _loggerMock.Object,
             _optionsMock.Object,
             new HttpClient(handler) { BaseAddress = new Uri("http://localhost:11434") },
-            _modelOptionsMock.Object);
+            _settingsProviderMock.Object,
+            _userContextMock.Object);
     }
 
     // ─── Constructor ──────────────────────────────────────────────────
@@ -52,60 +58,35 @@ public class OllamaServiceTests
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(
-            () => new OllamaService(null!, _optionsMock.Object, new HttpClient(), _modelOptionsMock.Object));
+            () => new OllamaService(null!, _optionsMock.Object, new HttpClient(), _settingsProviderMock.Object, _userContextMock.Object));
     }
 
     [Fact]
     public void Constructor_NullSettings_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(
-            () => new OllamaService(_loggerMock.Object, null!, new HttpClient(), _modelOptionsMock.Object));
+            () => new OllamaService(_loggerMock.Object, null!, new HttpClient(), _settingsProviderMock.Object, _userContextMock.Object));
     }
 
     [Fact]
     public void Constructor_NullHttpClient_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(
-            () => new OllamaService(_loggerMock.Object, _optionsMock.Object, null!, _modelOptionsMock.Object));
+            () => new OllamaService(_loggerMock.Object, _optionsMock.Object, null!, _settingsProviderMock.Object, _userContextMock.Object));
     }
 
     [Fact]
-    public void Constructor_ConfiguredModels_PopulatesCatalog()
-    {
-        var configured = new Dictionary<string, OllamaModelSettings>
-        {
-            ["llama3.1"] = new() { },
-            ["gpt-oss:120b-cloud"] = new() { IsCloud = true, SupportsThinking = true },
-        };
-        _modelOptionsMock.Setup(o => o.CurrentValue).Returns(configured);
-
-        var service = CreateService(new StubOkHandler());
-        var ids = service.GetSupportedModels().Select(m => m.ModelId).ToList();
-
-        Assert.Contains("llama3.1", ids);
-        Assert.Contains("gpt-oss:120b-cloud", ids);
-    }
-
-    // ─── Catalog resolution ───────────────────────────────────────────
-
-    [Fact]
-    public void GetSupportedModels_NoConfigNoCatalog_UsesFallbackModels()
+    public void GetSupportedModels_NoCatalog_ReturnsEmpty()
     {
         var service = CreateService(new StubOkHandler());
         var ids = service.GetSupportedModels().Select(m => m.ModelId).ToList();
 
-        Assert.Contains("llama3.1", ids);
+        Assert.Empty(ids);
     }
 
     [Fact]
-    public async Task RefreshModelCatalogAsync_MergesLocalAndConfiguredModels()
+    public async Task RefreshModelCatalogAsync_PopulatesFromLocalServer()
     {
-        var configured = new Dictionary<string, OllamaModelSettings>
-        {
-            ["gpt-oss:120b-cloud"] = new() { IsCloud = true },
-        };
-        _modelOptionsMock.Setup(o => o.CurrentValue).Returns(configured);
-
         var tagsResponse = new
         {
             models = new[]
@@ -121,7 +102,6 @@ public class OllamaServiceTests
 
         var ids = service.GetSupportedModels().Select(m => m.ModelId).ToList();
         Assert.Contains("qwen3:8b", ids);
-        Assert.Contains("gpt-oss:120b-cloud", ids);
     }
 
     [Fact]
@@ -153,7 +133,8 @@ public class OllamaServiceTests
             _loggerMock.Object,
             emptyKeyOptions.Object,
             new HttpClient(handler) { BaseAddress = new Uri("http://localhost:11434") },
-            _modelOptionsMock.Object);
+            _settingsProviderMock.Object,
+            _userContextMock.Object);
 
         var result = await service.ProcessTextAsync("test-model", Prompt, Data, noKeySettings, TestContext.Current.CancellationToken);
 

@@ -45,6 +45,22 @@ namespace AIFileProcessor.Services
         }
 
         /// <summary>
+        /// Registers or updates a per-model token limit at runtime. Used by providers
+        /// that discover model metadata dynamically (e.g., Ollama reading context_length
+        /// from the server). Safe to call multiple times for the same model.
+        /// </summary>
+        /// <param name="modelId">The model identifier to register.</param>
+        /// <param name="limit">The hard maximum token count for this model.</param>
+        public static void RegisterModelLimit(string modelId, int limit)
+        {
+            if (!string.IsNullOrWhiteSpace(modelId) && limit > 0)
+            {
+                ConfiguredLimits[modelId] = limit;
+                isConfigured = true;
+            }
+        }
+
+        /// <summary>
         /// Returns a provider/model specific hard maximum number of tokens to accept.
         /// If the model has a configured limit, returns it. Otherwise returns the
         /// configured default (or 262144 if not configured).

@@ -11,10 +11,12 @@ namespace AIFileProcessor
     using AIFileProcessor.Configuration;
     using AIFileProcessor.DependencyInjection;
     using AIFileProcessor.Interfaces;
+    using AIFileProcessor.Logging;
     using AIFileProcessor.Services;
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
+    using Microsoft.Extensions.Logging;
 
     internal static class Program
     {
@@ -64,6 +66,13 @@ namespace AIFileProcessor
             }
 
             builder.Configuration.AddEnvironmentVariables();
+
+            // Add logging providers:
+            // - Debug: sends logs to the Visual Studio Output window (Debug pane)
+            // - File: writes daily-rotating log files to %LOCALAPPDATA%\AIFileProcessor\logs\
+            builder.Logging.AddDebug();
+            builder.Logging.AddProvider(new FileLoggerProvider());
+            builder.Logging.SetMinimumLevel(LogLevel.Information);
 
             // Register all core services (AI services, text processor, file ops,
             // settings managers, processing orchestrator, etc.) in one call.

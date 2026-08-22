@@ -13,6 +13,7 @@ namespace AIFileProcessor.DependencyInjection
     using AIFileProcessor.Services;
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
 
     /// <summary>
@@ -39,7 +40,6 @@ namespace AIFileProcessor.DependencyInjection
             services.Configure<GeminiSettings>(configuration.GetSection("GeminiSettings"));
             services.Configure<OpenAiSettings>(configuration.GetSection("OpenAiSettings"));
             services.Configure<OllamaSettings>(configuration.GetSection("OllamaSettings"));
-            services.Configure<Dictionary<string, OllamaModelSettings>>(configuration.GetSection("OllamaModels"));
 
             // Configure per-model token limits from the Processing section of appsettings.json.
             var processingSettings = new ProcessingSettings();

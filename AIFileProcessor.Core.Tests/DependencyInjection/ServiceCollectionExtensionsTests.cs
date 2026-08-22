@@ -128,31 +128,6 @@ public class ServiceCollectionExtensionsTests
         Assert.Equal(600, settings.TimeoutSeconds);
     }
 
-    [Fact]
-    public void AddAiFileProcessorCore_BindsOllamaModelSettings_FromConfiguration()
-    {
-        var services = new ServiceCollection();
-        IConfiguration configuration = CreateConfiguration(d =>
-        {
-            // Note: model ids containing ':' cannot be expressed via ':'-delimited
-            // in-memory configuration keys (they add an unintended nesting level).
-            // Real appsettings.json binds such keys literally within a section.
-            d["OllamaModels:llama3:ChunkSize"] = "20";
-            d["OllamaModels:llama3:MaxConcurrentChunks"] = "2";
-            d["OllamaModels:llama3:SupportsThinking"] = "true";
-        });
-
-        services.AddAiFileProcessorCore(configuration);
-        var sp = services.BuildServiceProvider();
-
-        var modelSettings = sp.GetRequiredService<IOptions<Dictionary<string, OllamaModelSettings>>>().Value;
-
-        Assert.True(modelSettings.ContainsKey("llama3"));
-        Assert.Equal(20, modelSettings["llama3"].ChunkSize);
-        Assert.Equal(2, modelSettings["llama3"].MaxConcurrentChunks);
-        Assert.True(modelSettings["llama3"].SupportsThinking);
-    }
-
     // ─── Service Registrations ──────────────────────────────────────
 
     [Fact]

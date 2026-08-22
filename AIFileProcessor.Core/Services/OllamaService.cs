@@ -12,9 +12,11 @@ namespace AIFileProcessor.Services
     using System.Linq;
     using System.Net.Http;
     using System.Text;
+    using System.Text.Json;
     using System.Threading;
     using System.Threading.Tasks;
     using AIFileProcessor.Configuration;
+    using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
     using AIFileProcessor.Response;
     using AIFileProcessor.Telemetry;
@@ -40,16 +42,11 @@ namespace AIFileProcessor.Services
         /// <summary>Fallback context window when the server does not report one.</summary>
         private const int DefaultContextLength = 8192;
 
-        private static readonly IReadOnlyList<AiModelInfo> FallbackModels =
-        [
-            new AiModelInfo("Llama 3.1 (8B)", "llama3.1"),
-            new AiModelInfo("Qwen 2.5 (7B)", "qwen2.5"),
-        ];
-
         private readonly ConcurrentDictionary<string, IOllamaApiClient> _clients = new();
         private readonly ConcurrentDictionary<string, int> _contextLengths = new(StringComparer.OrdinalIgnoreCase);
         private readonly SemaphoreSlim _catalogLock = new(1, 1);
-        private readonly List<AiModelInfo> _configuredModels;
+        private readonly ISettingsProvider _settingsProvider;
+        private readonly IUserContext _userContext;
         private volatile IReadOnlyList<AiModelInfo>? _catalog;
 
         /// <summary>
@@ -58,17 +55,18 @@ namespace AIFileProcessor.Services
         /// <param name="logger">The logger instance for logging information and errors.</param>
         /// <param name="settings">The default Ollama settings (from <c>IOptionsMonitor&lt;T&gt;</c>).</param>
         /// <param name="httpClient">The HTTP client for making requests, managed by IHttpClientFactory.</param>
-        /// <param name="modelSettings">The per-model Ollama settings from the <c>OllamaModels</c> configuration section.</param>
+        /// <param name="settingsProvider">The settings provider for reading persisted per-user model overrides.</param>
+        /// <param name="userContext">The user context for resolving per-user settings.</param>
         public OllamaService(
             ILogger<OllamaService> logger,
             IOptionsMonitor<OllamaSettings> settings,
             HttpClient httpClient,
-            IOptionsMonitor<Dictionary<string, OllamaModelSettings>> modelSettings)
+            ISettingsProvider settingsProvider,
+            IUserContext userContext)
             : base(logger, settings ?? throw new ArgumentNullException(nameof(settings)), httpClient)
         {
-            ArgumentNullException.ThrowIfNull(modelSettings);
-            _configuredModels = [.. (modelSettings.CurrentValue ?? [])
-                .Select(kvp => ToModelInfo(kvp.Key, kvp.Value))];
+            _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
+            _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         }
 
         /// <inheritdoc/>
@@ -138,34 +136,73 @@ namespace AIFileProcessor.Services
             await _catalogLock.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                var client = GetClient(DefaultSettings);
-                Logger.LogInformation("Ollama: refreshing model catalog from endpoint {Endpoint}", DefaultSettings.Endpoint);
-                IEnumerable<OllamaModel> localModels = await client.ListLocalModelsAsync(ct).ConfigureAwait(false);
-                Logger.LogInformation("Ollama: received {Count} models from server", localModels.Count());
+                // Use the DI-managed HttpClient (with BaseAddress set) to call /api/tags directly,
+                // since OllamaSharp's Model type doesn't expose capabilities, context_length, or
+                // remote_model fields that we need.
+                using var response = await HttpClient.GetAsync("api/tags", ct).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                string json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                var tagsResponse = JsonSerializer.Deserialize<OllamaTagsResponse>(json);
+
+                if (tagsResponse?.Models is null || tagsResponse.Models.Length == 0)
+                {
+                    _catalog = [];
+                    return;
+                }
 
                 var models = new List<AiModelInfo>();
                 var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var local in localModels)
+                foreach (var tagModel in tagsResponse.Models)
                 {
-                    if (!string.IsNullOrWhiteSpace(local.Name) && seen.Add(local.Name))
+                    string name = tagModel.Name;
+                    if (string.IsNullOrWhiteSpace(name))
                     {
-                        models.Add(new AiModelInfo(local.Name, local.Name));
+                        name = tagModel.Model;
                     }
+
+                    if (string.IsNullOrWhiteSpace(name) || !seen.Add(name))
+                    {
+                        continue;
+                    }
+
+                    // Dynamic thinking capability from the /api/tags capabilities array.
+                    bool dynamicSupportsThinking = tagModel.Capabilities?.Contains("thinking", StringComparer.OrdinalIgnoreCase) == true;
+
+                    // Check for persisted per-user override: if the user has set SupportsThinking
+                    // (non-null) on this model's settings, that takes precedence over the dynamic value.
+                    bool supportsThinking = dynamicSupportsThinking;
+                    try
+                    {
+                        var modelSettings = await _settingsProvider.GetOllamaModelSettingsAsync(name, _userContext.UserId, ct).ConfigureAwait(false);
+                        if (modelSettings.SupportsThinking.HasValue)
+                        {
+                            supportsThinking = modelSettings.SupportsThinking.Value;
+                        }
+                    }
+                    catch (Exception overrideEx) when (overrideEx is not OperationCanceledException)
+                    {
+                        Logger.LogWarning(overrideEx, "Ollama: failed to read persisted SupportsThinking override for model {ModelId}; using dynamic value.", name);
+                    }
+
+                    // Register context length as the model's token limit.
+                    if (tagModel.Details?.ContextLength is int ctxLen and > 0)
+                    {
+                        ModelTokenLimits.RegisterModelLimit(name, ctxLen);
+                        _contextLengths[name] = ctxLen;
+                    }
+
+                    // Cloud detection: remote_model present means cloud model (cosmetic only).
+                    bool isCloud = !string.IsNullOrWhiteSpace(tagModel.RemoteModel);
+                    string displayName = isCloud ? $"{name} (cloud)" : name;
+
+                    List<ReasoningLevel> reasoningLevels = supportsThinking
+                        ? [ReasoningLevel.None, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High]
+                        : [ReasoningLevel.None];
+                    models.Add(new AiModelInfo(displayName, name, reasoningLevels));
                 }
 
-                foreach (var configured in _configuredModels)
-                {
-                    if (seen.Add(configured.ModelId))
-                    {
-                        models.Add(configured);
-                    }
-                }
-
-                if (models.Count > 0)
-                {
-                    _catalog = models;
-                }
+                _catalog = models;
             }
             catch (OperationCanceledException)
             {
@@ -173,7 +210,7 @@ namespace AIFileProcessor.Services
             }
             catch (Exception ex)
             {
-                Logger.LogWarning(ex, "Ollama: failed to refresh the model catalog from {Endpoint}; retaining the previous catalog. Error: {Message}", DefaultSettings.Endpoint, ex.Message);
+                Logger.LogWarning(ex, "Ollama: failed to refresh the model catalog from {Endpoint}; retaining the previous catalog.", DefaultSettings.Endpoint);
             }
             finally
             {
@@ -226,8 +263,7 @@ namespace AIFileProcessor.Services
         /// <inheritdoc/>
         protected override IReadOnlyList<AiModelInfo> ResolveSupportedModels()
         {
-            return _catalog
-                ?? (_configuredModels.Count > 0 ? _configuredModels : FallbackModels);
+            return _catalog ?? [];
         }
 
         /// <inheritdoc/>
@@ -261,7 +297,7 @@ namespace AIFileProcessor.Services
             ValidateRequest(modelId, prompt, data, settings.ApiKey);
 
             var client = GetClient(settings);
-            ThinkValue? think = settings.EnableThinking.HasValue ? new ThinkValue(settings.EnableThinking.Value) : default(ThinkValue?);
+            ThinkValue? think = MapThinkValue(settings);
 
             var request = new ChatRequest
             {
@@ -386,21 +422,58 @@ namespace AIFileProcessor.Services
         }
 
         /// <summary>
-        /// Creates an <see cref="AiModelInfo"/> for a configured model entry, using
-        /// the model's thinking capability to decide which reasoning levels it
-        /// advertises to the UI.
+        /// Maps the effective Ollama settings to the Ollama <c>think</c> parameter,
+        /// respecting <see cref="OllamaSettings.EnableThinking"/> and
+        /// <see cref="OllamaSettings.ReasoningLevel"/> as independent settings:
+        /// <list type="bullet">
+        /// <item><c>EnableThinking</c> is the master on/off gate. When <c>false</c>,
+        /// thinking is always off regardless of <c>ReasoningLevel</c>.</item>
+        /// <item><c>ReasoningLevel</c> controls the intensity when thinking is on.
+        /// <c>None</c> means "on with server default"; <c>Low</c>/<c>Medium</c>/<c>High</c>
+        /// pass the corresponding string level to Ollama.</item>
+        /// <item>When <c>EnableThinking</c> is <c>null</c> (not configured),
+        /// <c>ReasoningLevel</c> drives both: <c>None</c> disables thinking,
+        /// <c>Low</c>/<c>Medium</c>/<c>High</c> enable it at that level.</item>
+        /// <item>When both are <c>null</c>, the server default applies.</item>
+        /// </list>
         /// </summary>
-        /// <param name="modelId">The model identifier used as both ID and display name.</param>
-        /// <param name="modelSettings">The configured per-model settings.</param>
-        /// <returns>The populated model info.</returns>
-        private static AiModelInfo ToModelInfo(string modelId, OllamaModelSettings modelSettings)
+        /// <param name="settings">The effective Ollama settings.</param>
+        /// <returns>The ThinkValue for the chat request, or null to leave server default.</returns>
+        private static ThinkValue? MapThinkValue(OllamaSettings settings)
         {
-            List<ReasoningLevel> reasoningLevels = modelSettings.SupportsThinking
-                ? [ReasoningLevel.None, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High]
-                : [ReasoningLevel.None];
+            // EnableThinking is the master switch: false always disables thinking.
+            if (settings.EnableThinking == false)
+            {
+                return new ThinkValue(false);
+            }
 
-            string displayName = modelSettings.IsCloud ? $"{modelId} (cloud)" : modelId;
-            return new AiModelInfo(displayName, modelId, reasoningLevels);
+            // EnableThinking is true: thinking is on; ReasoningLevel picks the intensity.
+            if (settings.EnableThinking == true)
+            {
+                return settings.ReasoningLevel switch
+                {
+                    ReasoningLevel.Low => new ThinkValue(ThinkValue.Low),
+                    ReasoningLevel.Medium => new ThinkValue(ThinkValue.Medium),
+                    ReasoningLevel.High => new ThinkValue(ThinkValue.High),
+                    _ => new ThinkValue(true), // None or null: thinking on at server default
+                };
+            }
+
+            // EnableThinking is null (not configured): ReasoningLevel drives both.
+            if (settings.ReasoningLevel.HasValue)
+            {
+                return settings.ReasoningLevel.Value switch
+                {
+                    ReasoningLevel.None => new ThinkValue(false),
+                    ReasoningLevel.Low => new ThinkValue(ThinkValue.Low),
+                    ReasoningLevel.Medium => new ThinkValue(ThinkValue.Medium),
+                    ReasoningLevel.High => new ThinkValue(ThinkValue.High),
+                    _ => new ThinkValue(false),
+                };
+            }
+
+            // Both null: leave server default.
+            return default(ThinkValue?);
         }
 
         /// <summary>
