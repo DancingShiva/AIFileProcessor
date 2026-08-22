@@ -175,7 +175,7 @@ namespace AIFileProcessor.Services
                 }
 
                 // Initialize telemetry before the API call so the retry hook can update Attempts.
-                var localTelemetry = CreateTelemetry();
+                var telemetry = CreateTelemetry();
 
                 var completion = await TransientRetryPolicy.ExecuteAsync(
                     async cancellationToken =>
@@ -193,27 +193,32 @@ namespace AIFileProcessor.Services
                     Logger,
                     $"DeepSeek model {modelId}",
                     ct,
-                    onAttempt: attempt => localTelemetry.Attempts = attempt).ConfigureAwait(false);
+                    onAttempt: attempt => telemetry.Attempts = attempt).ConfigureAwait(false);
 
                 // finalize telemetry and return
-                FinalizeTelemetry(localTelemetry);
+                FinalizeTelemetry(telemetry);
 
                 // ChatCompletion.Usage properties may vary by SDK version; attempt best-effort mapping using reflection helper.
-                try
+                if (completion != null)
                 {
-                    if (TelemetryUtils.TryExtractTokens(completion, out var p, out var c))
+                    try
                     {
-                        localTelemetry.PromptTokens = p;
-                        localTelemetry.CompletionTokens = c;
+                        if (TelemetryUtils.TryExtractTokens(completion, out var p, out var c))
+                        {
+                            telemetry.PromptTokens = p;
+                            telemetry.CompletionTokens = c;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogWarning(ex, "DeepSeek: failed to extract token counts from completion response.");
                     }
                 }
-                catch (Exception ex)
-                {
-                    Logger.LogWarning(ex, "DeepSeek: failed to extract token counts from completion response.");
-                }
 
-                string text = completion.Content.Count > 0 ? completion.Content[0].Text ?? string.Empty : string.Empty;
-                return new AiCallResult { Text = text, Telemetry = localTelemetry };
+                string text = (completion?.Content != null && completion.Content.Count > 0)
+                    ? (completion.Content[0].Text ?? string.Empty)
+                    : string.Empty;
+                return new AiCallResult { Text = text, Telemetry = telemetry };
             }
             catch (OperationCanceledException)
             {

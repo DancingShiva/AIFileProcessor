@@ -153,11 +153,11 @@ namespace AIFileProcessor.Services
 
             string targetModel = modelId;
 
-            // Initialize telemetry for this call
-            var telemetry = CreateTelemetry();
-
             if (settings.StreamingEnabled)
             {
+                // Initialize telemetry for this call
+                var telemetry = CreateTelemetry();
+
                 try
                 {
                     var responseStream = client.Models.GenerateContentStreamAsync(
@@ -220,6 +220,9 @@ namespace AIFileProcessor.Services
             }
             else
             {
+                // Initialize telemetry for this call
+                var telemetry = CreateTelemetry();
+
                 try
                 {
                     var response = await TransientRetryPolicy.ExecuteAsync(
@@ -249,20 +252,23 @@ namespace AIFileProcessor.Services
                     FinalizeTelemetry(telemetry);
 
                     // Try reflection-based mapping for token counts
-                    try
+                    if (response != null)
                     {
-                        if (TelemetryUtils.TryExtractTokens(response, out var p, out var c))
+                        try
                         {
-                            telemetry.PromptTokens = p;
-                            telemetry.CompletionTokens = c;
+                            if (TelemetryUtils.TryExtractTokens(response, out var p, out var c))
+                            {
+                                telemetry.PromptTokens = p;
+                                telemetry.CompletionTokens = c;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogWarning(ex, "Gemini: failed to extract token counts from completion response.");
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        Logger.LogWarning(ex, "Gemini: failed to extract token counts from completion response.");
-                    }
 
-                    return new AiCallResult { Text = response.Text ?? string.Empty, Telemetry = telemetry };
+                    return new AiCallResult { Text = response?.Text ?? string.Empty, Telemetry = telemetry };
                 }
                 catch (OperationCanceledException)
                 {

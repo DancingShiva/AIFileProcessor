@@ -169,11 +169,11 @@ namespace AIFileProcessor.Services
             // tags to defend against prompt injection (tag unpredictability + leak detection).
             string wrappedData = WrapData(data);
 
-            // Initialize telemetry for this call
-            var telemetry = CreateTelemetry();
-
             try
             {
+                // Initialize telemetry for this call
+                var telemetry = CreateTelemetry();
+
                 var completion = await TransientRetryPolicy.ExecuteAsync(
                     async cancellationToken =>
                     {

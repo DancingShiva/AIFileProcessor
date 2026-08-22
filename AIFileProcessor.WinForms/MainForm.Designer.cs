@@ -44,7 +44,7 @@ namespace AIFileProcessor
             btnProcess = new Button();
             btnSave = new Button();
             btnClose = new Button();
-            menuStrip1 = new MenuStrip();
+            mnuMenu = new MenuStrip();
             tsmiFile = new ToolStripMenuItem();
             tsmiOpenData = new ToolStripMenuItem();
             tsmiOpen = new ToolStripMenuItem();
@@ -86,7 +86,7 @@ namespace AIFileProcessor
             tpMetricsGraph = new TabPage();
             pnlMetricsGraph = new Panel();
             tlpButtons.SuspendLayout();
-            menuStrip1.SuspendLayout();
+            mnuMenu.SuspendLayout();
             tlpViewSelect.SuspendLayout();
             tlpOptions.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)nudIdStart).BeginInit();
@@ -197,16 +197,16 @@ namespace AIFileProcessor
             btnClose.UseVisualStyleBackColor = true;
             btnClose.Click += btnClose_Click;
             // 
-            // menuStrip1
+            // mnuMenu
             // 
-            menuStrip1.ImageScalingSize = new Size(28, 28);
-            menuStrip1.Items.AddRange(new ToolStripItem[] { tsmiFile });
-            menuStrip1.Location = new Point(0, 0);
-            menuStrip1.Name = "menuStrip1";
-            menuStrip1.Padding = new Padding(7, 2, 0, 2);
-            menuStrip1.Size = new Size(1375, 38);
-            menuStrip1.TabIndex = 13;
-            menuStrip1.Text = "menuStrip1";
+            mnuMenu.ImageScalingSize = new Size(28, 28);
+            mnuMenu.Items.AddRange(new ToolStripItem[] { tsmiFile });
+            mnuMenu.Location = new Point(0, 0);
+            mnuMenu.Name = "mnuMenu";
+            mnuMenu.Padding = new Padding(7, 2, 0, 2);
+            mnuMenu.Size = new Size(1375, 38);
+            mnuMenu.TabIndex = 13;
+            mnuMenu.Text = "menuStrip1";
             // 
             // tsmiFile
             // 
@@ -402,17 +402,17 @@ namespace AIFileProcessor
             // 
             tlpOptions.ColumnCount = 12;
             tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80F));
-            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32F));
+            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34.6249962F));
             tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125F));
-            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18F));
+            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 19.4765625F));
             tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
-            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12.5F));
+            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18.2265549F));
             tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90F));
-            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12.5F));
+            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11.1384506F));
             tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 85F));
-            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12.5F));
+            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 8.266719F));
             tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130F));
-            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12.5F));
+            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 8.266719F));
             tlpOptions.Controls.Add(ddlModel, 1, 0);
             tlpOptions.Controls.Add(lblModel, 0, 0);
             tlpOptions.Controls.Add(lblReasoning, 2, 0);
@@ -441,7 +441,7 @@ namespace AIFileProcessor
             ddlModel.FormattingEnabled = true;
             ddlModel.Location = new Point(83, 3);
             ddlModel.Name = "ddlModel";
-            ddlModel.Size = new Size(238, 38);
+            ddlModel.Size = new Size(258, 38);
             ddlModel.TabIndex = 35;
             // 
             // lblModel
@@ -459,7 +459,7 @@ namespace AIFileProcessor
             // 
             lblReasoning.AutoSize = true;
             lblReasoning.Dock = DockStyle.Fill;
-            lblReasoning.Location = new Point(327, 0);
+            lblReasoning.Location = new Point(347, 0);
             lblReasoning.Name = "lblReasoning";
             lblReasoning.Size = new Size(119, 40);
             lblReasoning.TabIndex = 39;
@@ -471,16 +471,16 @@ namespace AIFileProcessor
             ddlReasoning.Dock = DockStyle.Fill;
             ddlReasoning.DropDownStyle = ComboBoxStyle.DropDownList;
             ddlReasoning.FormattingEnabled = true;
-            ddlReasoning.Location = new Point(452, 3);
+            ddlReasoning.Location = new Point(472, 3);
             ddlReasoning.Name = "ddlReasoning";
-            ddlReasoning.Size = new Size(131, 38);
+            ddlReasoning.Size = new Size(142, 38);
             ddlReasoning.TabIndex = 40;
             // 
             // lblPrefix
             // 
             lblPrefix.AutoSize = true;
             lblPrefix.Dock = DockStyle.Fill;
-            lblPrefix.Location = new Point(589, 0);
+            lblPrefix.Location = new Point(620, 0);
             lblPrefix.Name = "lblPrefix";
             lblPrefix.Size = new Size(94, 40);
             lblPrefix.TabIndex = 27;
@@ -490,17 +490,17 @@ namespace AIFileProcessor
             // txtPrefix
             // 
             txtPrefix.Dock = DockStyle.Fill;
-            txtPrefix.Location = new Point(689, 4);
+            txtPrefix.Location = new Point(720, 4);
             txtPrefix.Margin = new Padding(3, 4, 3, 4);
             txtPrefix.Name = "txtPrefix";
-            txtPrefix.Size = new Size(89, 35);
+            txtPrefix.Size = new Size(133, 35);
             txtPrefix.TabIndex = 28;
             // 
             // lblStart
             // 
             lblStart.AutoSize = true;
             lblStart.Dock = DockStyle.Fill;
-            lblStart.Location = new Point(784, 0);
+            lblStart.Location = new Point(859, 0);
             lblStart.Name = "lblStart";
             lblStart.Size = new Size(84, 40);
             lblStart.TabIndex = 29;
@@ -510,12 +510,12 @@ namespace AIFileProcessor
             // nudIdStart
             // 
             nudIdStart.Dock = DockStyle.Fill;
-            nudIdStart.Location = new Point(874, 4);
+            nudIdStart.Location = new Point(949, 4);
             nudIdStart.Margin = new Padding(3, 4, 3, 4);
             nudIdStart.Maximum = new decimal(new int[] { 99999, 0, 0, 0 });
             nudIdStart.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
             nudIdStart.Name = "nudIdStart";
-            nudIdStart.Size = new Size(89, 35);
+            nudIdStart.Size = new Size(79, 35);
             nudIdStart.TabIndex = 36;
             nudIdStart.Value = new decimal(new int[] { 1, 0, 0, 0 });
             // 
@@ -523,7 +523,7 @@ namespace AIFileProcessor
             // 
             lblIdPad.AutoSize = true;
             lblIdPad.Dock = DockStyle.Fill;
-            lblIdPad.Location = new Point(969, 0);
+            lblIdPad.Location = new Point(1034, 0);
             lblIdPad.Name = "lblIdPad";
             lblIdPad.Size = new Size(79, 40);
             lblIdPad.TabIndex = 31;
@@ -533,12 +533,12 @@ namespace AIFileProcessor
             // nudIdPad
             // 
             nudIdPad.Dock = DockStyle.Fill;
-            nudIdPad.Location = new Point(1054, 4);
+            nudIdPad.Location = new Point(1119, 4);
             nudIdPad.Margin = new Padding(3, 4, 3, 4);
             nudIdPad.Maximum = new decimal(new int[] { 99999, 0, 0, 0 });
             nudIdPad.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
             nudIdPad.Name = "nudIdPad";
-            nudIdPad.Size = new Size(89, 35);
+            nudIdPad.Size = new Size(57, 35);
             nudIdPad.TabIndex = 32;
             nudIdPad.Value = new decimal(new int[] { 3, 0, 0, 0 });
             // 
@@ -546,7 +546,7 @@ namespace AIFileProcessor
             // 
             lblLengthPad.AutoSize = true;
             lblLengthPad.Dock = DockStyle.Fill;
-            lblLengthPad.Location = new Point(1149, 0);
+            lblLengthPad.Location = new Point(1182, 0);
             lblLengthPad.Name = "lblLengthPad";
             lblLengthPad.Size = new Size(124, 40);
             lblLengthPad.TabIndex = 37;
@@ -556,12 +556,12 @@ namespace AIFileProcessor
             // nudLengthPad
             // 
             nudLengthPad.Dock = DockStyle.Fill;
-            nudLengthPad.Location = new Point(1279, 4);
+            nudLengthPad.Location = new Point(1312, 4);
             nudLengthPad.Margin = new Padding(3, 4, 3, 4);
             nudLengthPad.Maximum = new decimal(new int[] { 99999, 0, 0, 0 });
             nudLengthPad.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
             nudLengthPad.Name = "nudLengthPad";
-            nudLengthPad.Size = new Size(93, 35);
+            nudLengthPad.Size = new Size(60, 35);
             nudLengthPad.TabIndex = 38;
             nudLengthPad.Value = new decimal(new int[] { 3, 0, 0, 0 });
             // 
@@ -723,15 +723,15 @@ namespace AIFileProcessor
             Controls.Add(rtbPrompt);
             Controls.Add(tlpViewSelect);
             Controls.Add(tlpButtons);
-            Controls.Add(menuStrip1);
-            MainMenuStrip = menuStrip1;
+            Controls.Add(mnuMenu);
+            MainMenuStrip = mnuMenu;
             Margin = new Padding(3, 4, 3, 4);
             Name = "MainForm";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "MainForm";
             tlpButtons.ResumeLayout(false);
-            menuStrip1.ResumeLayout(false);
-            menuStrip1.PerformLayout();
+            mnuMenu.ResumeLayout(false);
+            mnuMenu.PerformLayout();
             tlpViewSelect.ResumeLayout(false);
             tlpViewSelect.PerformLayout();
             tlpOptions.ResumeLayout(false);
@@ -749,7 +749,7 @@ namespace AIFileProcessor
 
         #endregion
         private TableLayoutPanel  tlpButtons;
-        private MenuStrip menuStrip1;
+        private MenuStrip mnuMenu;
         private ToolStripMenuItem tsmiFile;
         private TableLayoutPanel tlpViewSelect;
         private RadioButton rdoResponse;
