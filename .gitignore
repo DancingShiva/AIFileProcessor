@@ -39,6 +39,7 @@ publish/
 
 # AI / agent files
 .ai/
+AI Feedback/
 
 # OS files
 Thumbs.db
