@@ -86,6 +86,24 @@ namespace AIFileProcessor.Services
                 return new AiApiResponse();
             }
 
+            // Defensive guard: ChunkSize <= 0 causes an infinite loop in the
+            // chunking for-loop. MaxConcurrentChunks <= 0 deadlocks the semaphore.
+            // These should be caught by ProcessingOptionsValidator upstream, but
+            // this guard ensures the processor never hangs regardless of entry path.
+            if (chunking.ChunkSize <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(chunking),
+                    $"ChunkSize must be a positive integer, but was {chunking.ChunkSize}.");
+            }
+
+            if (chunking.MaxConcurrentChunks <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(chunking),
+                    $"MaxConcurrentChunks must be a positive integer, but was {chunking.MaxConcurrentChunks}.");
+            }
+
             // The 'logger' and 'aiServices' parameters from the primary constructor
             // are in scope and can be used directly here.
             logger.LogInformation("Processing text with model: {ModelId}", modelId);

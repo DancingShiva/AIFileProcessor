@@ -250,5 +250,184 @@ public class ChineseTextProcessorTests
             s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    // --- Chunking boundary tests ------------------------------------------------
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_SingleLine_CallsServiceOnce()
+    {
+        var processor = CreateProcessor();
+
+        await processor.ProcessChineseTextAsync(ModelId, Prompt, "一行", new ChunkingOptions(), CancellationToken.None);
+
+        _aiServiceMock.Verify(
+            s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_ExactlyChunkSizeLines_ProducesOneChunk()
+    {
+        var processor = CreateProcessor();
+        // Default ChunkSize = 40; send exactly 40 lines
+        var data = string.Join("\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 40));
+
+        await processor.ProcessChineseTextAsync(ModelId, Prompt, data, new ChunkingOptions(), CancellationToken.None);
+
+        _aiServiceMock.Verify(
+            s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_ChunkSizePlusOneLines_ProducesTwoChunks()
+    {
+        var processor = CreateProcessor();
+        // Default ChunkSize = 40; send 41 lines → 2 chunks (40 + 1)
+        var data = string.Join("\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 41));
+
+        await processor.ProcessChineseTextAsync(ModelId, Prompt, data, new ChunkingOptions(), CancellationToken.None);
+
+        _aiServiceMock.Verify(
+            s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_AllBlankLines_ReturnsEmptyResponse()
+    {
+        var processor = CreateProcessor();
+        // 5 blank lines — string.IsNullOrWhiteSpace returns true for all-whitespace
+        // content (newlines are whitespace), so the processor short-circuits and
+        // returns an empty response without calling the AI service.
+        var data = "\n\n\n\n\n";
+
+        var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, new ChunkingOptions(), CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(string.Empty, result.Scratchpad);
+        _aiServiceMock.Verify(
+            s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_MaxConcurrentChunksOne_AllChunksComplete()
+    {
+        var processor = CreateProcessor();
+        // 3 lines, ChunkSize=1 → 3 chunks, MaxConcurrentChunks=1 (sequential)
+        var chunking = new ChunkingOptions { ChunkSize = 1, MaxConcurrentChunks = 1 };
+        var data = "一行\n二行\n三行";
+
+        var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, chunking, CancellationToken.None);
+
+        Assert.NotNull(result);
+        _aiServiceMock.Verify(
+            s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(3));
+    }
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_MaxConcurrentChunksExceedsChunkCount_AllChunksComplete()
+    {
+        var processor = CreateProcessor();
+        // 2 lines, ChunkSize=1 → 2 chunks, MaxConcurrentChunks=10 (more than chunks)
+        var chunking = new ChunkingOptions { ChunkSize = 1, MaxConcurrentChunks = 10 };
+        var data = "一行\n二行";
+
+        var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, chunking, CancellationToken.None);
+
+        Assert.NotNull(result);
+        _aiServiceMock.Verify(
+            s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_MultiChunkMerge_PreservesCorrectOrder()
+    {
+        var processor = CreateProcessor();
+        // Use distinct JSON per chunk so we can verify merge order
+        var callCount = 0;
+        _aiServiceMock
+            .Setup(s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string _, string _, string chunkText, CancellationToken _) =>
+            {
+                callCount++;
+                // Return JSON with a sentence whose English reflects the chunk index
+                return new AiCallResult
+                {
+                    Text = $"{{\"SP\":\"chunk{callCount}\",\"Corrections\":[],\"Sentences\":[]}}",
+                };
+            });
+
+        // 2 lines, ChunkSize=1 → 2 chunks
+        var chunking = new ChunkingOptions { ChunkSize = 1, MaxConcurrentChunks = 2 };
+        var data = "一行\n二行";
+
+        var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, chunking, CancellationToken.None);
+
+        Assert.NotNull(result);
+        // Scratchpad is concatenated in chunk order
+        Assert.Contains("chunk1", result.Scratchpad);
+        Assert.Contains("chunk2", result.Scratchpad);
+    }
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_MixedLineEndings_SplitsCorrectly()
+    {
+        var processor = CreateProcessor();
+        // Mix CRLF, LF, and CR in the same input
+        var data = "一行\r\n二行\n三行\r四行";
+
+        await processor.ProcessChineseTextAsync(ModelId, Prompt, data, new ChunkingOptions(), CancellationToken.None);
+
+        // All 4 lines fit in one chunk (ChunkSize=40)
+        _aiServiceMock.Verify(
+            s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    // --- ChunkSize=0 / MaxConcurrentChunks=0 guards -----------------------------
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_ChunkSizeZero_ThrowsArgumentOutOfRangeException()
+    {
+        var processor = CreateProcessor();
+        var chunking = new ChunkingOptions { ChunkSize = 0, MaxConcurrentChunks = 3 };
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => processor.ProcessChineseTextAsync(ModelId, Prompt, RealisticData, chunking, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_ChunkSizeNegative_ThrowsArgumentOutOfRangeException()
+    {
+        var processor = CreateProcessor();
+        var chunking = new ChunkingOptions { ChunkSize = -1, MaxConcurrentChunks = 3 };
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => processor.ProcessChineseTextAsync(ModelId, Prompt, RealisticData, chunking, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_MaxConcurrentChunksZero_ThrowsArgumentOutOfRangeException()
+    {
+        var processor = CreateProcessor();
+        var chunking = new ChunkingOptions { ChunkSize = 40, MaxConcurrentChunks = 0 };
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => processor.ProcessChineseTextAsync(ModelId, Prompt, RealisticData, chunking, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ProcessChineseTextAsync_MaxConcurrentChunksNegative_ThrowsArgumentOutOfRangeException()
+    {
+        var processor = CreateProcessor();
+        var chunking = new ChunkingOptions { ChunkSize = 40, MaxConcurrentChunks = -1 };
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => processor.ProcessChineseTextAsync(ModelId, Prompt, RealisticData, chunking, CancellationToken.None));
+    }
 }
 

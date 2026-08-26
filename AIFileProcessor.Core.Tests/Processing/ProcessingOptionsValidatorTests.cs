@@ -380,4 +380,62 @@ public class ProcessingOptionsValidatorTests
 
         Assert.Contains(errors, e => e.Contains("maximum allowed line count of 400"));
     }
+
+    // --- Chunking validation ---
+
+    [Fact]
+    public void Validate_ChunkSizeZero_AddsChunkSizeError()
+    {
+        var options = CreateValidOptions();
+        options.Chunking = new ChunkingOptions { ChunkSize = 0, MaxConcurrentChunks = 3 };
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.Contains("The chunk size must be a positive integer.", errors);
+    }
+
+    [Fact]
+    public void Validate_ChunkSizeNegative_AddsChunkSizeError()
+    {
+        var options = CreateValidOptions();
+        options.Chunking = new ChunkingOptions { ChunkSize = -1, MaxConcurrentChunks = 3 };
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.Contains("The chunk size must be a positive integer.", errors);
+    }
+
+    [Fact]
+    public void Validate_MaxConcurrentChunksZero_AddsConcurrencyError()
+    {
+        var options = CreateValidOptions();
+        options.Chunking = new ChunkingOptions { ChunkSize = 40, MaxConcurrentChunks = 0 };
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.Contains("The maximum concurrent chunks must be a positive integer.", errors);
+    }
+
+    [Fact]
+    public void Validate_MaxConcurrentChunksNegative_AddsConcurrencyError()
+    {
+        var options = CreateValidOptions();
+        options.Chunking = new ChunkingOptions { ChunkSize = 40, MaxConcurrentChunks = -1 };
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.Contains("The maximum concurrent chunks must be a positive integer.", errors);
+    }
+
+    [Fact]
+    public void Validate_DefaultChunking_NoErrors()
+    {
+        var options = CreateValidOptions();
+        // Default ChunkingOptions: ChunkSize=40, MaxConcurrentChunks=3
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.DoesNotContain(errors, e => e.Contains("chunk size"));
+        Assert.DoesNotContain(errors, e => e.Contains("concurrent chunks"));
+    }
 }

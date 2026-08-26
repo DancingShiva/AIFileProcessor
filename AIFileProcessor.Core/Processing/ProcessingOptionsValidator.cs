@@ -52,6 +52,16 @@ namespace AIFileProcessor.Processing
                 errors.Add("The value for the length padding must be a positive integer.");
             }
 
+            if (options.Chunking.ChunkSize <= 0)
+            {
+                errors.Add("The chunk size must be a positive integer.");
+            }
+
+            if (options.Chunking.MaxConcurrentChunks <= 0)
+            {
+                errors.Add("The maximum concurrent chunks must be a positive integer.");
+            }
+
             if (string.IsNullOrWhiteSpace(options.Prompt))
             {
                 errors.Add("Please load a prompt file before processing.");
