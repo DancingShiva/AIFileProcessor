@@ -63,7 +63,7 @@ namespace AIFileProcessor.Services
             "pretend you are",
             "roleplay as",
             "jailbreak",
-            "DAN mode",
+            "dan mode",
             "developer mode",
             "reveal your instructions",
             "reveal the system prompt",
