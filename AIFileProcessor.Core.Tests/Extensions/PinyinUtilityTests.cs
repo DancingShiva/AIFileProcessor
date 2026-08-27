@@ -1,4 +1,9 @@
-﻿namespace AIFileProcessor.Core.Tests.Extensions;
+﻿//-----------------------------------------------------------------------
+// <copyright file="PinyinUtilityTests.cs" company="Midnight Mission Systems">
+//     Copyright (c) Midnight Mission Systems. All rights reserved.
+// </copyright>
+//-----------------------------------------------------------------------
+namespace AIFileProcessor.Core.Tests.Extensions;
 
 using AIFileProcessor.Extensions;
 
@@ -503,5 +508,67 @@ public class PinyinUtilityTests
     public void StripTone_StringWithNumbers_ReturnsSame()
     {
         Assert.Equal("ma1", PinyinUtility.StripTone("ma1"));
+    }
+
+    // ---------- Round-trip property: ShiftTone(StripTone(accented), tone) == accented ----------
+
+    /// <summary>
+    /// All 30 vowel×tone combinations. Each tuple is (accentedSyllable, baseSyllable, tone).
+    /// The property test verifies that shifting the tone back onto the stripped
+    /// syllable produces the original accented syllable.
+    /// </summary>
+    public static TheoryData<string, string, Tone> VowelToneCombinations => new()
+    {
+        // a-vowel
+        { "mā", "ma", Tone.First },
+        { "má", "ma", Tone.Second },
+        { "mǎ", "ma", Tone.Third },
+        { "mà", "ma", Tone.Fourth },
+        // e-vowel
+        { "hē", "he", Tone.First },
+        { "hé", "he", Tone.Second },
+        { "hě", "he", Tone.Third },
+        { "hè", "he", Tone.Fourth },
+        // i-vowel
+        { "lī", "li", Tone.First },
+        { "lí", "li", Tone.Second },
+        { "lǐ", "li", Tone.Third },
+        { "lì", "li", Tone.Fourth },
+        // o-vowel
+        { "mō", "mo", Tone.First },
+        { "mó", "mo", Tone.Second },
+        { "mǒ", "mo", Tone.Third },
+        { "mò", "mo", Tone.Fourth },
+        // u-vowel
+        { "hū", "hu", Tone.First },
+        { "hú", "hu", Tone.Second },
+        { "hǔ", "hu", Tone.Third },
+        { "hù", "hu", Tone.Fourth },
+        // ü-vowel
+        { "nǖ", "nü", Tone.First },
+        { "nǘ", "nü", Tone.Second },
+        { "nǚ", "nü", Tone.Third },
+        { "nǜ", "nü", Tone.Fourth },
+        // uppercase a-vowel
+        { "MĀ", "MA", Tone.First },
+        { "MÁ", "MA", Tone.Second },
+        { "MǍ", "MA", Tone.Third },
+        { "MÀ", "MA", Tone.Fourth },
+        // uppercase e-vowel
+        { "HĒ", "HE", Tone.First },
+        { "HÉ", "HE", Tone.Second },
+    };
+
+    [Theory]
+    [MemberData(nameof(VowelToneCombinations))]
+    public void ShiftTone_RoundTrip_ShiftToneAfterStripToneRestoresOriginal(
+        string accented, string baseSyllable, Tone tone)
+    {
+        // Property: ShiftTone(StripTone(accented), tone) == accented
+        string stripped = PinyinUtility.StripTone(accented);
+        Assert.Equal(baseSyllable, stripped);
+
+        string shifted = PinyinUtility.ShiftTone(stripped, tone);
+        Assert.Equal(accented, shifted);
     }
 }

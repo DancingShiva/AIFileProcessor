@@ -1,4 +1,9 @@
-﻿namespace AIFileProcessor.Core.Tests.Extensions;
+﻿//-----------------------------------------------------------------------
+// <copyright file="SandhiEngineTests.cs" company="Midnight Mission Systems">
+//     Copyright (c) Midnight Mission Systems. All rights reserved.
+// </copyright>
+//-----------------------------------------------------------------------
+namespace AIFileProcessor.Core.Tests.Extensions;
 
 using System.Collections.Generic;
 using AIFileProcessor.Extensions;
@@ -24,7 +29,7 @@ public class SandhiEngineTests
     [Fact]
     public void ProcessSandhiPipeline_EmptyStream_ReturnsEmptyList()
     {
-        var result = engine.ProcessSandhiPipeline(Array.Empty<SyllableNode>());
+        var result = engine.ProcessSandhiPipeline([]);
         Assert.Empty(result);
     }
 
@@ -33,8 +38,8 @@ public class SandhiEngineTests
     {
         var stream = new List<SyllableNode> { Node("mā", Tone.First) };
         var result = engine.ProcessSandhiPipeline(stream);
-        Assert.Single(result);
-        Assert.Equal("mā", result[0]);
+        var item = Assert.Single(result);
+        Assert.Equal("mā", item);
     }
 
     // ---------- RULE D: Neutral Particles ----------
@@ -75,10 +80,10 @@ public class SandhiEngineTests
 
     // ---------- RULE B: bù before 4th tone ----------
 
-    public static IEnumerable<object[]> BuSandhiData => new[]
+    public static TheoryData<string, Tone, string> BuSandhiData => new()
     {
-        new object[] { "shì", Tone.Fourth, "bú" },
-        new object[] { "hǎo", Tone.Third, "bù" },
+        { "shì", Tone.Fourth, "bú" },
+        { "hǎo", Tone.Third, "bù" },
     };
 
     [Theory]
@@ -97,16 +102,16 @@ public class SandhiEngineTests
 
     // ---------- RULE C: yī quantitative shifts ----------
 
-    public static IEnumerable<object[]> YiSandhiData => new[]
+    public static TheoryData<string, Tone, string, string> YiSandhiData => new()
     {
         // yī before 4th tone, non-num -> yí (2nd tone)
-        new object[] { "yàng", Tone.Fourth, "other", "yí" },
+        { "yàng", Tone.Fourth, "other", "yí" },
         // yī before 1st/2nd/3rd tone, non-num -> yì (4th tone)
-        new object[] { "ge", Tone.First, "other", "yì" },
-        new object[] { "ge", Tone.Second, "other", "yì" },
-        new object[] { "ge", Tone.Third, "other", "yì" },
+        { "ge", Tone.First, "other", "yì" },
+        { "ge", Tone.Second, "other", "yì" },
+        { "ge", Tone.Third, "other", "yì" },
         // yī with num pos -> keeps original
-        new object[] { "yàng", Tone.Fourth, "num", "yī" },
+        { "yàng", Tone.Fourth, "num", "yī" },
     };
 
     [Theory]
@@ -125,10 +130,10 @@ public class SandhiEngineTests
 
     // ---------- RULE A: 3rd + 3rd Sandhi ----------
 
-    public static IEnumerable<object[]> ThirdToneSandhiData => new[]
+    public static TheoryData<string, Tone, string> ThirdToneSandhiData => new()
     {
-        new object[] { "hǎo", Tone.Third, "ní" },
-        new object[] { "ge", Tone.Fourth, "nǐ" },
+        { "hǎo", Tone.Third, "ní" },
+        { "ge", Tone.Fourth, "nǐ" },
     };
 
     [Theory]
@@ -300,6 +305,105 @@ public class SandhiEngineTests
         var stream = new List<SyllableNode>
         {
             Node("yī", Tone.First, pos: "other"),
+        };
+        var result = engine.ProcessSandhiPipeline(stream);
+        Assert.Equal("yī", result[0]);
+    }
+
+    // ---------- RULE D: particle×tone combinatorial (6 particles × 5 tones) ----------
+
+    /// <summary>
+    /// All 6 target particles × 5 tones = 30 combinations.
+    /// Each particle node has a tone-marked pinyin source so that
+    /// StripTone must actually strip the mark. The property is that
+    /// RULE D neutralizes the tone regardless of which tone mark is present.
+    /// </summary>
+    public static TheoryData<string, string, Tone> ParticleToneCombinations
+    {
+        get
+        {
+            var data = new TheoryData<string, string, Tone>();
+            string[] particles = ["吗", "呢", "了", "的", "得", "地"];
+            (string pinyin, Tone tone)[] tones =
+            [
+                ("mā", Tone.First),
+                ("má", Tone.Second),
+                ("mǎ", Tone.Third),
+                ("mà", Tone.Fourth),
+                ("ma", Tone.Neutral),
+            ];
+
+            foreach (string particle in particles)
+            {
+                foreach (var (pinyin, tone) in tones)
+                {
+                    data.Add(particle, pinyin, tone);
+                }
+            }
+
+            return data;
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ParticleToneCombinations))]
+    public void ProcessSandhiPipeline_ParticleWithAnyTone_AlwaysStripsTone(
+        string particle, string toneMarkedPinyin, Tone tone)
+    {
+        // The node's source is the CJK particle, but the text carries a tone-marked pinyin.
+        // RULE D should strip the tone mark regardless of which tone is present.
+        var node = new SyllableNode(toneMarkedPinyin, tone, new SandhiContext(particle, "particle", true));
+        var stream = new List<SyllableNode> { node };
+
+        var result = engine.ProcessSandhiPipeline(stream);
+
+        Assert.Equal(PinyinUtility.StripTone(toneMarkedPinyin), result[0]);
+    }
+
+    // ---------- RULE B: bù before all tones (missing cases) ----------
+
+    public static TheoryData<string, Tone, string> BuAllToneData => new()
+    {
+        { "mā", Tone.First, "bù" },
+        { "má", Tone.Second, "bù" },
+        { "ma", Tone.Neutral, "bù" },
+    };
+
+    [Theory]
+    [MemberData(nameof(BuAllToneData))]
+    public void ProcessSandhiPipeline_BuBeforeNonFourthTone_KeepsOriginal(
+        string nextText, Tone nextTone, string expected)
+    {
+        var stream = new List<SyllableNode>
+        {
+            Node("bù", Tone.Fourth),
+            Node(nextText, nextTone),
+        };
+        var result = engine.ProcessSandhiPipeline(stream);
+        Assert.Equal(expected, result[0]);
+    }
+
+    // ---------- RULE C: yī before neutral/unknown tone (missing cases) ----------
+
+    [Fact]
+    public void ProcessSandhiPipeline_YiBeforeNeutralTone_KeepsOriginal()
+    {
+        var stream = new List<SyllableNode>
+        {
+            Node("yī", Tone.First, pos: "other"),
+            Node("ma", Tone.Neutral),
+        };
+        var result = engine.ProcessSandhiPipeline(stream);
+        Assert.Equal("yī", result[0]);
+    }
+
+    [Fact]
+    public void ProcessSandhiPipeline_YiBeforeUnknownTone_KeepsOriginal()
+    {
+        var stream = new List<SyllableNode>
+        {
+            Node("yī", Tone.First, pos: "other"),
+            Node("sh", Tone.Unknown),
         };
         var result = engine.ProcessSandhiPipeline(stream);
         Assert.Equal("yī", result[0]);

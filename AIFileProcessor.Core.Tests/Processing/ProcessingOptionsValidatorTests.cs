@@ -1,4 +1,9 @@
-﻿namespace AIFileProcessor.Core.Tests.Processing;
+﻿//-----------------------------------------------------------------------
+// <copyright file="ProcessingOptionsValidatorTests.cs" company="Midnight Mission Systems">
+//     Copyright (c) Midnight Mission Systems. All rights reserved.
+// </copyright>
+//-----------------------------------------------------------------------
+namespace AIFileProcessor.Core.Tests.Processing;
 
 using AIFileProcessor.Models;
 using AIFileProcessor.Processing;
@@ -13,7 +18,7 @@ public class ProcessingOptionsValidatorTests
         IdPad = 3,
         LengthPad = 3,
         Prompt = "Some prompt",
-        Data = "???????",
+        Data = "我在超市买菜。",
     };
 
     [Fact]
@@ -257,7 +262,7 @@ public class ProcessingOptionsValidatorTests
     public void Validate_DataWithChineseMixedContent_NoChineseContentError()
     {
         var options = CreateValidOptions();
-        options.Data = "Line one with English\n???????";
+        options.Data = "Line one with English\n我在超市买菜。";
 
         var errors = ProcessingOptionsValidator.Validate(options, "model-1");
 
@@ -301,6 +306,17 @@ public class ProcessingOptionsValidatorTests
         Assert.Contains("Please load a data file before processing.", errors);
     }
 
+    private static readonly string[] ExpectedAllInvalidErrors =
+    [
+        "Please select a model before processing.",
+        "Please enter a prefix before processing.",
+        "The starting index must be a positive numeric value.",
+        "The value for the Id padding must be a positive integer.",
+        "The value for the length padding must be a positive integer.",
+        "Please load a prompt file before processing.",
+        "Please load a data file before processing.",
+    ];
+
     [Fact]
     public void Validate_AllInvalid_ErrorsInFieldOrder()
     {
@@ -317,18 +333,7 @@ public class ProcessingOptionsValidatorTests
         var errors = ProcessingOptionsValidator.Validate(options, null);
 
         // Errors are returned in field/UI order so the UI can present them in one pass.
-        Assert.Equal(
-            new[]
-            {
-                "Please select a model before processing.",
-                "Please enter a prefix before processing.",
-                "The starting index must be a positive numeric value.",
-                "The value for the Id padding must be a positive integer.",
-                "The value for the length padding must be a positive integer.",
-                "Please load a prompt file before processing.",
-                "Please load a data file before processing.",
-            },
-            errors);
+        Assert.Equal(ExpectedAllInvalidErrors, errors);
     }
 
     // --- MaxInputLines validation ---
@@ -338,7 +343,7 @@ public class ProcessingOptionsValidatorTests
     {
         var options = CreateValidOptions();
         // Build data with 401 lines of Chinese text
-        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("???????", 401));
+        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 401));
 
         var errors = ProcessingOptionsValidator.Validate(options, "model-1", maxInputLines: 400);
 
@@ -350,7 +355,7 @@ public class ProcessingOptionsValidatorTests
     {
         var options = CreateValidOptions();
         // Build data with exactly 400 lines of Chinese text
-        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("???????", 400));
+        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 400));
 
         var errors = ProcessingOptionsValidator.Validate(options, "model-1", maxInputLines: 400);
 
@@ -362,7 +367,7 @@ public class ProcessingOptionsValidatorTests
     {
         var options = CreateValidOptions();
         // Build data with 401 lines using \r\n separators
-        options.Data = string.Join("\r\n", System.Linq.Enumerable.Repeat("???????", 401));
+        options.Data = string.Join("\r\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 401));
 
         var errors = ProcessingOptionsValidator.Validate(options, "model-1", maxInputLines: 400);
 
@@ -373,7 +378,7 @@ public class ProcessingOptionsValidatorTests
     public void Validate_DefaultMaxInputLines_400LinesRejected()
     {
         var options = CreateValidOptions();
-        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("???????", 401));
+        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 401));
 
         // Use default parameters (no explicit maxInputLines)
         var errors = ProcessingOptionsValidator.Validate(options, "model-1");
@@ -437,5 +442,103 @@ public class ProcessingOptionsValidatorTests
 
         Assert.DoesNotContain(errors, e => e.Contains("chunk size"));
         Assert.DoesNotContain(errors, e => e.Contains("concurrent chunks"));
+    }
+
+    // --- Boundary values: minimum valid value (1) for numeric fields ---
+
+    public static TheoryData<string, int> BoundaryValidValues => new()
+    {
+        { "IdStart", 1 },
+        { "IdPad", 1 },
+        { "LengthPad", 1 },
+    };
+
+    [Theory]
+    [MemberData(nameof(BoundaryValidValues))]
+    public void Validate_MinimumValidValue_NoErrors(string fieldName, int value)
+    {
+        var options = CreateValidOptions();
+        switch (fieldName)
+        {
+            case "IdStart": options.IdStart = value; break;
+            case "IdPad": options.IdPad = value; break;
+            case "LengthPad": options.LengthPad = value; break;
+        }
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_IdStartLargeValue_NoErrors()
+    {
+        var options = CreateValidOptions();
+        options.IdStart = int.MaxValue;
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_IdPadLargeValue_NoErrors()
+    {
+        var options = CreateValidOptions();
+        options.IdPad = int.MaxValue;
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.Empty(errors);
+    }
+
+    // --- Boundary values: ChunkSize and MaxConcurrentChunks minimum valid (1) ---
+
+    [Fact]
+    public void Validate_ChunkSizeOne_NoErrors()
+    {
+        var options = CreateValidOptions();
+        options.Chunking = new ChunkingOptions { ChunkSize = 1, MaxConcurrentChunks = 3 };
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.DoesNotContain(errors, e => e.Contains("chunk size"));
+    }
+
+    [Fact]
+    public void Validate_MaxConcurrentChunksOne_NoErrors()
+    {
+        var options = CreateValidOptions();
+        options.Chunking = new ChunkingOptions { ChunkSize = 40, MaxConcurrentChunks = 1 };
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1");
+
+        Assert.DoesNotContain(errors, e => e.Contains("concurrent chunks"));
+    }
+
+    // --- maxInputSize boundary tests ---
+
+    [Fact]
+    public void Validate_DataAtMaxInputSize_NoSizeError()
+    {
+        var options = CreateValidOptions();
+        // Build data with exactly maxInputSize characters (all Chinese)
+        options.Data = new string('我', 1000);
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1", maxInputSize: 1000);
+
+        Assert.DoesNotContain(errors, e => e.Contains("maximum allowed size"));
+    }
+
+    [Fact]
+    public void Validate_DataOneCharOverMaxInputSize_AddsSizeError()
+    {
+        var options = CreateValidOptions();
+        // Build data with one character over the limit
+        options.Data = new string('我', 1001);
+
+        var errors = ProcessingOptionsValidator.Validate(options, "model-1", maxInputSize: 1000);
+
+        Assert.Contains(errors, e => e.Contains("maximum allowed size of 1,000 characters"));
     }
 }
