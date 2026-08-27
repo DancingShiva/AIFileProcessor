@@ -69,7 +69,7 @@ public class ChineseTextProcessorMetricsTests
         var aiService = new Mock<IAiService>();
         var modelId = "test-model";
         var prompt = "p";
-        var data = "????"; // single line -> 1 chunk
+        var data = "一行数据"; // single line -> 1 chunk
         aiService.Setup(s => s.SupportsModel(modelId)).Returns(true);
         var callTelemetry = new CallTelemetry
         {

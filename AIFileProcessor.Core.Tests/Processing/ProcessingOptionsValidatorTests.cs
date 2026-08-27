@@ -251,7 +251,7 @@ public class ProcessingOptionsValidatorTests
     public void Validate_DataOnlyPunctuation_AddsNoChineseContentError()
     {
         var options = CreateValidOptions();
-        options.Data = "?,!???";
+        options.Data = "。，！？【】";
 
         var errors = ProcessingOptionsValidator.Validate(options, "model-1");
 

@@ -17,10 +17,10 @@ public class ChineseTextProcessorTests
 {
     private readonly Mock<ILogger<ChineseTextProcessor>> _loggerMock = new();
     private readonly Mock<IAiService> _aiServiceMock = new();
-    private const string ValidJson = "{\"SP\":\"wo z�i chaosh� maic�i .\",\"Corrections\":[],\"Sentences\":[]}";
+    private const string ValidJson = "{\"SP\":\"wǒ zài chāoshì mǎicài .\",\"Corrections\":[],\"Sentences\":[]}";
     private const string ModelId = "test-model";
     private const string Prompt = "translate";
-    private const string RealisticData = "???????";
+    private const string RealisticData = "我在超市买菜。";
 
     public ChineseTextProcessorTests()
     {
@@ -132,7 +132,7 @@ public class ChineseTextProcessorTests
     {
         var processor = CreateProcessor();
         var providerSettings = new Dictionary<string, IAiServiceSettings>();
-        var data = "??";
+        var data = "你好";
         var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, providerSettings, new ChunkingOptions(), TestContext.Current.CancellationToken);
         Assert.NotNull(result);
     }
@@ -258,7 +258,7 @@ public class ChineseTextProcessorTests
     {
         var processor = CreateProcessor();
 
-        await processor.ProcessChineseTextAsync(ModelId, Prompt, "??", new ChunkingOptions(), CancellationToken.None);
+        await processor.ProcessChineseTextAsync(ModelId, Prompt, "你好", new ChunkingOptions(), CancellationToken.None);
 
         _aiServiceMock.Verify(
             s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()),
@@ -270,7 +270,7 @@ public class ChineseTextProcessorTests
     {
         var processor = CreateProcessor();
         // Default ChunkSize = 40; send exactly 40 lines
-        var data = string.Join("\n", System.Linq.Enumerable.Repeat("???????", 40));
+        var data = string.Join("\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 40));
 
         await processor.ProcessChineseTextAsync(ModelId, Prompt, data, new ChunkingOptions(), CancellationToken.None);
 
@@ -284,7 +284,7 @@ public class ChineseTextProcessorTests
     {
         var processor = CreateProcessor();
         // Default ChunkSize = 40; send 41 lines ? 2 chunks (40 + 1)
-        var data = string.Join("\n", System.Linq.Enumerable.Repeat("???????", 41));
+        var data = string.Join("\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 41));
 
         await processor.ProcessChineseTextAsync(ModelId, Prompt, data, new ChunkingOptions(), CancellationToken.None);
 
@@ -297,7 +297,7 @@ public class ChineseTextProcessorTests
     public async Task ProcessChineseTextAsync_AllBlankLines_ReturnsEmptyResponse()
     {
         var processor = CreateProcessor();
-        // 5 blank lines � string.IsNullOrWhiteSpace returns true for all-whitespace
+        // 5 blank lines — string.IsNullOrWhiteSpace returns true for all-whitespace
         // content (newlines are whitespace), so the processor short-circuits and
         // returns an empty response without calling the AI service.
         var data = "\n\n\n\n\n";
@@ -317,7 +317,7 @@ public class ChineseTextProcessorTests
         var processor = CreateProcessor();
         // 3 lines, ChunkSize=1 ? 3 chunks, MaxConcurrentChunks=1 (sequential)
         var chunking = new ChunkingOptions { ChunkSize = 1, MaxConcurrentChunks = 1 };
-        var data = "??\n??\n??";
+        var data = "你好\n你好\n你好";
 
         var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, chunking, CancellationToken.None);
 
@@ -333,7 +333,7 @@ public class ChineseTextProcessorTests
         var processor = CreateProcessor();
         // 2 lines, ChunkSize=1 ? 2 chunks, MaxConcurrentChunks=10 (more than chunks)
         var chunking = new ChunkingOptions { ChunkSize = 1, MaxConcurrentChunks = 10 };
-        var data = "??\n??";
+        var data = "你好\n你好";
 
         var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, chunking, CancellationToken.None);
 
@@ -363,7 +363,7 @@ public class ChineseTextProcessorTests
 
         // 2 lines, ChunkSize=1 ? 2 chunks
         var chunking = new ChunkingOptions { ChunkSize = 1, MaxConcurrentChunks = 2 };
-        var data = "??\n??";
+        var data = "你好\n你好";
 
         var result = await processor.ProcessChineseTextAsync(ModelId, Prompt, data, chunking, CancellationToken.None);
 
@@ -378,7 +378,7 @@ public class ChineseTextProcessorTests
     {
         var processor = CreateProcessor();
         // Mix CRLF, LF, and CR in the same input
-        var data = "??\r\n??\n??\r??";
+        var data = "你好\r\n你好\n你好\r你好";
 
         await processor.ProcessChineseTextAsync(ModelId, Prompt, data, new ChunkingOptions(), CancellationToken.None);
 
