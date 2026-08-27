@@ -403,4 +403,124 @@ public class SettingsExtensionsTests
         Assert.Equal("5m", target.KeepAlive);
         Assert.Equal(new Uri("http://localhost:11434").AbsoluteUri.TrimEnd('/'), target.Endpoint); // default kept (empty source does not overwrite)
     }
+
+    // --- ApiKey never overlaid (production safety: API keys must never
+    //     leak from per-user settings files into the target settings) ---
+
+    [Fact]
+    public void CopyOnto_Gemini_SourceHasApiKey_TargetKeepsItsOwn()
+    {
+        var source = new GeminiSettings { ApiKey = "should-not-copy" };
+        var target = new GeminiSettings { ApiKey = "machine-level-key" };
+
+        source.CopyOnto(target);
+
+        Assert.Equal("machine-level-key", target.ApiKey);
+    }
+
+    [Fact]
+    public void CopyOnto_OpenAi_SourceHasApiKey_TargetKeepsItsOwn()
+    {
+        var source = new OpenAiSettings { ApiKey = "should-not-copy" };
+        var target = new OpenAiSettings { ApiKey = "machine-level-key" };
+
+        source.CopyOnto(target);
+
+        Assert.Equal("machine-level-key", target.ApiKey);
+    }
+
+    [Fact]
+    public void CopyOnto_DeepSeek_SourceHasApiKey_TargetKeepsItsOwn()
+    {
+        var source = new DeepSeekSettings { ApiKey = "should-not-copy" };
+        var target = new DeepSeekSettings { ApiKey = "machine-level-key" };
+
+        source.CopyOnto(target);
+
+        Assert.Equal("machine-level-key", target.ApiKey);
+    }
+
+    // --- Representative selective overlay tests (one property at a time) ---
+
+    [Fact]
+    public void CopyOnto_Gemini_OnlyTemperatureSet_OverwritesOnlyTemperature()
+    {
+        var source = new GeminiSettings { Temperature = 0.9 };
+        var target = new GeminiSettings
+        {
+            ApiKey = "machine-key",
+            Endpoint = "https://target.example.com",
+            ModelName = "target-model",
+            Temperature = 0.5,
+            MaxTokens = 2048,
+        };
+
+        source.CopyOnto(target);
+
+        Assert.Equal("machine-key", target.ApiKey);
+        Assert.Equal("https://target.example.com", target.Endpoint);
+        Assert.Equal("target-model", target.ModelName);
+        Assert.Equal(0.9, target.Temperature);
+        Assert.Equal(2048, target.MaxTokens);
+    }
+
+    [Fact]
+    public void CopyOnto_OpenAi_OnlyEndpointSet_OverwritesOnlyEndpoint()
+    {
+        var source = new OpenAiSettings { Endpoint = "https://override.example.com" };
+        var target = new OpenAiSettings
+        {
+            ApiKey = "machine-key",
+            Endpoint = "https://target.example.com",
+            ModelName = "target-model",
+            Temperature = 0.5,
+        };
+
+        source.CopyOnto(target);
+
+        Assert.Equal("machine-key", target.ApiKey);
+        Assert.Equal("https://override.example.com", target.Endpoint);
+        Assert.Equal("target-model", target.ModelName);
+        Assert.Equal(0.5, target.Temperature);
+    }
+
+    [Fact]
+    public void CopyOnto_DeepSeek_OnlyModelNameSet_OverwritesOnlyModelName()
+    {
+        var source = new DeepSeekSettings { ModelName = "override-model" };
+        var target = new DeepSeekSettings
+        {
+            ApiKey = "machine-key",
+            Endpoint = "https://target.example.com",
+            ModelName = "target-model",
+            Temperature = 0.5,
+        };
+
+        source.CopyOnto(target);
+
+        Assert.Equal("machine-key", target.ApiKey);
+        Assert.Equal("https://target.example.com", target.Endpoint);
+        Assert.Equal("override-model", target.ModelName);
+        Assert.Equal(0.5, target.Temperature);
+    }
+
+    [Fact]
+    public void CopyOnto_Ollama_OnlyTemperatureSet_OverwritesOnlyTemperature()
+    {
+        var source = new OllamaSettings { Temperature = 0.9 };
+        var target = new OllamaSettings
+        {
+            ApiKey = "machine-key",
+            Endpoint = "http://localhost:11434",
+            ModelName = "qwen3:14b",
+            Temperature = 0.3,
+        };
+
+        source.CopyOnto(target);
+
+        Assert.Equal("machine-key", target.ApiKey);
+        Assert.Equal("http://localhost:11434", target.Endpoint);
+        Assert.Equal("qwen3:14b", target.ModelName);
+        Assert.Equal(0.9, target.Temperature);
+    }
 }

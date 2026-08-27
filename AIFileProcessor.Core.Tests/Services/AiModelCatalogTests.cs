@@ -1,12 +1,15 @@
-﻿namespace AIFileProcessor.Core.Tests.Services;
-using System;
-using System.Collections.Generic;
-using AIFileProcessor.Models;
-using AIFileProcessor.Services;
-using Xunit;
-[Trait("Category", "Unit")]
-public class AiModelCatalogTests
+﻿namespace AIFileProcessor.Core.Tests.Services
 {
+    using System;
+    using System.Collections.Generic;
+    using AIFileProcessor.Interfaces;
+    using AIFileProcessor.Models;
+    using AIFileProcessor.Services;
+    using Xunit;
+
+    [Trait("Category", "Unit")]
+    public class AiModelCatalogTests
+    {
     private static readonly IReadOnlyList<AiModelInfo> Models =
     [
         new AiModelInfo("Gemini 3 Flash", "gemini-3-flash", [ReasoningLevel.Low, ReasoningLevel.High]),
@@ -62,6 +65,50 @@ public class AiModelCatalogTests
     public void GetReasoningLevels_NullModels_Throws()
     {
         Assert.Throws<ArgumentNullException>(() => AiModelCatalog.GetReasoningLevels(null!, "x"));
+    }
+
+    // ─── GetProviderKey ──────────────────────────────────────────────
+
+    [Fact]
+    public void GetProviderKey_GeminiServiceType_ReturnsGemini()
+    {
+        IAiService service = new ProviderStubs.GeminiService();
+        Assert.Equal("Gemini", AiModelCatalog.GetProviderKey(service));
+    }
+
+    [Fact]
+    public void GetProviderKey_OpenAiServiceType_ReturnsOpenAI()
+    {
+        IAiService service = new ProviderStubs.OpenAiService();
+        Assert.Equal("OpenAI", AiModelCatalog.GetProviderKey(service));
+    }
+
+    [Fact]
+    public void GetProviderKey_DeepSeekServiceType_ReturnsDeepSeek()
+    {
+        IAiService service = new ProviderStubs.DeepSeekService();
+        Assert.Equal("DeepSeek", AiModelCatalog.GetProviderKey(service));
+    }
+
+    [Fact]
+    public void GetProviderKey_OllamaServiceType_ReturnsOllama()
+    {
+        IAiService service = new ProviderStubs.OllamaService();
+        Assert.Equal("Ollama", AiModelCatalog.GetProviderKey(service));
+    }
+
+    [Fact]
+    public void GetProviderKey_UnknownServiceType_ReturnsNull()
+    {
+        IAiService service = new ProviderStubs.UnknownService();
+        Assert.Null(AiModelCatalog.GetProviderKey(service));
+    }
+
+    [Fact]
+    public void GetProviderKey_NullService_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => AiModelCatalog.GetProviderKey(null!));
+    }
     }
 }
 

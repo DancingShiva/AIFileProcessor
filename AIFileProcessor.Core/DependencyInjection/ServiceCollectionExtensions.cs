@@ -35,6 +35,12 @@ namespace AIFileProcessor.DependencyInjection
             ArgumentNullException.ThrowIfNull(services);
             ArgumentNullException.ThrowIfNull(configuration);
 
+            // Register IConfiguration in the container so that services registered
+            // by this method (e.g., FileSettingsProvider) can resolve it directly.
+            // The generic host already does this in production, but registering here
+            // makes the dependency explicit and ensures tests work without manual setup.
+            services.AddSingleton<IConfiguration>(configuration);
+
             // Bind settings sections to strongly-typed options
             services.Configure<DeepSeekSettings>(configuration.GetSection("DeepSeekSettings"));
             services.Configure<GeminiSettings>(configuration.GetSection("GeminiSettings"));

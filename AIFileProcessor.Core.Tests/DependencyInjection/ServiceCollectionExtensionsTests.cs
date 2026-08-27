@@ -177,6 +177,13 @@ public class ServiceCollectionExtensionsTests
         IConfiguration configuration = CreateConfiguration();
 
         services.AddAiFileProcessorCore(configuration);
+
+        // IUserContext is a frontend responsibility — register a mock so that
+        // OllamaService (which depends on it) can be activated by the test.
+        var userContextMock = new Mock<IUserContext>();
+        userContextMock.Setup(u => u.UserId).Returns("test-user");
+        services.AddSingleton<IUserContext>(userContextMock.Object);
+
         var sp = services.BuildServiceProvider();
 
         var resolved = sp.GetServices<IAiService>().ToList();
