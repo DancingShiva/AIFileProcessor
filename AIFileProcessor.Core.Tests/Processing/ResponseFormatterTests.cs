@@ -310,5 +310,73 @@ public class ResponseFormatterTests
         Assert.DoesNotContain("<i>", result);
         Assert.DoesNotContain("<script>", result);
     }
+
+    // ---------- Special character edge cases --------------------------------
+
+    [Fact]
+    public void FormatRow_GlossWithTabCharacter_TabBreaksTabDelimitedStructure()
+    {
+        var breakdown = new List<BreakdownEntry>
+        {
+            new() { Chinese = "我", Pinyin = "wǒ", Gloss = "hello\tworld", PartOfSpeech = "pron", HskLevel = "1", Note = string.Empty },
+        };
+        var row = CreateRow(breakdown: breakdown);
+        string result = ResponseFormatter.FormatRow(row);
+
+        // Documents current behavior: a tab character inside a field value is NOT
+        // escaped and breaks the tab-delimited row structure (7 fields instead of 6).
+        // This is a potential data integrity issue if AI output contains tab characters.
+        string[] fields = result.Split('\t');
+        Assert.Equal(7, fields.Length);
+        Assert.Contains("hello", fields[3]);
+        Assert.Contains("world", fields[4]);
+    }
+
+    [Fact]
+    public void FormatRow_GlossWithNewlineCharacter_NewlineIsHtmlEncoded()
+    {
+        var breakdown = new List<BreakdownEntry>
+        {
+            new() { Chinese = "我", Pinyin = "wǒ", Gloss = "line1\nline2", PartOfSpeech = "pron", HskLevel = "1", Note = string.Empty },
+        };
+        var row = CreateRow(breakdown: breakdown);
+        string result = ResponseFormatter.FormatRow(row);
+
+        // A newline inside the HTML table cell should not introduce a new row.
+        // The formatted output should contain the text but not have extra newlines
+        // that would break the row-delimited format when processed by FormatRows.
+        Assert.Contains("line1", result);
+        Assert.Contains("line2", result);
+    }
+
+    [Fact]
+    public void FormatRow_AudioReorderStartGreaterThanEnd_DoesNotThrow()
+    {
+        var breakdown = new List<BreakdownEntry>
+        {
+            new() { Chinese = "我", Pinyin = "wǒ", Gloss = "I", PartOfSpeech = "pron", HskLevel = "1", Note = string.Empty },
+            new() { Chinese = "好", Pinyin = "hǎo", Gloss = "good", PartOfSpeech = "adj", HskLevel = "1", Note = string.Empty },
+        };
+        // Reverse range: StartIndex=1, EndIndex=0
+        var row = CreateRow(breakdown: breakdown, audioReordering: [new AudioReorder { StartIndex = 1, EndIndex = 0 }]);
+
+        // Should not throw — the formatter should handle this gracefully
+        string result = ResponseFormatter.FormatRow(row);
+        Assert.NotEmpty(result);
+    }
+
+    [Fact]
+    public void FormatRow_NullFieldsInBreakdown_DoesNotThrow()
+    {
+        var breakdown = new List<BreakdownEntry>
+        {
+            new() { Chinese = null!, Pinyin = null!, Gloss = null!, PartOfSpeech = null!, HskLevel = null!, Note = null! },
+        };
+        var row = CreateRow(breakdown: breakdown);
+
+        // Should not throw — null fields should be treated as empty strings
+        string result = ResponseFormatter.FormatRow(row);
+        Assert.NotEmpty(result);
+    }
 }
 

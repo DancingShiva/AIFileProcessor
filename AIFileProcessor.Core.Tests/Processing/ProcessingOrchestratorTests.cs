@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 using Times = Moq.Times;
-[Trait("Category", "Integration")]
+[Trait("Category", "Unit")]
 public class ProcessingOrchestratorTests
 {
     private static ProcessingOptions CreateValidOptions() => new()

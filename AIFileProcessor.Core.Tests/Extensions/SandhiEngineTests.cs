@@ -207,4 +207,101 @@ public class SandhiEngineTests
         Assert.Equal("bú", result[3]);
         Assert.Equal("qù", result[4]);
     }
+
+    // ---------- Edge case: three consecutive 3rd tones ----------
+
+    [Fact]
+    public void ProcessSandhiPipeline_ThreeConsecutiveThirdTones_ChainsLeftToRight()
+    {
+        // nǐ (3rd) + hǎo (3rd) + mǎ (3rd) in the same word
+        // Rule A shifts each 3rd-tone syllable before a 3rd-tone next syllable,
+        // processing left-to-right. So nǐ → ní, then hǎo → háo (because mǎ
+        // is still 3rd tone), and mǎ stays (last element, no next).
+        var stream = new List<SyllableNode>
+        {
+            Node("nǐ", Tone.Third),
+            Node("hǎo", Tone.Third),
+            Node("mǎ", Tone.Third),
+        };
+        var result = engine.ProcessSandhiPipeline(stream);
+
+        // First syllable shifts to 2nd tone
+        Assert.Equal("ní", result[0]);
+        // Second syllable also shifts to 2nd tone (next is still 3rd)
+        Assert.Equal("háo", result[1]);
+        // Third syllable keeps its original tone (no next syllable)
+        Assert.Equal("mǎ", result[2]);
+    }
+
+    [Fact]
+    public void ProcessSandhiPipeline_ThirdToneAtStreamEnd_KeepsOriginal()
+    {
+        // Single 3rd tone with nothing after it — no sandhi applies
+        var stream = new List<SyllableNode>
+        {
+            Node("nǐ", Tone.Third),
+        };
+        var result = engine.ProcessSandhiPipeline(stream);
+        Assert.Equal("nǐ", result[0]);
+    }
+
+    // ---------- Edge case: bù before neutral tone ----------
+
+    [Fact]
+    public void ProcessSandhiPipeline_BuBeforeNeutralTone_KeepsOriginal()
+    {
+        // bù before neutral tone does not trigger the 4th-tone sandhi rule
+        var stream = new List<SyllableNode>
+        {
+            Node("bù", Tone.Fourth),
+            Node("ma", Tone.Neutral),
+        };
+        var result = engine.ProcessSandhiPipeline(stream);
+        Assert.Equal("bù", result[0]);
+    }
+
+    // ---------- Edge case: multiple particles in sequence ----------
+
+    [Fact]
+    public void ProcessSandhiPipeline_MultipleTargetParticles_AllStrippedToNeutral()
+    {
+        var stream = new List<SyllableNode>
+        {
+            ParticleNode("吗"),
+            ParticleNode("了"),
+        };
+        var result = engine.ProcessSandhiPipeline(stream);
+        // Both particles should have tone stripped (though CJK chars have no
+        // tone marks to strip, so they remain as-is)
+        Assert.Equal("吗", result[0]);
+        Assert.Equal("了", result[1]);
+    }
+
+    [Fact]
+    public void ProcessSandhiPipeline_MultipleParticlesWithPinyinToneMarks_AllStripped()
+    {
+        // Particles with pinyin source text should have tone marks stripped
+        var stream = new List<SyllableNode>
+        {
+            new("mā", Tone.Neutral, new SandhiContext("吗", "particle", true)),
+            new("le", Tone.Neutral, new SandhiContext("了", "particle", true)),
+        };
+        var result = engine.ProcessSandhiPipeline(stream);
+        Assert.Equal("ma", result[0]);
+        Assert.Equal("le", result[1]);
+    }
+
+    // ---------- Edge case: yī at stream end ----------
+
+    [Fact]
+    public void ProcessSandhiPipeline_YiAtStreamEnd_KeepsOriginal()
+    {
+        // yī with no following syllable — no sandhi applies
+        var stream = new List<SyllableNode>
+        {
+            Node("yī", Tone.First, pos: "other"),
+        };
+        var result = engine.ProcessSandhiPipeline(stream);
+        Assert.Equal("yī", result[0]);
+    }
 }

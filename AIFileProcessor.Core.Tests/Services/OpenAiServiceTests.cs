@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
-[Trait("Category", "Integration")]
+[Trait("Category", "Unit")]
 public class OpenAiServiceTests
 {
     private readonly Mock<ILogger<OpenAiService>> _loggerMock = new();

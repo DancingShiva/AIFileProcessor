@@ -11,7 +11,7 @@ using AIFileProcessor.Processing;
 using AIFileProcessor.Response;
 using Xunit;
 
-[Trait("Category", "Integration")]
+[Trait("Category", "Unit")]
 public class ResponseVerifierTests
 {
     private static AiApiResponse CreateResponse(params ProcessedSentenceRow[] rows)

@@ -1350,4 +1350,171 @@ public class FileSettingsProviderTests
             CleanupUser(userId);
         }
     }
+
+    // --- Corrupted / empty / BOM override files ------------------------------
+
+    [Fact]
+    public async Task GetGeminiSettingsAsync_CorruptedJsonFile_ThrowsJsonException()
+    {
+        var configMock = CreateConfigMock();
+        var provider = CreateProvider(configMock);
+        string userId = $"test-{Guid.NewGuid():N}";
+
+        try
+        {
+            WriteUserOverrideFile(userId, "{ broken json !!!");
+
+            await Assert.ThrowsAnyAsync<JsonException>(
+                () => provider.GetGeminiSettingsAsync(userId, CancellationToken.None));
+        }
+        finally
+        {
+            CleanupUser(userId);
+        }
+    }
+
+    [Fact]
+    public async Task GetGeminiSettingsAsync_EmptyJsonFile_ThrowsJsonException()
+    {
+        var configMock = CreateConfigMock();
+        var provider = CreateProvider(configMock);
+        string userId = $"test-{Guid.NewGuid():N}";
+
+        try
+        {
+            WriteUserOverrideFile(userId, string.Empty);
+
+            await Assert.ThrowsAnyAsync<Exception>(
+                () => provider.GetGeminiSettingsAsync(userId, CancellationToken.None));
+        }
+        finally
+        {
+            CleanupUser(userId);
+        }
+    }
+
+    [Fact]
+    public async Task GetGeminiSettingsAsync_WhitespaceOnlyJsonFile_ThrowsJsonException()
+    {
+        var configMock = CreateConfigMock();
+        var provider = CreateProvider(configMock);
+        string userId = $"test-{Guid.NewGuid():N}";
+
+        try
+        {
+            WriteUserOverrideFile(userId, "   \t\n  ");
+
+            await Assert.ThrowsAnyAsync<Exception>(
+                () => provider.GetGeminiSettingsAsync(userId, CancellationToken.None));
+        }
+        finally
+        {
+            CleanupUser(userId);
+        }
+    }
+
+    [Fact]
+    public async Task GetGeminiSettingsAsync_JsonFileWithBom_ParsesSuccessfully()
+    {
+        var configMock = CreateConfigMock();
+        var provider = CreateProvider(configMock);
+        string userId = $"test-{Guid.NewGuid():N}";
+
+        try
+        {
+            // Prepend UTF-8 BOM to a valid JSON file
+            string json = "\uFEFF" + """
+            {
+                "GeminiSettings": {
+                    "modelName": "bom-model",
+                    "temperature": 0.5
+                }
+            }
+            """;
+            WriteUserOverrideFile(userId, json);
+
+            GeminiSettings result = await provider.GetGeminiSettingsAsync(userId, CancellationToken.None);
+
+            Assert.Equal("bom-model", result.ModelName);
+            Assert.Equal(0.5, result.Temperature);
+        }
+        finally
+        {
+            CleanupUser(userId);
+        }
+    }
+
+    [Fact]
+    public async Task GetGeminiSettingsAsync_NullFieldValuesInJson_UsesDefaultsForNulls()
+    {
+        var configMock = CreateConfigMock();
+        var provider = CreateProvider(configMock);
+        string userId = $"test-{Guid.NewGuid():N}";
+
+        try
+        {
+            string json = """
+            {
+                "GeminiSettings": {
+                    "endpoint": null,
+                    "modelName": null,
+                    "timeoutSeconds": 60
+                }
+            }
+            """;
+            WriteUserOverrideFile(userId, json);
+
+            GeminiSettings result = await provider.GetGeminiSettingsAsync(userId, CancellationToken.None);
+
+            // Non-null fields should be overridden
+            Assert.Equal(60, result.TimeoutSeconds);
+            // Null fields should result in null (overwriting the default)
+            Assert.Null(result.Endpoint);
+            Assert.Null(result.ModelName);
+        }
+        finally
+        {
+            CleanupUser(userId);
+        }
+    }
+
+    [Fact]
+    public async Task GetOpenAiSettingsAsync_CorruptedJsonFile_ThrowsJsonException()
+    {
+        var configMock = CreateConfigMock();
+        var provider = CreateProvider(configMock);
+        string userId = $"test-{Guid.NewGuid():N}";
+
+        try
+        {
+            WriteUserOverrideFile(userId, "{{{{invalid");
+
+            await Assert.ThrowsAnyAsync<JsonException>(
+                () => provider.GetOpenAiSettingsAsync(userId, CancellationToken.None));
+        }
+        finally
+        {
+            CleanupUser(userId);
+        }
+    }
+
+    [Fact]
+    public async Task GetDeepSeekSettingsAsync_CorruptedJsonFile_ThrowsJsonException()
+    {
+        var configMock = CreateConfigMock();
+        var provider = CreateProvider(configMock);
+        string userId = $"test-{Guid.NewGuid():N}";
+
+        try
+        {
+            WriteUserOverrideFile(userId, "not json at all");
+
+            await Assert.ThrowsAnyAsync<JsonException>(
+                () => provider.GetDeepSeekSettingsAsync(userId, CancellationToken.None));
+        }
+        finally
+        {
+            CleanupUser(userId);
+        }
+    }
 }

@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
-[Trait("Category", "Integration")]
+[Trait("Category", "Unit")]
 public class DeepSeekServiceTests
 {
     private readonly Mock<ILogger<DeepSeekService>> _loggerMock = new();

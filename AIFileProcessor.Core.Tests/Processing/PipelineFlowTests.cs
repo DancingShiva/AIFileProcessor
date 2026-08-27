@@ -25,7 +25,7 @@ using Xunit;
 /// injection abort with mixed data, multi-chunk merge, and sandhi+verify
 /// integration.
 /// </summary>
-[Trait("Category", "Integration")]
+[Trait("Category", "Unit")]
 public class PipelineFlowTests
 {
     // ─── A. Full pipeline: JSON → Parse → Verify → Format ───────────────

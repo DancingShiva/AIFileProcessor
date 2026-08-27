@@ -1,4 +1,4 @@
-﻿namespace AIFileProcessor.Core.Tests.Services;
+namespace AIFileProcessor.Core.Tests.Services;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -12,7 +12,7 @@ using AIFileProcessor.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
-[Trait("Category", "Integration")]
+[Trait("Category", "Unit")]
 public class ChineseTextProcessorMetricsTests
 {
     private const string ValidJson = "{\"SP\":\"scratch\",\"Corrections\":[],\"Sentences\":[]}";
@@ -69,7 +69,7 @@ public class ChineseTextProcessorMetricsTests
         var aiService = new Mock<IAiService>();
         var modelId = "test-model";
         var prompt = "p";
-        var data = "一行数据"; // single line -> 1 chunk
+        var data = "????"; // single line -> 1 chunk
         aiService.Setup(s => s.SupportsModel(modelId)).Returns(true);
         var callTelemetry = new CallTelemetry
         {

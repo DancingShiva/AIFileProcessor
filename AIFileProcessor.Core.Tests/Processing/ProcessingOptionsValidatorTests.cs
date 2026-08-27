@@ -3,7 +3,7 @@
 using AIFileProcessor.Models;
 using AIFileProcessor.Processing;
 
-[Trait("Category", "Integration")]
+[Trait("Category", "Unit")]
 public class ProcessingOptionsValidatorTests
 {
     private static ProcessingOptions CreateValidOptions() => new()
@@ -13,7 +13,7 @@ public class ProcessingOptionsValidatorTests
         IdPad = 3,
         LengthPad = 3,
         Prompt = "Some prompt",
-        Data = "我在超市买菜。",
+        Data = "???????",
     };
 
     [Fact]
@@ -246,7 +246,7 @@ public class ProcessingOptionsValidatorTests
     public void Validate_DataOnlyPunctuation_AddsNoChineseContentError()
     {
         var options = CreateValidOptions();
-        options.Data = "。，！？【】";
+        options.Data = "?,!???";
 
         var errors = ProcessingOptionsValidator.Validate(options, "model-1");
 
@@ -257,7 +257,7 @@ public class ProcessingOptionsValidatorTests
     public void Validate_DataWithChineseMixedContent_NoChineseContentError()
     {
         var options = CreateValidOptions();
-        options.Data = "Line one with English\n我在超市买菜。";
+        options.Data = "Line one with English\n???????";
 
         var errors = ProcessingOptionsValidator.Validate(options, "model-1");
 
@@ -338,7 +338,7 @@ public class ProcessingOptionsValidatorTests
     {
         var options = CreateValidOptions();
         // Build data with 401 lines of Chinese text
-        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 401));
+        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("???????", 401));
 
         var errors = ProcessingOptionsValidator.Validate(options, "model-1", maxInputLines: 400);
 
@@ -350,7 +350,7 @@ public class ProcessingOptionsValidatorTests
     {
         var options = CreateValidOptions();
         // Build data with exactly 400 lines of Chinese text
-        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 400));
+        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("???????", 400));
 
         var errors = ProcessingOptionsValidator.Validate(options, "model-1", maxInputLines: 400);
 
@@ -362,7 +362,7 @@ public class ProcessingOptionsValidatorTests
     {
         var options = CreateValidOptions();
         // Build data with 401 lines using \r\n separators
-        options.Data = string.Join("\r\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 401));
+        options.Data = string.Join("\r\n", System.Linq.Enumerable.Repeat("???????", 401));
 
         var errors = ProcessingOptionsValidator.Validate(options, "model-1", maxInputLines: 400);
 
@@ -373,7 +373,7 @@ public class ProcessingOptionsValidatorTests
     public void Validate_DefaultMaxInputLines_400LinesRejected()
     {
         var options = CreateValidOptions();
-        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("我在超市买菜。", 401));
+        options.Data = string.Join("\n", System.Linq.Enumerable.Repeat("???????", 401));
 
         // Use default parameters (no explicit maxInputLines)
         var errors = ProcessingOptionsValidator.Validate(options, "model-1");

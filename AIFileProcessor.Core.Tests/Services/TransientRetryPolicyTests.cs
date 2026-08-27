@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
-[Trait("Category", "Integration")]
+[Trait("Category", "Unit")]
 public class TransientRetryPolicyTests
 {
     private readonly Mock<ILogger> _loggerMock = new();
