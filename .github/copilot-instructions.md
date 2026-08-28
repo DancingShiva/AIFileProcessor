@@ -54,13 +54,13 @@ AIFileProcessor supports two deployment scenarios today, with a third planned:
 ### 2. Terminal Server (multi-user via Windows RDP)
 - Each RDP session is a separate process, but the same user may open multiple sessions.
 - **Cross-process file locking is required** for `FileSettingsProvider` — two sessions for the same user share the same `%APPDATA%` settings file. A `Global\` mutex per user ID serializes read-modify-write operations.
-- `ProcessingLimits` is process-wide static — safe because each session is a separate process. This will change when porting to Web (single shared process for all users).
+- `ProcessingLimits` is DI-scoped and hot-reloadable (`IOptionsMonitor<ProcessingSettings>`), reading current appsettings.json values on every access — no process restart or shared-static concern.
 - API keys are shared from machine-level environment variables — all users on the same Terminal Server use the same keys.
 - Each user has their own non-secret preferences file (temperature, max tokens, etc.).
 
 ### 3. Web (planned, not yet production-ready)
 - `AIFileProcessor.Web` is a thought experiment / prototype. The WinForms version is being fully fleshed out first, then the complete project will be ported to Web.
-- Single process serves all users — `ProcessingLimits` statics become a shared-state concern.
+- Single process serves all users — avoid reintroducing process-wide mutable static state; `ProcessingLimits` is already DI-scoped/hot-reloadable (see spec/10-quality-attributes.md QA-003/QA-004).
 - `HttpUserContext` resolves user from Entra ID JWT claims (`oid`/`sub`/`NameIdentifier`).
 - `WebSettingsProvider` resolves per-user settings from the HTTP request, not files.
 - Rate limiting, per-user quotas, and server-side API key security are web-only concerns not yet implemented.
