@@ -119,6 +119,56 @@ public class AiApiResponseTests
         Assert.False(result);
     }
 
+    // ---------- Metrics ([JsonIgnore]) contract tests ----------
+    // AiApiResponse.Metrics is never parsed from AI JSON — it is populated by
+    // ChineseTextProcessor after the provider calls complete. These tests pin
+    // that contract so a stray "Metrics" field in an AI response cannot inject
+    // fabricated telemetry, and serialization never round-trips it.
+
+    [Fact]
+    public void Constructor_JsonWithMetricsField_DoesNotPopulateMetrics()
+    {
+        string json = "{\"SP\":\"scratch\",\"Corrections\":[],\"Sentences\":[],\"Metrics\":{\"ChunkCount\":99,\"Failed\":99}}";
+
+        var response = new AiApiResponse(json);
+
+        Assert.Equal("scratch", response.Scratchpad);
+        Assert.Null(response.Metrics);
+    }
+
+    [Fact]
+    public void FillFromJsonResponse_JsonWithMetricsField_DoesNotPopulateMetrics()
+    {
+        var response = new AiApiResponse();
+        string json = "{\"SP\":\"scratch\",\"Sentences\":[],\"Metrics\":{\"ChunkCount\":42}}";
+
+        bool result = response.FillFromJsonResponse(json);
+
+        Assert.True(result);
+        Assert.Null(response.Metrics);
+    }
+
+    [Fact]
+    public void SerializedResponse_OmitsMetricsProperty()
+    {
+        var response = new AiApiResponse
+        {
+            Scratchpad = "scratch",
+            Metrics = new AIFileProcessor.Telemetry.ProcessingMetrics
+            {
+                ChunkCount = 3,
+                Succeeded = 3,
+                Failed = 0,
+                ElapsedMs = 1000,
+            },
+        };
+
+        string json = System.Text.Json.JsonSerializer.Serialize(response);
+
+        Assert.DoesNotContain("\"Metrics\"", json);
+        Assert.Contains("\"SP\":\"scratch\"", json);
+    }
+
     [Fact]
     public void FillFromJsonResponse_ValidJson_ReturnsTrueAndPopulatesProperties()
     {

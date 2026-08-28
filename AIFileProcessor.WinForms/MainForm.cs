@@ -14,11 +14,13 @@ namespace AIFileProcessor
     using System.Threading;
     using System.Threading.Tasks;
     using System.Windows.Forms;
+    using AIFileProcessor.Exceptions;
     using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
     using AIFileProcessor.Processing;
     using AIFileProcessor.Response;
     using AIFileProcessor.Services;
+    using AIFileProcessor.Telemetry;
     using Microsoft.Extensions.Logging;
 
     /// <summary>
@@ -537,6 +539,77 @@ namespace AIFileProcessor
 
         // Stage 1 + 2: call the AI API, populate rtbResponse with the raw text, then
         // parse and format it into rtbFormatted.
+
+        /// <summary>
+        /// Displays run metrics across the three metrics tabs (table, JSON, graph).
+        /// Called after a successful run and after a failed run whose exception
+        /// carries partial metrics, so failed runs still show a chunk timeline.
+        /// </summary>
+        /// <param name="m">The aggregated processing metrics to display.</param>
+        private void DisplayMetrics(ProcessingMetrics m)
+        {
+            // Build a descriptive title that matches the Gantt chart
+            var modelName = _lastRunModelName ?? (ddlModel.SelectedItem as AiModelInfo)?.ModelName ?? _options.ModelId ?? "Unknown model";
+            var title = $"Chunk processing timeline" + (string.IsNullOrEmpty(modelName) ? string.Empty : $" — {modelName}") + $" · {m.ChunkCount} chunk" + (m.ChunkCount == 1 ? string.Empty : "s") + $" · {m.ElapsedMs / 1000.0:n1} s";
+
+            // Table: human-readable summary plus per-chunk table
+            var table = new System.Text.StringBuilder();
+            table.AppendLine(title);
+            table.AppendLine();
+            table.AppendLine($"Elapsed: {m.ElapsedMs} ms    Chunks: {m.ChunkCount}    Succeeded: {m.Succeeded}    Failed: {m.Failed}");
+            table.AppendLine($"Total Prompt Tokens: {m.TotalPromptTokens?.ToString() ?? "-"}    Total Completion Tokens: {m.TotalCompletionTokens?.ToString() ?? "-"}");
+            table.AppendLine();
+            table.AppendLine("Chunk\tStartLine\tEndLine\tElapsedMs\tTTFBms\tPromptTokens\tCompletionTokens\tRetries");
+            foreach (var c in m.Chunks)
+            {
+                table.AppendLine($"{c.ChunkIndex}\t{c.StartLine}\t{c.EndLine}\t{c.Telemetry.ElapsedMs}\t{c.Telemetry.TimeToFirstByteMs?.ToString() ?? "-"}\t{c.Telemetry.PromptTokens?.ToString() ?? "-"}\t{c.Telemetry.CompletionTokens?.ToString() ?? "-"}\t{c.RetryAttempts}");
+            }
+
+            rtbMetrics.Text = table.ToString();
+
+            // Compute line-level success/failure from the input data and chunk results.
+            // LineCount = total source lines (regardless of success or failure).
+            // LinesSuccessful = lines in chunks whose API call returned output.
+            // LinesFailed = lines for which no output was returned by the API.
+            int lineCount = rtbData.TextLength > 0
+                ? rtbData.Text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None).Length
+                : 0;
+
+            var chunkLineRanges = m.Chunks
+                .Select(c => new { c.StartLine, c.EndLine, c.Telemetry.Status })
+                .ToList();
+
+            int linesSuccessful = chunkLineRanges
+                .Where(c => string.Equals(c.Status, "Success", StringComparison.OrdinalIgnoreCase))
+                .Sum(c => c.EndLine - c.StartLine + 1);
+
+            int linesFailed = Math.Max(0, lineCount - linesSuccessful);
+
+            // JSON: envelope the metrics with run metadata (title, model, counts, times)
+            var envelope = new
+            {
+                RunInfo = new
+                {
+                    Title = title,
+                    Model = modelName,
+                    ChunkCount = m.ChunkCount,
+                    LineCount = lineCount,
+                    LinesSuccessful = linesSuccessful,
+                    LinesFailed = linesFailed,
+                    ElapsedMs = m.ElapsedMs,
+                    StartUtc = m.StartUtc,
+                    EndUtc = m.EndUtc,
+                },
+                Metrics = m,
+            };
+
+            rtbMetricsJson.Text = System.Text.Json.JsonSerializer.Serialize(envelope, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+
+            // Graph: store metrics for the paint handler and trigger repaint
+            _currentMetrics = m;
+            pnlMetricsGraph.Invalidate();
+        }
+
         private async void btnProcessFormat_Click(object sender, EventArgs e)
         {
             if (_isProcessing)
@@ -596,6 +669,20 @@ namespace AIFileProcessor
                     rtbFormatted.Text = "Processing cancelled.";
                     return;
                 }
+                catch (ChunkProcessingException ex)
+                {
+                    // One or more chunks failed after exhausting retries. The exception
+                    // carries the partial metrics (successful and failed chunks) so the
+                    // metrics tabs still show how far the run got before the failure.
+                    _logger.LogInformation("ProcessingOrchestrator.ProcessAsync failed: {exception}.", ex.ToString());
+                    if (ex.Metrics != null)
+                    {
+                        DisplayMetrics(ex.Metrics);
+                    }
+
+                    MessageBox.Show($"An error occurred during processing: {ex.Message}", "Processing Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
                 catch (Exception ex)
                 {
                     _logger.LogInformation("ProcessingOrchestrator.ProcessAsync failed: {exception}.", ex.ToString());
@@ -632,68 +719,7 @@ namespace AIFileProcessor
                 // Display metrics across three tabs (table, JSON, graph) if present
                 if (result.Metrics != null)
                 {
-                    var m = result.Metrics;
-
-                    // Build a descriptive title that matches the Gantt chart
-                    var modelName = _lastRunModelName ?? (ddlModel.SelectedItem as AiModelInfo)?.ModelName ?? _options.ModelId ?? "Unknown model";
-                    var title = $"Chunk processing timeline" + (string.IsNullOrEmpty(modelName) ? string.Empty : $" — {modelName}") + $" · {m.ChunkCount} chunk" + (m.ChunkCount == 1 ? string.Empty : "s") + $" · {m.ElapsedMs / 1000.0:n1} s";
-
-                    // Table: human-readable summary plus per-chunk table
-                    var table = new System.Text.StringBuilder();
-                    table.AppendLine(title);
-                    table.AppendLine();
-                    table.AppendLine($"Elapsed: {m.ElapsedMs} ms    Chunks: {m.ChunkCount}    Succeeded: {m.Succeeded}    Failed: {m.Failed}");
-                    table.AppendLine($"Total Prompt Tokens: {m.TotalPromptTokens?.ToString() ?? "-"}    Total Completion Tokens: {m.TotalCompletionTokens?.ToString() ?? "-"}");
-                    table.AppendLine();
-                    table.AppendLine("Chunk\tStartLine\tEndLine\tElapsedMs\tTTFBms\tPromptTokens\tCompletionTokens\tRetries");
-                    foreach (var c in m.Chunks)
-                    {
-                        table.AppendLine($"{c.ChunkIndex}\t{c.StartLine}\t{c.EndLine}\t{c.Telemetry.ElapsedMs}\t{c.Telemetry.TimeToFirstByteMs?.ToString() ?? "-"}\t{c.Telemetry.PromptTokens?.ToString() ?? "-"}\t{c.Telemetry.CompletionTokens?.ToString() ?? "-"}\t{c.RetryAttempts}");
-                    }
-
-                    rtbMetrics.Text = table.ToString();
-
-                    // Compute line-level success/failure from the input data and chunk results.
-                    // LineCount = total source lines (regardless of success or failure).
-                    // LinesSuccessful = lines in chunks whose API call returned output.
-                    // LinesFailed = lines for which no output was returned by the API.
-                    int lineCount = rtbData.TextLength > 0
-                        ? rtbData.Text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None).Length
-                        : 0;
-
-                    var chunkLineRanges = m.Chunks
-                        .Select(c => new { c.StartLine, c.EndLine, c.Telemetry.Status })
-                        .ToList();
-
-                    int linesSuccessful = chunkLineRanges
-                        .Where(c => string.Equals(c.Status, "Success", StringComparison.OrdinalIgnoreCase))
-                        .Sum(c => c.EndLine - c.StartLine + 1);
-
-                    int linesFailed = Math.Max(0, lineCount - linesSuccessful);
-
-                    // JSON: envelope the metrics with run metadata (title, model, counts, times)
-                    var envelope = new
-                    {
-                        RunInfo = new
-                        {
-                            Title = title,
-                            Model = modelName,
-                            ChunkCount = m.ChunkCount,
-                            LineCount = lineCount,
-                            LinesSuccessful = linesSuccessful,
-                            LinesFailed = linesFailed,
-                            ElapsedMs = m.ElapsedMs,
-                            StartUtc = m.StartUtc,
-                            EndUtc = m.EndUtc,
-                        },
-                        Metrics = m,
-                    };
-
-                    rtbMetricsJson.Text = System.Text.Json.JsonSerializer.Serialize(envelope, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-
-                    // Graph: store metrics for the paint handler and trigger repaint
-                    _currentMetrics = m;
-                    pnlMetricsGraph.Invalidate();
+                    DisplayMetrics(result.Metrics);
                 }
 
                 // Chain formatting: parse the fresh raw response and fill rtbFormatted.

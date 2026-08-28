@@ -7,11 +7,13 @@ namespace AIFileProcessor.Services
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
     using System.Text.Json;
     using System.Text.Json.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
+    using AIFileProcessor.Exceptions;
     using AIFileProcessor.Interfaces;
     using AIFileProcessor.Models;
     using AIFileProcessor.Response;
@@ -65,6 +67,75 @@ namespace AIFileProcessor.Services
         {
             ArgumentNullException.ThrowIfNull(providerSettings);
             return await ProcessInternalAsync(modelId, prompt, data, providerSettings, chunking, ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Builds the aggregate run-level metrics from the per-chunk metrics
+        /// collected during the run. Used by both the success path (attaches to
+        /// the merged response) and the failure path (attaches to the
+        /// <see cref="Exceptions.ChunkProcessingException"/>.
+        /// </summary>
+        /// <param name="chunkMetrics">Per-chunk metrics captured as chunks completed (any order).</param>
+        /// <param name="runStartUtc">The wall-clock UTC timestamp when the run started.</param>
+        /// <param name="elapsedMs">The monotonic wall-clock duration of the run in milliseconds.</param>
+        /// <param name="lineCount">The total number of source lines in the run.</param>
+        /// <returns>Aggregate metrics with chunks ordered by index; token totals are null when no chunk reported usage.</returns>
+        private static Telemetry.ProcessingMetrics BuildRunMetrics(
+            System.Collections.Concurrent.ConcurrentBag<Telemetry.ChunkMetrics> chunkMetrics,
+            DateTime runStartUtc,
+            long elapsedMs,
+            int lineCount)
+        {
+            var runEnd = runStartUtc.AddMilliseconds(elapsedMs);
+
+            var orderedChunks = chunkMetrics.OrderBy(c => c.ChunkIndex).ToList();
+
+            // The stopwatch-derived run end truncates sub-millisecond precision, which
+            // can place it up to 1 ms before a chunk's real wall-clock completion
+            // sample. Clamp to the latest chunk EndUtc so the run window always
+            // contains every chunk's telemetry window (Gantt/JSON consumers rely on it).
+            if (orderedChunks.Count > 0)
+            {
+                var latestChunkEnd = orderedChunks.Max(c => c.Telemetry?.EndUtc ?? DateTime.MinValue);
+                if (latestChunkEnd > runEnd)
+                {
+                    runEnd = latestChunkEnd;
+                }
+            }
+
+            int succeeded = orderedChunks.Count(c => !string.Equals(c.Telemetry?.Status, "Failed", StringComparison.OrdinalIgnoreCase));
+            int failed = orderedChunks.Count - succeeded;
+
+            int? totalPrompt = orderedChunks.Any(c => c.Telemetry?.PromptTokens != null)
+                ? orderedChunks.Sum(c => c.Telemetry?.PromptTokens ?? 0)
+                : (int?)null;
+
+            int? totalCompletion = orderedChunks.Any(c => c.Telemetry?.CompletionTokens != null)
+                ? orderedChunks.Sum(c => c.Telemetry?.CompletionTokens ?? 0)
+                : (int?)null;
+
+            double effectiveParallelism = elapsedMs > 0
+                ? Math.Round(orderedChunks.Sum(c => c.Telemetry?.ElapsedMs ?? 0) / (double)elapsedMs, 3)
+                : 0.0;
+
+            double linesPerSecond = elapsedMs > 0
+                ? Math.Round(lineCount / (elapsedMs / 1000.0), 3)
+                : 0.0;
+
+            return new Telemetry.ProcessingMetrics
+            {
+                StartUtc = runStartUtc,
+                EndUtc = runEnd,
+                ElapsedMs = elapsedMs,
+                ChunkCount = orderedChunks.Count,
+                Succeeded = succeeded,
+                Failed = failed,
+                TotalPromptTokens = totalPrompt,
+                TotalCompletionTokens = totalCompletion,
+                EffectiveParallelism = effectiveParallelism,
+                LinesPerSecond = linesPerSecond,
+                Chunks = orderedChunks,
+            };
         }
 
         /// <summary>
@@ -153,8 +224,11 @@ namespace AIFileProcessor.Services
             // and connection pool exhaustion when processing many chunks.
             using var semaphore = new SemaphoreSlim(chunking.MaxConcurrentChunks, chunking.MaxConcurrentChunks);
 
-            // Capture run start for aggregate metrics
+            // Capture run start for aggregate metrics. The wall-clock timestamp feeds
+            // the Gantt chart and the JSON envelope; the Stopwatch feeds ElapsedMs so a
+            // sub-tick run can never report zero elapsed time (DateTime granularity issue).
             var runStart = DateTime.UtcNow;
+            var runStopwatch = Stopwatch.StartNew();
 
             // Prepare a list to capture per-chunk metrics as they complete
             var chunkMetrics = new System.Collections.Concurrent.ConcurrentBag<Telemetry.ChunkMetrics>();
@@ -165,13 +239,14 @@ namespace AIFileProcessor.Services
                 var queueStart = DateTime.UtcNow;
                 await semaphore.WaitAsync(ct).ConfigureAwait(false);
                 var queueDelayMs = (long)(DateTime.UtcNow - queueStart).TotalMilliseconds;
+                var attemptStartUtc = DateTime.UtcNow;
+                int chunkRetryAttempts = 0;
                 try
                 {
                     // Execute prompt asynchronously with chunk-level retry — use per-call settings if available.
                     // The chunk-level retry wraps the service-level retry (already inside each AiServiceBase).
                     // Chunk retry handles failures that exhaust the service-level retry, giving the chunk
                     // a fresh service-level attempt cycle for each chunk-level retry.
-                    int chunkRetryAttempts = 0;
                     AiCallResult aiResult = await TransientRetryPolicy.ExecuteAsync(
                         async cancellationToken =>
                         {
@@ -220,6 +295,28 @@ namespace AIFileProcessor.Services
                     // Log the failure for this specific chunk but return an empty response
                     // so that other chunks' results are preserved.
                     logger.LogError(ex, "Chunk {ChunkIndex} failed during processing.", chunk.Index);
+
+                    // Record telemetry for the failed chunk (Status = "Failed") so the
+                    // aborted run still produces a partial timeline instead of discarding
+                    // everything collected before the failure.
+                    var failureUtc = DateTime.UtcNow;
+                    chunkMetrics.Add(new Telemetry.ChunkMetrics
+                    {
+                        ChunkIndex = chunk.Index,
+                        StartLine = (chunk.Index * chunking.ChunkSize) + 1,
+                        EndLine = Math.Min(lines.Length, (chunk.Index + 1) * chunking.ChunkSize),
+                        QueueDelayMs = queueDelayMs,
+                        RetryAttempts = chunkRetryAttempts,
+                        Telemetry = new Telemetry.CallTelemetry
+                        {
+                            StartUtc = attemptStartUtc,
+                            EndUtc = failureUtc,
+                            ElapsedMs = (long)(failureUtc - attemptStartUtc).TotalMilliseconds,
+                            Attempts = chunkRetryAttempts + 1,
+                            Status = "Failed",
+                        },
+                    });
+
                     return (Index: chunk.Index, Response: new AiApiResponse(), Exception: ex);
                 }
                 finally
@@ -232,7 +329,9 @@ namespace AIFileProcessor.Services
             var results = await Task.WhenAll(tasks);
 
             // Check if any chunks failed. Since partial failure is a silent data-loss risk,
-            // we fail fast with a descriptive error specifying the exact lines of the first failed chunk.
+            // we fail fast with a descriptive error specifying the exact lines of the first
+            // failed chunk. The collected metrics (successful and failed chunks) travel with
+            // the exception so the UI can display a partial timeline of the aborted run.
             var failedResults = results.Where(r => r.Exception != null).ToList();
             if (failedResults.Any())
             {
@@ -240,9 +339,13 @@ namespace AIFileProcessor.Services
                 int startLine = (firstFailure.Index * chunking.ChunkSize) + 1;
                 int endLine = Math.Min(lines.Length, (firstFailure.Index + 1) * chunking.ChunkSize);
 
-                throw new InvalidOperationException(
+                runStopwatch.Stop();
+                var failureMetrics = BuildRunMetrics(chunkMetrics, runStart, runStopwatch.ElapsedMilliseconds, lines.Length);
+
+                throw new ChunkProcessingException(
                     $"Processing failed for lines {startLine}-{endLine} of the file. Details: {firstFailure.Exception!.Message}",
-                    firstFailure.Exception);
+                    firstFailure.Exception,
+                    failureMetrics);
             }
 
             var orderedResponses = results
@@ -266,45 +369,8 @@ namespace AIFileProcessor.Services
             };
 
             // Aggregate run-level processing metrics from per-chunk metrics and attach to the merged response.
-            var runEnd = DateTime.UtcNow;
-            var elapsedMs = (long)(runEnd - runStart).TotalMilliseconds;
-
-            var orderedChunks = chunkMetrics.OrderBy(c => c.ChunkIndex).ToList();
-
-            int chunkCount = orderedChunks.Count;
-            int succeeded = orderedChunks.Count; // failures are thrown earlier
-            int failed = 0;
-
-            int? totalPrompt = orderedChunks.Any(c => c.Telemetry?.PromptTokens != null)
-                ? orderedChunks.Sum(c => c.Telemetry?.PromptTokens ?? 0)
-                : (int?)null;
-
-            int? totalCompletion = orderedChunks.Any(c => c.Telemetry?.CompletionTokens != null)
-                ? orderedChunks.Sum(c => c.Telemetry?.CompletionTokens ?? 0)
-                : (int?)null;
-
-            double effectiveParallelism = elapsedMs > 0
-                ? Math.Round(orderedChunks.Sum(c => c.Telemetry?.ElapsedMs ?? 0) / (double)elapsedMs, 3)
-                : 0.0;
-
-            double linesPerSecond = elapsedMs > 0
-                ? Math.Round(lines.Length / (elapsedMs / 1000.0), 3)
-                : 0.0;
-
-            var processingMetrics = new Telemetry.ProcessingMetrics
-            {
-                StartUtc = runStart,
-                EndUtc = runEnd,
-                ElapsedMs = elapsedMs,
-                ChunkCount = chunkCount,
-                Succeeded = succeeded,
-                Failed = failed,
-                TotalPromptTokens = totalPrompt,
-                TotalCompletionTokens = totalCompletion,
-                EffectiveParallelism = effectiveParallelism,
-                LinesPerSecond = linesPerSecond,
-                Chunks = orderedChunks,
-            };
+            runStopwatch.Stop();
+            var processingMetrics = BuildRunMetrics(chunkMetrics, runStart, runStopwatch.ElapsedMilliseconds, lines.Length);
 
             mergedResponse.Metrics = processingMetrics;
 

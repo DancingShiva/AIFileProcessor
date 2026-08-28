@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using AIFileProcessor.Configuration;
+using AIFileProcessor.Exceptions;
 using AIFileProcessor.Interfaces;
 using AIFileProcessor.Models;
 using AIFileProcessor.Response;
@@ -188,7 +189,7 @@ public class ChineseTextProcessorTests
     }
 
     [Fact]
-    public async Task ProcessChineseTextAsync_ChunkFailsAfterAllRetries_ThrowsInvalidOperationException()
+    public async Task ProcessChineseTextAsync_ChunkFailsAfterAllRetries_ThrowsChunkProcessingException()
     {
         _aiServiceMock
             .Setup(s => s.ProcessTextAsync(ModelId, Prompt, It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -196,7 +197,7 @@ public class ChineseTextProcessorTests
 
         var processor = CreateProcessor();
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+        var ex = await Assert.ThrowsAsync<ChunkProcessingException>(
             () => processor.ProcessChineseTextAsync(ModelId, Prompt, RealisticData, new ChunkingOptions(), CancellationToken.None));
 
         Assert.Contains("Processing failed for lines", ex.Message);
