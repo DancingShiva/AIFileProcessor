@@ -73,6 +73,25 @@ AIFileProcessor supports two deployment scenarios today, with a third planned:
 - **Chunking is by lines, not characters** — `ChunkSize` default is 40 lines. The 32K character input limit does not bound chunk count.
 - **Two retry layers**: service-level (per HTTP call, 3 retries) and chunk-level (per chunk, 3 retries with 5s/10s/20s backoff).
 
+## Solution Specification (spec/)
+
+This repo has a normative, multi-file specification under `spec/` (plus `spec/decisions/` for
+ADRs). `spec/` is authoritative for *what the system must do*; `docs/` is the human-facing
+onboarding narrative. Follow these rules:
+
+- **Read before edit**: before modifying code in an area, read the corresponding spec file(s)
+  from the category map in `spec/README.md`. A code change and its spec ride in the same commit.
+- **Same-commit rule**: if a commit changes behavior already specified in `spec/`, update the
+  affected numbered requirements in the same commit. Code that satisfies itself but not the spec
+  is incomplete.
+- **Requirement IDs are stable**: never renumber or reuse them; mark retired requirements as
+  superseded rather than deleting.
+- **ADRs are append-only**: a decision recorded in `spec/decisions/` is immutable. Changing an
+  ADR-backed behavior requires a new ADR that supersedes the old one (set the old ADR's
+  `status: superseded` + `superseded-by:`). Never rewrite history.
+- **Front-matter freshness**: every spec/ADR file carries `status` and `last-reviewed`; bump
+  `last-reviewed` on any material edit and promote `draft` -> `living` when accurate.
+
 ## Conventions
 
 - **Line endings**: Always use CRLF (`\r\n`) as line terminators in all source files. This is enforced by `.gitattributes` with `eol=crlf` for C#, JSON, Markdown, and project files. When creating or editing files, ensure CRLF line endings to avoid Git normalization warnings.
@@ -84,3 +103,5 @@ AIFileProcessor supports two deployment scenarios today, with a third planned:
 - **Clean before build**: Always run `dotnet clean` before `dotnet build` when verifying changes. This ensures a full rebuild from scratch with no stale artifacts. Do not use `--no-incremental` as a substitute for `dotnet clean`.
 - **Check IDE errors after edit**: After editing C# files, use `get_errors` to check the live Visual Studio IDE error list — not just `dotnet build` output. The IDE's Roslyn analysis can show errors that `dotnet build` does not report (or that build output filtering truncates away). Always verify `get_errors` returns no results before declaring a build clean.
 - **Check IDE messages and warnings after build**: `dotnet build` reports warnings and errors but not IDE "Message" severity diagnostics (CA, IDE, SA, xUnit rules at message severity). After every `dotnet clean` + `dotnet build` cycle, run `get_errors` on all changed files to check for IDE diagnostics that the build does not surface. The build output filter pattern must include `message` alongside `warning` and `error`: `Select-String -Pattern 'warning|error|message|Build succeeded|Build FAILED|0 Error|0 Warning'`. A clean build is not complete until both `dotnet build` shows `0 Warning(s)` and `get_errors` returns no diagnostics. Do not declare success until both checks pass.
+
+Tue, 01 Sep 2026 00:00:00 GMT
