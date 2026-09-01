@@ -44,14 +44,54 @@ namespace AIFileProcessor.Web.Controllers
             var deepSeek = await _settingsProvider.GetDeepSeekSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
             var ollama = await _settingsProvider.GetOllamaSettingsAsync(_userContext.UserId, ct).ConfigureAwait(false);
 
-            // ApiKey is [JsonIgnore] on the settings models, so it is automatically
-            // excluded from the JSON response — no manual stripping needed.
+            // Map Core settings onto narrow DTOs: ApiKey is [JsonIgnore] on the settings
+            // models, and infrastructure settings (Endpoint/ProxyUrl/RequestHeaders/
+            // AdditionalParameters) are deliberately omitted — machine-level infrastructure
+            // may embed gateway credentials and must not be echoed to clients (SEC-010).
             return Ok(new ProviderSettingsResponse
             {
-                GeminiSettings = gemini,
-                OpenAiSettings = openAi,
-                DeepSeekSettings = deepSeek,
-                OllamaSettings = ollama,
+                GeminiSettings = new GeminiPreferencesDto
+                {
+                    ModelName = gemini.ModelName,
+                    TimeoutSeconds = gemini.TimeoutSeconds,
+                    MaxTokens = gemini.MaxTokens,
+                    Temperature = gemini.Temperature,
+                    TopP = gemini.TopP,
+                    ProjectId = gemini.ProjectId,
+                    Location = gemini.Location,
+                    StreamingEnabled = gemini.StreamingEnabled,
+                    ReasoningLevel = gemini.ReasoningLevel,
+                },
+                OpenAiSettings = new OpenAiPreferencesDto
+                {
+                    ModelName = openAi.ModelName,
+                    TimeoutSeconds = openAi.TimeoutSeconds,
+                    MaxTokens = openAi.MaxTokens,
+                    Temperature = openAi.Temperature,
+                    OrganizationId = openAi.OrganizationId,
+                    ReasoningLevel = openAi.ReasoningLevel,
+                },
+                DeepSeekSettings = new DeepSeekPreferencesDto
+                {
+                    ModelName = deepSeek.ModelName,
+                    TimeoutSeconds = deepSeek.TimeoutSeconds,
+                    MaxTokens = deepSeek.MaxTokens,
+                    Temperature = deepSeek.Temperature,
+                    EnableReasoning = deepSeek.EnableReasoning,
+                    ReasoningLevel = deepSeek.ReasoningLevel,
+                },
+                OllamaSettings = new OllamaPreferencesDto
+                {
+                    ModelName = ollama.ModelName,
+                    TimeoutSeconds = ollama.TimeoutSeconds,
+                    MaxTokens = ollama.MaxTokens,
+                    Temperature = ollama.Temperature,
+                    TopP = ollama.TopP,
+                    TopK = ollama.TopK,
+                    ContextWindow = ollama.ContextWindow,
+                    EnableThinking = ollama.EnableThinking,
+                    ReasoningLevel = ollama.ReasoningLevel,
+                },
             });
         }
 

@@ -2,7 +2,7 @@
 title: Settings & Identity
 doc_id: SET
 status: living
-last-reviewed: 2026-08-28
+last-reviewed: 2026-08-29
 owner: DancingShiva
 ---
 
@@ -47,6 +47,11 @@ user is identified per deployment target, and how shared per-user state is kept 
 - **SET-008** On Terminal Server, per-user isolation of preferences **must** hold automatically
   because `WindowsUserContext` resolves the per-session Windows username into the file path; no
   additional configuration may be required.
+- **SET-009** Per-user preference state **must** exclude infrastructure settings
+  (`Endpoint`, `ProxyUrl`, `RequestHeaders`, `AdditionalParameters`): they carry the machine-level
+  trust boundary of the API key (SEC-010, ADR-0006). `CopyOnto` never overlays them and
+  `FileSettingsProvider` strips them at the save chokepoints, so a per-user file is structurally
+  incapable of redirecting key-authenticated traffic.
 
 ## Invariants
 
@@ -58,6 +63,7 @@ user is identified per deployment target, and how shared per-user state is kept 
 
 - [ADR-0003](decisions/ADR-0003-no-api-keys-in-user-files.md)
 - [ADR-0005](decisions/ADR-0005-global-mutex-settings-locking.md)
+- [ADR-0006](decisions/ADR-0006-infra-settings-follow-key-trust-boundary.md)
 
 ## Open questions
 

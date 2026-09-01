@@ -37,7 +37,6 @@ namespace AIFileProcessor
 
             // Gemini tab controls
             this.flpGemini = new System.Windows.Forms.FlowLayoutPanel();
-            this.txtGeminiEndpoint = new System.Windows.Forms.TextBox();
             this.ddlGeminiModel = new System.Windows.Forms.ComboBox();
             this.nudGeminiTimeout = new System.Windows.Forms.NumericUpDown();
             this.txtGeminiProjectId = new System.Windows.Forms.TextBox();
@@ -55,14 +54,12 @@ namespace AIFileProcessor
             this.chkGeminiEnableLogging = new System.Windows.Forms.CheckBox();
             this.nudGeminiRateLimit = new System.Windows.Forms.NumericUpDown();
             this.chkGeminiRateLimitNull = new System.Windows.Forms.CheckBox();
-            this.txtGeminiProxyUrl = new System.Windows.Forms.TextBox();
             this.chkGeminiUseManagedIdentity = new System.Windows.Forms.CheckBox();
             this.txtGeminiCredentialType = new System.Windows.Forms.TextBox();
             this.ddlGeminiReasoning = new System.Windows.Forms.ComboBox();
 
             // OpenAI tab controls
             this.flpOpenAi = new System.Windows.Forms.FlowLayoutPanel();
-            this.txtOpenAiEndpoint = new System.Windows.Forms.TextBox();
             this.ddlOpenAiModel = new System.Windows.Forms.ComboBox();
             this.ddlOpenAiReasoning = new System.Windows.Forms.ComboBox();
             this.nudOpenAiTimeout = new System.Windows.Forms.NumericUpDown();
@@ -76,7 +73,6 @@ namespace AIFileProcessor
             this.flpDeepSeek = new System.Windows.Forms.FlowLayoutPanel();
             this.ddlDeepSeekModel = new System.Windows.Forms.ComboBox();
             this.ddlDeepSeekReasoning = new System.Windows.Forms.ComboBox();
-            this.txtDeepSeekEndpoint = new System.Windows.Forms.TextBox();
             this.nudDeepSeekTimeout = new System.Windows.Forms.NumericUpDown();
             this.nudDeepSeekMaxTokens = new System.Windows.Forms.NumericUpDown();
             this.chkDeepSeekMaxTokensNull = new System.Windows.Forms.CheckBox();
@@ -89,7 +85,6 @@ namespace AIFileProcessor
             this.ddlOllamaModel = new System.Windows.Forms.ComboBox();
             this.ddlOllamaReasoning = new System.Windows.Forms.ComboBox();
             this.btnOllamaRefreshModels = new System.Windows.Forms.Button();
-            this.txtOllamaEndpoint = new System.Windows.Forms.TextBox();
             this.nudOllamaTimeout = new System.Windows.Forms.NumericUpDown();
             this.nudOllamaMaxTokens = new System.Windows.Forms.NumericUpDown();
             this.chkOllamaMaxTokensNull = new System.Windows.Forms.CheckBox();
@@ -272,7 +267,6 @@ namespace AIFileProcessor
             BuildLabelledComboBox(this.flpGemini, "Reasoning Level:", this.ddlGeminiReasoning);
             BuildLabelledNumeric(this.flpGemini, "Chunk Size (Lines):", this.nudGeminiChunkSize, 1, 1000);
             BuildLabelledNumeric(this.flpGemini, "Max Concurrent Chunks:", this.nudGeminiMaxConcurrentChunks, 1, 32);
-            BuildLabelledTextBox(this.flpGemini, "Endpoint:", this.txtGeminiEndpoint, false);
             BuildLabelledNumeric(this.flpGemini, "Timeout (Seconds):", this.nudGeminiTimeout, 1, 3600);
             BuildLabelledTextBox(this.flpGemini, "Project ID (Optional):", this.txtGeminiProjectId, false);
             BuildLabelledTextBox(this.flpGemini, "Location (Optional):", this.txtGeminiLocation, false);
@@ -289,7 +283,6 @@ namespace AIFileProcessor
             BuildCheckbox(this.flpGemini, "Enable Network Logging", this.chkGeminiEnableLogging);
             BuildLabelledNumericWithNull(this.flpGemini, "Rate Limit Per Minute:", this.nudGeminiRateLimit, this.chkGeminiRateLimitNull, 0, 100000);
             this.chkGeminiRateLimitNull.CheckedChanged += new System.EventHandler(this.ChkGeminiRateLimitNull_CheckedChanged);
-            BuildLabelledTextBox(this.flpGemini, "Proxy URL (Optional):", this.txtGeminiProxyUrl, false);
             BuildCheckbox(this.flpGemini, "Use Managed Identity Authentication", this.chkGeminiUseManagedIdentity);
             BuildLabelledTextBox(this.flpGemini, "Credential Type (Optional):", this.txtGeminiCredentialType, false);
 
@@ -297,7 +290,6 @@ namespace AIFileProcessor
             BuildLabelledComboBox(this.flpOpenAi, "Reasoning Level:", this.ddlOpenAiReasoning);
             BuildLabelledNumeric(this.flpOpenAi, "Chunk Size (Lines):", this.nudOpenAiChunkSize, 1, 1000);
             BuildLabelledNumeric(this.flpOpenAi, "Max Concurrent Chunks:", this.nudOpenAiMaxConcurrentChunks, 1, 32);
-            BuildLabelledTextBox(this.flpOpenAi, "Endpoint:", this.txtOpenAiEndpoint, false);
             BuildLabelledNumeric(this.flpOpenAi, "Timeout (Seconds):", this.nudOpenAiTimeout, 1, 3600);
             BuildLabelledTextBox(this.flpOpenAi, "Organization ID (Optional):", this.txtOpenAiOrgId, false);
             BuildLabelledNumericWithNull(this.flpOpenAi, "Max Tokens:", this.nudOpenAiMaxTokens, this.chkOpenAiMaxTokensNull, 0, 1000000);
@@ -309,7 +301,6 @@ namespace AIFileProcessor
             BuildLabelledComboBox(this.flpDeepSeek, "Reasoning Level:", this.ddlDeepSeekReasoning);
             BuildLabelledNumeric(this.flpDeepSeek, "Chunk Size (Lines):", this.nudDeepSeekChunkSize, 1, 1000);
             BuildLabelledNumeric(this.flpDeepSeek, "Max Concurrent Chunks:", this.nudDeepSeekMaxConcurrentChunks, 1, 32);
-            BuildLabelledTextBox(this.flpDeepSeek, "Endpoint:", this.txtDeepSeekEndpoint, false);
             BuildLabelledNumeric(this.flpDeepSeek, "Timeout (Seconds):", this.nudDeepSeekTimeout, 1, 3600);
             BuildLabelledNumericWithNull(this.flpDeepSeek, "Max Tokens:", this.nudDeepSeekMaxTokens, this.chkDeepSeekMaxTokensNull, 0, 1000000);
             this.chkDeepSeekMaxTokensNull.CheckedChanged += new System.EventHandler(this.ChkDeepSeekMaxTokensNull_CheckedChanged);
@@ -323,7 +314,6 @@ namespace AIFileProcessor
             this.btnOllamaRefreshModels.Click += new System.EventHandler(this.BtnOllamaRefreshModels_Click);
             BuildLabelledNumeric(this.flpOllama, "Chunk Size (Lines):", this.nudOllamaChunkSize, 1, 1000);
             BuildLabelledNumeric(this.flpOllama, "Max Concurrent Chunks:", this.nudOllamaMaxConcurrentChunks, 1, 32);
-            BuildLabelledTextBox(this.flpOllama, "Endpoint:", this.txtOllamaEndpoint, false);
             BuildLabelledNumeric(this.flpOllama, "Timeout (Seconds):", this.nudOllamaTimeout, 1, 7200);
             BuildLabelledNumericWithNull(this.flpOllama, "Max Tokens (num_predict):", this.nudOllamaMaxTokens, this.chkOllamaMaxTokensNull, 0, 1000000);
             this.chkOllamaMaxTokensNull.CheckedChanged += new System.EventHandler(this.ChkOllamaNull_CheckedChanged);
@@ -592,7 +582,6 @@ namespace AIFileProcessor
         private System.Windows.Forms.Button btnCancel;
 
         private System.Windows.Forms.FlowLayoutPanel flpGemini;
-        private System.Windows.Forms.TextBox txtGeminiEndpoint;
         private System.Windows.Forms.ComboBox ddlGeminiModel;
         private System.Windows.Forms.NumericUpDown nudGeminiTimeout;
         private System.Windows.Forms.TextBox txtGeminiProjectId;
@@ -610,13 +599,11 @@ namespace AIFileProcessor
         private System.Windows.Forms.CheckBox chkGeminiEnableLogging;
         private System.Windows.Forms.NumericUpDown nudGeminiRateLimit;
         private System.Windows.Forms.CheckBox chkGeminiRateLimitNull;
-        private System.Windows.Forms.TextBox txtGeminiProxyUrl;
         private System.Windows.Forms.CheckBox chkGeminiUseManagedIdentity;
         private System.Windows.Forms.TextBox txtGeminiCredentialType;
         private System.Windows.Forms.ComboBox ddlGeminiReasoning;
 
         private System.Windows.Forms.FlowLayoutPanel flpOpenAi;
-        private System.Windows.Forms.TextBox txtOpenAiEndpoint;
         private System.Windows.Forms.ComboBox ddlOpenAiModel;
         private System.Windows.Forms.NumericUpDown nudOpenAiTimeout;
         private System.Windows.Forms.TextBox txtOpenAiOrgId;
@@ -628,7 +615,6 @@ namespace AIFileProcessor
 
         private System.Windows.Forms.FlowLayoutPanel flpDeepSeek;
         private System.Windows.Forms.ComboBox ddlDeepSeekModel;
-        private System.Windows.Forms.TextBox txtDeepSeekEndpoint;
         private System.Windows.Forms.NumericUpDown nudDeepSeekTimeout;
         private System.Windows.Forms.NumericUpDown nudDeepSeekMaxTokens;
         private System.Windows.Forms.CheckBox chkDeepSeekMaxTokensNull;
@@ -641,7 +627,6 @@ namespace AIFileProcessor
         private System.Windows.Forms.ComboBox ddlOllamaModel;
         private System.Windows.Forms.ComboBox ddlOllamaReasoning;
         private System.Windows.Forms.Button btnOllamaRefreshModels;
-        private System.Windows.Forms.TextBox txtOllamaEndpoint;
         private System.Windows.Forms.NumericUpDown nudOllamaTimeout;
         private System.Windows.Forms.NumericUpDown nudOllamaMaxTokens;
         private System.Windows.Forms.CheckBox chkOllamaMaxTokensNull;

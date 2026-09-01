@@ -11,7 +11,10 @@ namespace AIFileProcessor.Services
 
     /// <summary>
     /// Provides extension methods for overlaying per-user settings overrides
-    /// onto default settings instances.
+    /// onto default settings instances. Infrastructure settings (Endpoint,
+    /// ProxyUrl, RequestHeaders, AdditionalParameters) and ApiKey are never
+    /// overlaid: they carry the machine-level trust boundary of the API key
+    /// (SEC-010, ADR-0006).
     /// </summary>
     public static class SettingsExtensions
     {
@@ -30,16 +33,14 @@ namespace AIFileProcessor.Services
                 return;
             }
 
-            // ApiKey is always from machine-level IConfiguration; never overlaid from per-user files.
+            // ApiKey, Endpoint, ProxyUrl, RequestHeaders, and AdditionalParameters are
+            // always from machine-level IConfiguration; never overlaid (SEC-010). The
+            // endpoint travels with the API key's trust boundary, so a user who does
+            // not own the machine key cannot redirect key-authenticated traffic.
 
             // Only overwrite when the override has a meaningful (non-default) value.
             // Nullable types: overwrite if the override has a value.
             // Non-nullable types: overwrite if the override differs from the default.
-            if (source.Endpoint != null)
-            {
-                target.Endpoint = source.Endpoint;
-            }
-
             if (source.ModelName != null)
             {
                 target.ModelName = source.ModelName;
@@ -96,16 +97,6 @@ namespace AIFileProcessor.Services
                 target.MaxDelay = source.MaxDelay;
             }
 
-            if (source.RequestHeaders != null)
-            {
-                target.RequestHeaders = source.RequestHeaders;
-            }
-
-            if (source.AdditionalParameters != null)
-            {
-                target.AdditionalParameters = source.AdditionalParameters;
-            }
-
             if (source.EnableLogging)
             {
                 target.EnableLogging = source.EnableLogging;
@@ -114,11 +105,6 @@ namespace AIFileProcessor.Services
             if (source.RateLimitPerMinute.HasValue)
             {
                 target.RateLimitPerMinute = source.RateLimitPerMinute;
-            }
-
-            if (source.ProxyUrl != null)
-            {
-                target.ProxyUrl = source.ProxyUrl;
             }
 
             if (source.UseManagedIdentity)
@@ -139,8 +125,10 @@ namespace AIFileProcessor.Services
 
         /// <summary>
         /// Copies non-null/non-default property values from <paramref name="source"/>
-        /// onto <paramref name="target"/>. ApiKey is never overlaid — it is always
-        /// sourced from machine-level IConfiguration.
+        /// onto <paramref name="target"/>, effectively overlaying user overrides
+        /// on top of defaults. ApiKey and infrastructure settings (Endpoint,
+        /// RequestHeaders) are never overlaid — they are always sourced from
+        /// machine-level IConfiguration, matching the API key's trust boundary (SEC-010).
         /// </summary>
         /// <param name="source">The override settings (from per-user file).</param>
         /// <param name="target">The target settings (from defaults) to update in place.</param>
@@ -151,12 +139,10 @@ namespace AIFileProcessor.Services
                 return;
             }
 
-            // ApiKey is always from machine-level IConfiguration; never overlaid from per-user files.
-            if (!string.IsNullOrEmpty(source.Endpoint))
-            {
-                target.Endpoint = source.Endpoint;
-            }
-
+            // ApiKey, Endpoint, and RequestHeaders are always from machine-level
+            // IConfiguration; never overlaid (SEC-010). The endpoint travels with the
+            // API key's trust boundary, so a user who does not own the machine key
+            // cannot redirect key-authenticated traffic.
             if (!string.IsNullOrEmpty(source.ModelName))
             {
                 target.ModelName = source.ModelName;
@@ -201,17 +187,14 @@ namespace AIFileProcessor.Services
             {
                 target.ReasoningLevel = source.ReasoningLevel;
             }
-
-            if (source.RequestHeaders != null)
-            {
-                target.RequestHeaders = source.RequestHeaders;
-            }
         }
 
         /// <summary>
         /// Copies non-null/non-default property values from <paramref name="source"/>
-        /// onto <paramref name="target"/>. ApiKey is never overlaid — it is always
-        /// sourced from machine-level IConfiguration.
+        /// onto <paramref name="target"/>, effectively overlaying user overrides
+        /// on top of defaults. ApiKey and infrastructure settings (Endpoint,
+        /// RequestHeaders) are never overlaid — they are always sourced from
+        /// machine-level IConfiguration, matching the API key's trust boundary (SEC-010).
         /// </summary>
         /// <param name="source">The override settings (from per-user file).</param>
         /// <param name="target">The target settings (from defaults) to update in place.</param>
@@ -222,12 +205,10 @@ namespace AIFileProcessor.Services
                 return;
             }
 
-            // ApiKey is always from machine-level IConfiguration; never overlaid from per-user files.
-            if (!string.IsNullOrEmpty(source.Endpoint))
-            {
-                target.Endpoint = source.Endpoint;
-            }
-
+            // ApiKey, Endpoint, and RequestHeaders are always from machine-level
+            // IConfiguration; never overlaid (SEC-010). The endpoint travels with the
+            // API key's trust boundary, so a user who does not own the machine key
+            // cannot redirect key-authenticated traffic.
             if (source.TimeoutSeconds != 0)
             {
                 target.TimeoutSeconds = source.TimeoutSeconds;
@@ -272,17 +253,14 @@ namespace AIFileProcessor.Services
             {
                 target.ReasoningLevel = source.ReasoningLevel;
             }
-
-            if (source.RequestHeaders != null)
-            {
-                target.RequestHeaders = source.RequestHeaders;
-            }
         }
 
         /// <summary>
         /// Copies non-null/non-default property values from <paramref name="source"/>
-        /// onto <paramref name="target"/>. ApiKey is never overlaid — it is always
-        /// sourced from machine-level IConfiguration.
+        /// onto <paramref name="target"/>, effectively overlaying user overrides
+        /// on top of defaults. ApiKey and infrastructure settings (Endpoint,
+        /// RequestHeaders) are never overlaid — they are always sourced from
+        /// machine-level IConfiguration, matching the API key's trust boundary (SEC-010).
         /// </summary>
         /// <param name="source">The override settings (from per-user file).</param>
         /// <param name="target">The target settings (from defaults) to update in place.</param>
@@ -293,12 +271,10 @@ namespace AIFileProcessor.Services
                 return;
             }
 
-            // ApiKey is always from machine-level IConfiguration; never overlaid from per-user files.
-            if (!string.IsNullOrEmpty(source.Endpoint))
-            {
-                target.Endpoint = source.Endpoint;
-            }
-
+            // ApiKey, Endpoint, and RequestHeaders are always from machine-level
+            // IConfiguration; never overlaid (SEC-010). The endpoint travels with the
+            // API key's trust boundary, so a user who does not own the machine key
+            // cannot redirect key-authenticated traffic.
             if (!string.IsNullOrEmpty(source.ModelName))
             {
                 target.ModelName = source.ModelName;
@@ -462,11 +438,6 @@ namespace AIFileProcessor.Services
             if (source.MaxDelay != 0)
             {
                 target.MaxDelay = source.MaxDelay;
-            }
-
-            if (source.RequestHeaders != null)
-            {
-                target.RequestHeaders = source.RequestHeaders;
             }
         }
     }

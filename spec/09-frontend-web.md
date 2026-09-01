@@ -2,7 +2,7 @@
 title: Web Front-End
 doc_id: WEB
 status: draft
-last-reviewed: 2026-08-28
+last-reviewed: 2026-08-29
 owner: DancingShiva
 ---
 
@@ -31,16 +31,22 @@ web-only concerns — for the ASP.NET Core host. **Status: prototype; not produc
 - **WEB-002** `POST /api/processing/process` **must** run Chinese text through the pipeline from a
   `ProcessRequest` body containing `modelId`, `prompt`, `data` (required) and optional `idPrefix`,
   `idStart`, `idPad`, `lengthPad`, `reasoningLevel`, and per-provider `*Preferences` objects.
-- **WEB-003** `GET /api/settings` **must** return current default settings per provider with
-  `ApiKey` excluded (`[JsonIgnore]` → SEC-005), as `ProviderSettingsResponse`.
+- **WEB-003** `GET /api/settings` **must** return current default preferences per provider as
+  narrow DTOs (`GeminiPreferencesDto`, `OpenAiPreferencesDto`, `DeepSeekPreferencesDto`) with
+  `ApiKey` excluded (`[JsonIgnore]` → SEC-005) and infrastructure settings (`Endpoint`, `ProxyUrl`,
+  `RequestHeaders`, `AdditionalParameters`) omitted entirely (SEC-010): machine infrastructure
+  may embed gateway credentials and **must not** be echoed to clients.
 - **WEB-004** `POST /api/settings` **must** be a no-op returning 200 with guidance that persistence
   is client-side (`localStorage`) and API keys remain server-side. Nothing is persisted server-side.
 
 ### Request handling
 
-- **WEB-005** Per-provider `*Preferences` sent in the request **must** be stashed by
-  `ProcessingController` into `HttpContext.Items` for `WebSettingsProvider` to overlay onto
-  defaults (SET-006); `apiKey` within preferences **must** be ignored.
+- **WEB-005** Per-provider `*Preferences` sent in the request **must** be narrow DTOs
+  (`GeminiPreferencesDto`, `OpenAiPreferencesDto`, `DeepSeekPreferencesDto`) that structurally
+  exclude infrastructure settings (`Endpoint`, `ProxyUrl`, `RequestHeaders`, `AdditionalParameters`)
+  and `ApiKey`; they are stashed by `ProcessingController` into `HttpContext.Items` and mapped
+  server-side onto Core settings objects populated only from the DTO's safe fields (SEC-010,
+  ADR-0006), so a client cannot redirect server-held keys.
 - **WEB-006** A non-null `MaxTokens` within the first provider preference (Gemini → OpenAI →
   DeepSeek order) **must** become the per-model `MaxTokens` for the call, then be clamped
   server-side (PROV-005). Validation errors return 400.

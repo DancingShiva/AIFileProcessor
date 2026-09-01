@@ -21,8 +21,6 @@ namespace AIFileProcessor
 
         internal ComboBox Test_ddlOllamaModel => ddlOllamaModel;
 
-        internal TextBox Test_txtOllamaEndpoint => txtOllamaEndpoint;
-
         internal TextBox Test_txtOllamaKeepAlive => txtOllamaKeepAlive;
 
         internal ComboBox Test_ddlOllamaReasoning => ddlOllamaReasoning;

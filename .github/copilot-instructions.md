@@ -72,6 +72,7 @@ AIFileProcessor supports two deployment scenarios today, with a third planned:
 - **`FileSettingsProvider` uses cross-process `Mutex` locking** — `Global\` prefix, named per sanitized user ID.
 - **Chunking is by lines, not characters** — `ChunkSize` default is 40 lines. The 32K character input limit does not bound chunk count.
 - **Two retry layers**: service-level (per HTTP call, 3 retries) and chunk-level (per chunk, 3 retries with 5s/10s/20s backoff).
+- **Infrastructure settings (Endpoint/ProxyUrl/RequestHeaders/AdditionalParameters) are machine-level only**, exactly like API keys — whoever controls the key controls the endpoint (ADR-0006, SEC-010). Per-user settings files and web request bodies carry only non-secret preferences (model, temperature, tokens, reasoning level) and must never set or influence endpoints, proxies, or request headers. Do not reintroduce per-user infrastructure overrides.
 
 ## Solution Specification (spec/)
 
@@ -103,5 +104,9 @@ onboarding narrative. Follow these rules:
 - **Clean before build**: Always run `dotnet clean` before `dotnet build` when verifying changes. This ensures a full rebuild from scratch with no stale artifacts. Do not use `--no-incremental` as a substitute for `dotnet clean`.
 - **Check IDE errors after edit**: After editing C# files, use `get_errors` to check the live Visual Studio IDE error list — not just `dotnet build` output. The IDE's Roslyn analysis can show errors that `dotnet build` does not report (or that build output filtering truncates away). Always verify `get_errors` returns no results before declaring a build clean.
 - **Check IDE messages and warnings after build**: `dotnet build` reports warnings and errors but not IDE "Message" severity diagnostics (CA, IDE, SA, xUnit rules at message severity). After every `dotnet clean` + `dotnet build` cycle, run `get_errors` on all changed files to check for IDE diagnostics that the build does not surface. The build output filter pattern must include `message` alongside `warning` and `error`: `Select-String -Pattern 'warning|error|message|Build succeeded|Build FAILED|0 Error|0 Warning'`. A clean build is not complete until both `dotnet build` shows `0 Warning(s)` and `get_errors` returns no diagnostics. Do not declare success until both checks pass.
+
+## Review Process
+
+- When the user asks for a review of the project (e.g., "Review this solution for security vulnerabilities"), perform read-only analysis only — do NOT modify code, delete files, or update specs without explicit instruction to implement changes.
 
 Tue, 01 Sep 2026 00:00:00 GMT

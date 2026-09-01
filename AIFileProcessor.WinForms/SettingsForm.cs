@@ -343,7 +343,6 @@ namespace AIFileProcessor
 
                 // Load Gemini Settings
                 var gemini = await _settingsProvider.GetGeminiSettingsAsync(_userContext.UserId).ConfigureAwait(true);
-                txtGeminiEndpoint.Text = gemini.Endpoint ?? string.Empty;
                 SelectModelByModelId(ddlGeminiModel, gemini.ModelName);
                 UpdateGeminiReasoningLevels();
                 SelectReasoningLevelForModel(ddlGeminiReasoning, GetModelId(ddlGeminiModel));
@@ -365,7 +364,6 @@ namespace AIFileProcessor
                 chkGeminiEnableLogging.Checked = gemini.EnableLogging;
                 nudGeminiRateLimit.Value = gemini.RateLimitPerMinute ?? 0;
                 chkGeminiRateLimitNull.Checked = !gemini.RateLimitPerMinute.HasValue;
-                txtGeminiProxyUrl.Text = gemini.ProxyUrl ?? string.Empty;
                 chkGeminiUseManagedIdentity.Checked = gemini.UseManagedIdentity;
                 txtGeminiCredentialType.Text = gemini.CredentialType ?? string.Empty;
 
@@ -380,7 +378,6 @@ namespace AIFileProcessor
 
                 // Load OpenAI Settings
                 var openAi = await _settingsProvider.GetOpenAiSettingsAsync(_userContext.UserId).ConfigureAwait(true);
-                txtOpenAiEndpoint.Text = openAi.Endpoint ?? string.Empty;
                 SelectModelByModelId(ddlOpenAiModel, openAi.ModelName);
                 UpdateOpenAiReasoningLevels();
                 SelectReasoningLevelForModel(ddlOpenAiReasoning, GetModelId(ddlOpenAiModel));
@@ -405,7 +402,6 @@ namespace AIFileProcessor
                 SelectModelByModelId(ddlDeepSeekModel, deepSeek.ModelName);
                 UpdateDeepSeekReasoningLevels();
                 SelectReasoningLevelForModel(ddlDeepSeekReasoning, GetModelId(ddlDeepSeekModel));
-                txtDeepSeekEndpoint.Text = deepSeek.Endpoint ?? string.Empty;
                 nudDeepSeekTimeout.Value = deepSeek.TimeoutSeconds;
                 nudDeepSeekMaxTokens.Maximum = ModelTokenLimits.GetHardMax("DeepSeek", GetModelId(ddlDeepSeekModel));
                 UpdateMaxTokensForModel(nudDeepSeekMaxTokens, chkDeepSeekMaxTokensNull, GetModelId(ddlDeepSeekModel));
@@ -424,7 +420,6 @@ namespace AIFileProcessor
 
                 // Load Ollama Settings
                 var ollama = await _settingsProvider.GetOllamaSettingsAsync(_userContext.UserId).ConfigureAwait(true);
-                txtOllamaEndpoint.Text = ollama.Endpoint ?? string.Empty;
                 SelectModelByModelId(ddlOllamaModel, ollama.ModelName);
                 UpdateOllamaReasoningLevels();
                 SelectReasoningLevelForModel(ddlOllamaReasoning, GetModelId(ddlOllamaModel));
@@ -499,10 +494,10 @@ namespace AIFileProcessor
         {
             try
             {
-                // Save Gemini Settings (ApiKey is not included — it comes from environment variables)
+                // Save Gemini Settings (ApiKey and Endpoint/ProxyUrl are not included — they come
+                // from machine-level environment variables/config per SEC-010)
                 var gemini = new GeminiSettings
                 {
-                    Endpoint = string.IsNullOrWhiteSpace(txtGeminiEndpoint.Text) ? null : txtGeminiEndpoint.Text,
                     ModelName = ddlGeminiModel.SelectedItem is AiModelInfo geminiModel ? geminiModel.ModelId : null,
                     TimeoutSeconds = (int)nudGeminiTimeout.Value,
                     ProjectId = string.IsNullOrWhiteSpace(txtGeminiProjectId.Text) ? null : txtGeminiProjectId.Text,
@@ -515,7 +510,6 @@ namespace AIFileProcessor
                     MaxDelay = (int)nudGeminiMaxDelay.Value,
                     EnableLogging = chkGeminiEnableLogging.Checked,
                     RateLimitPerMinute = chkGeminiRateLimitNull.Checked ? null : (int)nudGeminiRateLimit.Value,
-                    ProxyUrl = string.IsNullOrWhiteSpace(txtGeminiProxyUrl.Text) ? null : txtGeminiProxyUrl.Text,
                     UseManagedIdentity = chkGeminiUseManagedIdentity.Checked,
                     CredentialType = string.IsNullOrWhiteSpace(txtGeminiCredentialType.Text) ? null : txtGeminiCredentialType.Text
                 };
@@ -533,10 +527,10 @@ namespace AIFileProcessor
                     }
                 }
 
-                // Save OpenAI Settings (ApiKey is not included — it comes from environment variables)
+                // Save OpenAI Settings (ApiKey and Endpoint are not included — they come
+                // from machine-level environment variables/config per SEC-010)
                 var openAi = new OpenAiSettings
                 {
-                    Endpoint = string.IsNullOrWhiteSpace(txtOpenAiEndpoint.Text) ? string.Empty : txtOpenAiEndpoint.Text,
                     ModelName = ddlOpenAiModel.SelectedItem is AiModelInfo openAiModel ? openAiModel.ModelId : string.Empty,
                     TimeoutSeconds = (int)nudOpenAiTimeout.Value,
                     OrganizationId = string.IsNullOrWhiteSpace(txtOpenAiOrgId.Text) ? null : txtOpenAiOrgId.Text.Trim(),
@@ -560,7 +554,6 @@ namespace AIFileProcessor
                 var deepSeek = new DeepSeekSettings
                 {
                     ModelName = ddlDeepSeekModel.SelectedItem is AiModelInfo deepSeekModel ? deepSeekModel.ModelId : null,
-                    Endpoint = string.IsNullOrWhiteSpace(txtDeepSeekEndpoint.Text) ? string.Empty : txtDeepSeekEndpoint.Text,
                     TimeoutSeconds = (int)nudDeepSeekTimeout.Value,
                     Temperature = chkDeepSeekTempNull.Checked ? null : (double)nudDeepSeekTemp.Value,
                     EnableReasoning = chkDeepSeekReasoning.Checked
@@ -594,7 +587,6 @@ namespace AIFileProcessor
 
                 var ollama = new OllamaSettings
                 {
-                    Endpoint = string.IsNullOrWhiteSpace(txtOllamaEndpoint.Text) ? string.Empty : txtOllamaEndpoint.Text,
                     ModelName = ddlOllamaModel.SelectedItem is AiModelInfo ollamaModel ? ollamaModel.ModelId : string.Empty,
                     TimeoutSeconds = (int)nudOllamaTimeout.Value,
                     MaxTokens = chkOllamaMaxTokensNull.Checked ? null : (int)nudOllamaMaxTokens.Value,

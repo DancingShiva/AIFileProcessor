@@ -2,7 +2,7 @@
 title: WinForms Front-End
 doc_id: WF
 status: draft
-last-reviewed: 2026-08-28
+last-reviewed: 2026-08-29
 owner: DancingShiva
 ---
 
@@ -30,7 +30,9 @@ persistence entry points, and composition — so the desktop app remains a thin 
   `WindowsUserContext`, the forms, and `StartupAppContext` registered.
 - **WF-003** `SettingsForm` **must** save per-user settings via `ISettingsProvider.Save*SettingsAsync`,
   which writes only non-secret preferences; the API key **must** be stripped automatically
-  (SEC-007) and never shown/copyable in the UI.
+  (SEC-007) and never shown/copyable in the UI. Infrastructure settings (`Endpoint`, `ProxyUrl`,
+  `RequestHeaders`, `AdditionalParameters`) **must not** appear as editable fields — they are
+  machine-level (SEC-010, ADR-0006); endpoint/proxy textboxes are therefore absent from the form.
 - **WF-004** UI interactions **must** not block the WinForms message pump; processing calls are
   awaited asynchronously with cancellation support wired to the UI.
 - **WF-005** Dialogs **must** go through `IDialogService` (implementation
@@ -49,6 +51,7 @@ persistence entry points, and composition — so the desktop app remains a thin 
 
 - [ADR-0002](decisions/ADR-0002-durable-logic-in-core.md)
 - [ADR-0005](decisions/ADR-0005-global-mutex-settings-locking.md)
+- [ADR-0006](decisions/ADR-0006-infra-settings-follow-key-trust-boundary.md)
 
 ## Open questions
 

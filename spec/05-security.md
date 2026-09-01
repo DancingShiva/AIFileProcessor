@@ -2,7 +2,7 @@
 title: Security
 doc_id: SEC
 status: living
-last-reviewed: 2026-08-28
+last-reviewed: 2026-08-29
 owner: DancingShiva
 ---
 
@@ -54,6 +54,16 @@ output), and the handling of API keys as secrets across all deployment targets.
   maps to HTTP 400 — never a partial or unauthenticated attempt against the provider.
 - **SEC-009** Client/SDK caches keyed by settings fingerprint **must** include the API key in the
   fingerprint (PROV-007), so no cached client can be reused across credentials.
+- **SEC-010** Infrastructure settings — `Endpoint`, `ProxyUrl`, `RequestHeaders`,
+  `AdditionalParameters` — **must** be sourced only from machine-level `IConfiguration`, exactly
+  like `ApiKey` (ADR-0006). `SettingsExtensions.CopyOnto` **must not** copy them from any per-user
+  source: a user who does not own the machine key must not choose where key-authenticated traffic
+  is sent or which proxy/headers accompany it.
+- **SEC-011** Per-user settings files and any settings persisted on behalf of a user **must not**
+  contain infrastructure settings: `FileSettingsProvider` strips `Endpoint`/`ProxyUrl`/
+  `RequestHeaders`/`AdditionalParameters` at the save chokepoints, and legacy-migration seeding
+  does not propagate them. `RequestHeaders` in particular may embed gateway credentials and
+  **must never** persist to user-writable storage.
 
 ## Invariants
 
@@ -65,6 +75,7 @@ output), and the handling of API keys as secrets across all deployment targets.
 
 - [ADR-0003](decisions/ADR-0003-no-api-keys-in-user-files.md)
 - [ADR-0005](decisions/ADR-0005-global-mutex-settings-locking.md)
+- [ADR-0006](decisions/ADR-0006-infra-settings-follow-key-trust-boundary.md)
 
 ## Open questions
 

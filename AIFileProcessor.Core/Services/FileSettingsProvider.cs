@@ -275,7 +275,8 @@ namespace AIFileProcessor.Services
 
                     return new GeminiModelSettings
                     {
-                        Endpoint = migrated.Endpoint,
+                        // Endpoint/ProxyUrl/RequestHeaders/AdditionalParameters are machine-level
+                        // only (SEC-010): never seeded into per-user files.
                         ModelName = migrated.ModelName ?? modelId,
                         TimeoutSeconds = migrated.TimeoutSeconds,
                         ProjectId = migrated.ProjectId,
@@ -287,11 +288,8 @@ namespace AIFileProcessor.Services
                         MaxRetries = migrated.MaxRetries,
                         BaseDelay = migrated.BaseDelay,
                         MaxDelay = migrated.MaxDelay,
-                        RequestHeaders = migrated.RequestHeaders,
-                        AdditionalParameters = migrated.AdditionalParameters,
                         EnableLogging = migrated.EnableLogging,
                         RateLimitPerMinute = migrated.RateLimitPerMinute,
-                        ProxyUrl = migrated.ProxyUrl,
                         UseManagedIdentity = migrated.UseManagedIdentity,
                         CredentialType = migrated.CredentialType,
                         ReasoningLevel = migrated.ReasoningLevel,
@@ -374,7 +372,8 @@ namespace AIFileProcessor.Services
 
                     return new OpenAiModelSettings
                     {
-                        Endpoint = migrated.Endpoint,
+                        // Endpoint/RequestHeaders are machine-level only (SEC-010):
+                        // never seeded into per-user files.
                         ModelName = migrated.ModelName ?? modelId,
                         TimeoutSeconds = migrated.TimeoutSeconds,
                         OrganizationId = migrated.OrganizationId,
@@ -463,7 +462,8 @@ namespace AIFileProcessor.Services
 
                     return new DeepSeekModelSettings
                     {
-                        Endpoint = migrated.Endpoint,
+                        // Endpoint/RequestHeaders are machine-level only (SEC-010):
+                        // never seeded into per-user files.
                         ModelName = migrated.ModelName ?? modelId,
                         TimeoutSeconds = migrated.TimeoutSeconds,
                         MaxTokens = migrated.MaxTokens,
@@ -694,6 +694,35 @@ namespace AIFileProcessor.Services
         }
 
         /// <summary>
+        /// Removes machine-level infrastructure properties (<c>Endpoint</c>, <c>ProxyUrl</c>,
+        /// <c>RequestHeaders</c>, <c>AdditionalParameters</c>) from a serialized settings node
+        /// before it is written to a per-user file. Per-user files must contain only
+        /// non-secret user preferences (SET-007, SEC-010): these values are machine-level
+        /// and may include gateway credentials, so they must never be persisted where
+        /// users can read or write them. Both the camelCase keys produced by the
+        /// <see cref="JsonNamingPolicy.CamelCase"/> write options and the raw PascalCase
+        /// property names are removed.
+        /// </summary>
+        /// <param name="sectionNode">The serialized settings node to strip.</param>
+        private static void StripInfraProperties(JsonObject? sectionNode)
+        {
+            if (sectionNode is null)
+            {
+                return;
+            }
+
+            sectionNode.Remove("endpoint");
+            sectionNode.Remove("proxyUrl");
+            sectionNode.Remove("requestHeaders");
+            sectionNode.Remove("additionalParameters");
+
+            sectionNode.Remove("Endpoint");
+            sectionNode.Remove("ProxyUrl");
+            sectionNode.Remove("RequestHeaders");
+            sectionNode.Remove("AdditionalParameters");
+        }
+
+        /// <summary>
         /// Executes an operation while holding a cross-process mutex that
         /// serializes access to the per-user settings file. On Terminal Server,
         /// two RDP sessions for the same user share the same settings file;
@@ -742,6 +771,10 @@ namespace AIFileProcessor.Services
         /// <c>ApiKey</c> field is always stripped before saving — per-user
         /// files contain only non-secret preferences. API keys are sourced
         /// from machine-level <see cref="IConfiguration"/> at read time.
+        /// Infrastructure settings (<c>Endpoint</c>, <c>ProxyUrl</c>, <c>RequestHeaders</c>,
+        /// <c>AdditionalParameters</c>) are likewise stripped: they are machine-level
+        /// values (SEC-010, ADR-0006) and may contain gateway credentials that must
+        /// not persist to user-writable files.
         /// </summary>
         /// <typeparam name="T">The settings type to serialize.</typeparam>
         /// <param name="userId">The user identifier.</param>
@@ -764,6 +797,7 @@ namespace AIFileProcessor.Services
 
                 string sectionJson = JsonSerializer.Serialize(settings, _writeOptions);
                 var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
+                StripInfraProperties(sectionNode);
 
                 // ApiKey is [JsonIgnore] on the settings models, so it is never
                 // present in the serialized JSON — no manual stripping needed.
@@ -869,6 +903,7 @@ namespace AIFileProcessor.Services
                 {
                     string sectionJson = JsonSerializer.Serialize(settings, _writeOptions);
                     var sectionNode = JsonNode.Parse(sectionJson) as JsonObject;
+                    StripInfraProperties(sectionNode);
                     modelsSection[modelId] = sectionNode;
                 }
 

@@ -146,7 +146,8 @@ public class FileSettingsProviderTests
 
             GeminiSettings result = await provider.GetGeminiSettingsAsync(userId, CancellationToken.None);
 
-            Assert.Equal("https://override.example.com", result.Endpoint);
+            // Endpoint in a per-user file is ignored — machine-level only (SEC-010).
+            Assert.Null(result.Endpoint);
             Assert.Equal("override-model", result.ModelName);
             Assert.Equal(60, result.TimeoutSeconds);
             Assert.Equal(0.7, result.Temperature);
@@ -256,7 +257,9 @@ public class FileSettingsProviderTests
 
             GeminiSettings result = await provider.GetGeminiSettingsAsync(userId, CancellationToken.None);
 
-            Assert.Equal("https://override.example.com", result.Endpoint);
+            // Infrastructure settings in the file (endpoint, proxyUrl) are ignored —
+            // machine-level only (SEC-010). Safe preferences still merge.
+            Assert.Null(result.Endpoint);
             Assert.Equal("override-model", result.ModelName);
             Assert.Equal(60, result.TimeoutSeconds);
             Assert.Equal("override-project", result.ProjectId);
@@ -269,7 +272,7 @@ public class FileSettingsProviderTests
             Assert.Equal(120, result.MaxDelay);
             Assert.True(result.EnableLogging);
             Assert.Equal(100, result.RateLimitPerMinute);
-            Assert.Equal("https://proxy.example.com", result.ProxyUrl);
+            Assert.Null(result.ProxyUrl);
             Assert.True(result.UseManagedIdentity);
             Assert.Equal("Default", result.CredentialType);
         }
@@ -338,7 +341,8 @@ public class FileSettingsProviderTests
 
             OpenAiSettings result = await provider.GetOpenAiSettingsAsync(userId, CancellationToken.None);
 
-            Assert.Equal("https://override.example.com", result.Endpoint);
+            // Endpoint in a per-user file is ignored — machine-level only (SEC-010).
+            Assert.Equal(string.Empty, result.Endpoint);
             Assert.Equal("override-model", result.ModelName);
             Assert.Equal(60, result.TimeoutSeconds);
             Assert.Equal("override-org", result.OrganizationId);
@@ -469,7 +473,8 @@ public class FileSettingsProviderTests
 
             DeepSeekSettings result = await provider.GetDeepSeekSettingsAsync(userId, CancellationToken.None);
 
-            Assert.Equal("https://override.example.com", result.Endpoint);
+            // Endpoint in a per-user file is ignored — machine-level only (SEC-010).
+            Assert.Equal(string.Empty, result.Endpoint);
             Assert.Equal(60, result.TimeoutSeconds);
             Assert.Equal(0.7, result.Temperature);
             Assert.Equal("override-model", result.ModelName);
@@ -600,7 +605,9 @@ public class FileSettingsProviderTests
             Assert.True(root!["GeminiSettings"] is JsonObject);
 
             var geminiNode = root["GeminiSettings"]!.AsObject();
-            Assert.Equal("https://test.example.com", geminiNode["endpoint"]?.GetValue<string>());
+            // Infrastructure settings are stripped at the save chokepoint (SEC-010):
+            // endpoint must not appear in the per-user file.
+            Assert.Null(geminiNode["endpoint"]);
             Assert.Equal("test-model", geminiNode["modelName"]?.GetValue<string>());
             Assert.Equal(45, geminiNode["timeoutSeconds"]?.GetValue<int>());
             Assert.Equal(0.5, geminiNode["temperature"]?.GetValue<double>());
@@ -631,6 +638,8 @@ public class FileSettingsProviderTests
             string fileContent = File.ReadAllText(GetTestUserSettingsFilePath(userId));
             Assert.DoesNotContain("secret-key-should-not-be-saved", fileContent);
             Assert.DoesNotContain("apiKey", fileContent, StringComparison.OrdinalIgnoreCase);
+            // Infrastructure settings are likewise stripped (SEC-010).
+            Assert.DoesNotContain("endpoint", fileContent, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
@@ -666,7 +675,8 @@ public class FileSettingsProviderTests
 
             // GeminiSettings should be written.
             Assert.True(root!["GeminiSettings"] is JsonObject);
-            Assert.Equal("https://gemini.example.com", root["GeminiSettings"]!["endpoint"]?.GetValue<string>());
+            // Infrastructure settings are stripped at the save chokepoint (SEC-010).
+            Assert.Null(root["GeminiSettings"]!["endpoint"]);
 
             // OpenAiSettings should be preserved.
             Assert.True(root["OpenAiSettings"] is JsonObject);
@@ -737,7 +747,8 @@ public class FileSettingsProviderTests
             Assert.True(root!["OpenAiSettings"] is JsonObject);
 
             var openAiNode = root["OpenAiSettings"]!.AsObject();
-            Assert.Equal("https://openai.example.com", openAiNode["endpoint"]?.GetValue<string>());
+            // Infrastructure settings are stripped at the save chokepoint (SEC-010).
+            Assert.Null(openAiNode["endpoint"]);
             Assert.Equal("gpt-test", openAiNode["modelName"]?.GetValue<string>());
             Assert.Equal(45, openAiNode["timeoutSeconds"]?.GetValue<int>());
             Assert.Equal("test-org", openAiNode["organizationId"]?.GetValue<string>());
@@ -800,8 +811,9 @@ public class FileSettingsProviderTests
             var root = JsonNode.Parse(fileContent) as JsonObject;
             Assert.NotNull(root);
 
+            // OpenAiSettings written; endpoint stripped at the chokepoint (SEC-010).
             Assert.True(root!["OpenAiSettings"] is JsonObject);
-            Assert.Equal("https://openai.example.com", root["OpenAiSettings"]!["endpoint"]?.GetValue<string>());
+            Assert.Null(root["OpenAiSettings"]!["endpoint"]);
 
             Assert.True(root["GeminiSettings"] is JsonObject);
             Assert.Equal("existing-gemini-model", root["GeminiSettings"]!["modelName"]?.GetValue<string>());
@@ -871,7 +883,8 @@ public class FileSettingsProviderTests
             Assert.True(root!["DeepSeekSettings"] is JsonObject);
 
             var deepSeekNode = root["DeepSeekSettings"]!.AsObject();
-            Assert.Equal("https://deepseek.example.com", deepSeekNode["endpoint"]?.GetValue<string>());
+            // Infrastructure settings are stripped at the save chokepoint (SEC-010).
+            Assert.Null(deepSeekNode["endpoint"]);
             Assert.Equal("deepseek-test", deepSeekNode["modelName"]?.GetValue<string>());
             Assert.Equal(60, deepSeekNode["timeoutSeconds"]?.GetValue<int>());
             Assert.True(deepSeekNode["enableReasoning"]?.GetValue<bool>());
@@ -934,8 +947,9 @@ public class FileSettingsProviderTests
             var root = JsonNode.Parse(fileContent) as JsonObject;
             Assert.NotNull(root);
 
+            // DeepSeekSettings written; endpoint stripped at the chokepoint (SEC-010).
             Assert.True(root!["DeepSeekSettings"] is JsonObject);
-            Assert.Equal("https://deepseek.example.com", root["DeepSeekSettings"]!["endpoint"]?.GetValue<string>());
+            Assert.Null(root["DeepSeekSettings"]!["endpoint"]);
 
             Assert.True(root["OpenAiSettings"] is JsonObject);
             Assert.Equal("existing-openai-model", root["OpenAiSettings"]!["modelName"]?.GetValue<string>());

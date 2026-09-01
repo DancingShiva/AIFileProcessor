@@ -60,18 +60,21 @@ namespace AIFileProcessor.Web.Models
 
         /// <summary>
         /// Gets or sets non-secret Gemini preferences to override defaults.
+        /// Narrow DTO — infrastructure settings are excluded (WEB-005, SEC-010).
         /// </summary>
-        public GeminiSettings? GeminiPreferences { get; set; }
+        public GeminiPreferencesDto? GeminiPreferences { get; set; }
 
         /// <summary>
         /// Gets or sets non-secret OpenAI preferences to override defaults.
+        /// Narrow DTO — infrastructure settings are excluded (WEB-005, SEC-010).
         /// </summary>
-        public OpenAiSettings? OpenAiPreferences { get; set; }
+        public OpenAiPreferencesDto? OpenAiPreferences { get; set; }
 
         /// <summary>
         /// Gets or sets non-secret DeepSeek preferences to override defaults.
+        /// Narrow DTO — infrastructure settings are excluded (WEB-005, SEC-010).
         /// </summary>
-        public DeepSeekSettings? DeepSeekPreferences { get; set; }
+        public DeepSeekPreferencesDto? DeepSeekPreferences { get; set; }
 
         /// <summary>
         /// Gets or sets the reasoning level to use for this processing request.

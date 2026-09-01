@@ -5,32 +5,33 @@
 //-----------------------------------------------------------------------
 namespace AIFileProcessor.Web.Models
 {
-    using AIFileProcessor.Configuration;
-
     /// <summary>
-    /// Response DTO for the settings endpoint. Returns the current default
-    /// settings (with API keys stripped) for all three AI providers.
+    /// Response DTO for the settings endpoint. Returns current default
+    /// settings per provider with API keys excluded ([JsonIgnore] → SEC-005)
+    /// and infrastructure settings (Endpoint, ProxyUrl, RequestHeaders,
+    /// AdditionalParameters) omitted: machine-level infrastructure may embed
+    /// gateway credentials and must not be echoed to clients (SEC-010, WEB-003).
     /// </summary>
     public class ProviderSettingsResponse
     {
         /// <summary>
-        /// Gets or sets the Gemini settings (API key excluded).
+        /// Gets or sets the Gemini preferences (API key and infrastructure excluded).
         /// </summary>
-        public GeminiSettings GeminiSettings { get; set; } = new();
+        public GeminiPreferencesDto GeminiSettings { get; set; } = new();
 
         /// <summary>
-        /// Gets or sets the OpenAI settings (API key excluded).
+        /// Gets or sets the OpenAI preferences (API key and infrastructure excluded).
         /// </summary>
-        public OpenAiSettings OpenAiSettings { get; set; } = new();
+        public OpenAiPreferencesDto OpenAiSettings { get; set; } = new();
 
         /// <summary>
-        /// Gets or sets the DeepSeek settings (API key excluded).
+        /// Gets or sets the DeepSeek preferences (API key and infrastructure excluded).
         /// </summary>
-        public DeepSeekSettings DeepSeekSettings { get; set; } = new();
+        public DeepSeekPreferencesDto DeepSeekSettings { get; set; } = new();
 
         /// <summary>
-        /// Gets or sets the Ollama settings (API key excluded).
+        /// Gets or sets the Ollama preferences (API key and infrastructure excluded).
         /// </summary>
-        public OllamaSettings OllamaSettings { get; set; } = new();
+        public OllamaPreferencesDto OllamaSettings { get; set; } = new();
     }
 }

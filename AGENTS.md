@@ -42,7 +42,9 @@ DeepSeek) for structured linguistic processing and parses the JSON response.
   (ARCH-001).
 - The system prompt is `Prompt/ChineseProcessingPrompt.txt`; its behavior changes are coordinated
   with the parser per `spec/03-prompt-contract.md`.
-- API keys are machine-level only, never per-user (SEC-005..009).
+- API keys **and infrastructure settings** (Endpoint, ProxyUrl, RequestHeaders,
+  AdditionalParameters) are machine-level only, never per-user (SEC-005..011, ADR-0006):
+  whoever controls the key controls the endpoint.
 - Three deployment targets: desktop, Terminal Server, and web (planned) — see
   `spec/10-quality-attributes.md`.
 
@@ -53,6 +55,9 @@ DeepSeek) for structured linguistic processing and parses the JSON response.
 - Tests: xUnit v3, `[Trait("Category", ...)]` on every class, file-scoped namespaces, data-driven
   via `[Theory]`+`[MemberData]`.
 - Git: never commit or push without explicit user instruction; one action at a time.
+- Reviews are read-only: when the user asks to review the project, perform analysis
+  only — do NOT modify code, delete files, or update specs without explicit instruction
+  to implement changes.
 
 Detailed conventions, the C# member-ordering standard, and the git-workflow rules are in
 [`.github/copilot-instructions.md`](.github/copilot-instructions.md).

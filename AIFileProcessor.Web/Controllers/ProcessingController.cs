@@ -88,23 +88,54 @@ namespace AIFileProcessor.Web.Controllers
                 return BadRequest(new { errors });
             }
 
-            // Stash non-secret preferences in HttpContext.Items so WebSettingsProvider can overlay them
+            // Stash non-secret preferences in HttpContext.Items so WebSettingsProvider can overlay them.
+            // The request carries narrow DTOs; they are mapped onto fresh Core settings objects
+            // populated only from the DTO's safe fields, so client bodies cannot inject
+            // infrastructure settings (Endpoint/ProxyUrl/RequestHeaders/AdditionalParameters)
+            // that would redirect the server-held API key (SEC-010, WEB-005).
             HttpContext? ctx = _httpContextAccessor.HttpContext;
             if (ctx != null)
             {
-                if (request.GeminiPreferences != null)
+                if (request.GeminiPreferences is { } geminiDto)
                 {
-                    ctx.Items["GeminiPreferences"] = request.GeminiPreferences;
+                    ctx.Items["GeminiPreferences"] = new AIFileProcessor.Configuration.GeminiSettings
+                    {
+                        ModelName = geminiDto.ModelName,
+                        TimeoutSeconds = geminiDto.TimeoutSeconds,
+                        MaxTokens = geminiDto.MaxTokens,
+                        Temperature = geminiDto.Temperature,
+                        TopP = geminiDto.TopP,
+                        ProjectId = geminiDto.ProjectId,
+                        Location = geminiDto.Location,
+                        StreamingEnabled = geminiDto.StreamingEnabled,
+                        ReasoningLevel = geminiDto.ReasoningLevel,
+                    };
                 }
 
-                if (request.OpenAiPreferences != null)
+                if (request.OpenAiPreferences is { } openAiDto)
                 {
-                    ctx.Items["OpenAiPreferences"] = request.OpenAiPreferences;
+                    ctx.Items["OpenAiPreferences"] = new AIFileProcessor.Configuration.OpenAiSettings
+                    {
+                        ModelName = openAiDto.ModelName ?? string.Empty,
+                        TimeoutSeconds = openAiDto.TimeoutSeconds,
+                        MaxTokens = openAiDto.MaxTokens,
+                        Temperature = openAiDto.Temperature,
+                        OrganizationId = openAiDto.OrganizationId,
+                        ReasoningLevel = openAiDto.ReasoningLevel,
+                    };
                 }
 
-                if (request.DeepSeekPreferences != null)
+                if (request.DeepSeekPreferences is { } deepSeekDto)
                 {
-                    ctx.Items["DeepSeekPreferences"] = request.DeepSeekPreferences;
+                    ctx.Items["DeepSeekPreferences"] = new AIFileProcessor.Configuration.DeepSeekSettings
+                    {
+                        ModelName = deepSeekDto.ModelName,
+                        TimeoutSeconds = deepSeekDto.TimeoutSeconds,
+                        MaxTokens = deepSeekDto.MaxTokens,
+                        Temperature = deepSeekDto.Temperature,
+                        EnableReasoning = deepSeekDto.EnableReasoning,
+                        ReasoningLevel = deepSeekDto.ReasoningLevel,
+                    };
                 }
             }
 

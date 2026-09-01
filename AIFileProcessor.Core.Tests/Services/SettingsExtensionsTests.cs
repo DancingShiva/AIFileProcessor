@@ -65,9 +65,9 @@ public class SettingsExtensionsTests
 
         source.CopyOnto(target);
 
-        // ApiKey is never overlaid from per-user settings
+        // ApiKey and infrastructure settings are never overlaid from per-user sources (SEC-010).
         Assert.Equal("machine-level-key", target.ApiKey);
-        Assert.Equal("https://override.example.com", target.Endpoint);
+        Assert.Null(target.Endpoint); // source Endpoint ignored
         Assert.Equal("override-model", target.ModelName);
         Assert.Equal(60, target.TimeoutSeconds);
         Assert.Equal("override-project", target.ProjectId);
@@ -78,11 +78,11 @@ public class SettingsExtensionsTests
         Assert.Equal(5, target.MaxRetries);
         Assert.Equal(2, target.BaseDelay);
         Assert.Equal(120, target.MaxDelay);
-        Assert.NotNull(target.RequestHeaders);
-        Assert.NotNull(target.AdditionalParameters);
+        Assert.Empty(target.RequestHeaders!); // source RequestHeaders ignored
+        Assert.Empty(target.AdditionalParameters!); // source AdditionalParameters ignored
         Assert.True(target.EnableLogging);
         Assert.Equal(100, target.RateLimitPerMinute);
-        Assert.Equal("https://proxy.example.com", target.ProxyUrl);
+        Assert.Null(target.ProxyUrl); // source ProxyUrl ignored
         Assert.True(target.UseManagedIdentity);
         Assert.Equal("Default", target.CredentialType);
     }
@@ -117,7 +117,8 @@ public class SettingsExtensionsTests
 
         source.CopyOnto(target);
 
-        // ApiKey is never overlaid.
+        // ApiKey and infrastructure settings are never overlaid: the target keeps
+        // its own machine-level values (SEC-010).
         Assert.Equal("machine-level-key", target.ApiKey);
         Assert.Equal("https://target.example.com", target.Endpoint);
         Assert.Equal("target-model", target.ModelName);
@@ -131,8 +132,9 @@ public class SettingsExtensionsTests
         Assert.Equal(3, target.MaxRetries);
         Assert.Equal(1, target.BaseDelay);
         Assert.Equal(60, target.MaxDelay);
-        Assert.Empty(target.RequestHeaders!);
-        Assert.Empty(target.AdditionalParameters!);
+        // The target's own RequestHeaders/AdditionalParameters are preserved untouched.
+        Assert.Equal("val", target.RequestHeaders!["X-Target"]);
+        Assert.Equal("v", target.AdditionalParameters!["p"]);
         Assert.True(target.EnableLogging);
         Assert.Equal(50, target.RateLimitPerMinute);
         Assert.Equal("https://target-proxy.example.com", target.ProxyUrl);
@@ -176,15 +178,14 @@ public class SettingsExtensionsTests
 
         source.CopyOnto(target);
 
-        // ApiKey is never overlaid from per-user settings
+        // ApiKey and infrastructure settings are never overlaid (SEC-010).
         Assert.Equal("machine-level-key", target.ApiKey);
-        Assert.Equal("https://override.example.com", target.Endpoint);
+        Assert.Equal(string.Empty, target.Endpoint); // source Endpoint ignored
         Assert.Equal("override-model", target.ModelName);
         Assert.Equal(60, target.TimeoutSeconds);
         Assert.Equal("override-org", target.OrganizationId);
         Assert.Equal(0.7, target.Temperature);
-        Assert.NotNull(target.RequestHeaders);
-        Assert.Equal("val", target.RequestHeaders!["X-Test"]);
+        Assert.Empty(target.RequestHeaders!); // source RequestHeaders ignored
     }
 
     [Fact]
@@ -251,15 +252,14 @@ public class SettingsExtensionsTests
 
         source.CopyOnto(target);
 
-        // ApiKey is never overlaid from per-user settings
+        // ApiKey and infrastructure settings are never overlaid (SEC-010).
         Assert.Equal("machine-level-key", target.ApiKey);
-        Assert.Equal("https://override.example.com", target.Endpoint);
+        Assert.Equal(string.Empty, target.Endpoint); // source Endpoint ignored
         Assert.Equal(60, target.TimeoutSeconds);
         Assert.Equal(0.7, target.Temperature);
         Assert.Equal("override-model", target.ModelName);
         Assert.True(target.EnableReasoning);
-        Assert.NotNull(target.RequestHeaders);
-        Assert.Equal("val", target.RequestHeaders!["X-Test"]);
+        Assert.Empty(target.RequestHeaders!); // source RequestHeaders ignored
     }
 
     [Fact]
@@ -348,7 +348,7 @@ public class SettingsExtensionsTests
         source.CopyOnto(target);
 
         Assert.Equal("machine-key", target.ApiKey); // never overlaid
-        Assert.Equal("http://other-host:11434", target.Endpoint);
+        Assert.Equal("http://localhost:11434", target.Endpoint); // source Endpoint ignored (machine default kept)
         Assert.Equal("qwen3:14b", target.ModelName);
         Assert.Equal(900, target.TimeoutSeconds);
         Assert.Equal(0.8, target.Temperature);
@@ -382,7 +382,7 @@ public class SettingsExtensionsTests
         Assert.Equal(4, target.MaxRetries);
         Assert.Equal(2, target.BaseDelay);
         Assert.Equal(90, target.MaxDelay);
-        Assert.Equal("1", target.RequestHeaders!["X-Test"]);
+        Assert.Empty(target.RequestHeaders!); // source RequestHeaders ignored (SEC-010)
     }
 
     [Fact]
@@ -465,7 +465,7 @@ public class SettingsExtensionsTests
     }
 
     [Fact]
-    public void CopyOnto_OpenAi_OnlyEndpointSet_OverwritesOnlyEndpoint()
+    public void CopyOnto_OpenAi_OnlyEndpointSet_DoesNotOverwriteEndpoint()
     {
         var source = new OpenAiSettings { Endpoint = "https://override.example.com" };
         var target = new OpenAiSettings
@@ -478,8 +478,9 @@ public class SettingsExtensionsTests
 
         source.CopyOnto(target);
 
+        // Endpoint is machine-level only: the source value must be ignored (SEC-010).
         Assert.Equal("machine-key", target.ApiKey);
-        Assert.Equal("https://override.example.com", target.Endpoint);
+        Assert.Equal("https://target.example.com", target.Endpoint);
         Assert.Equal("target-model", target.ModelName);
         Assert.Equal(0.5, target.Temperature);
     }
