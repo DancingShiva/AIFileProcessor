@@ -49,6 +49,10 @@ namespace AIFileProcessor.Services
                 "Gemini 3.7 Flash",
                 "gemini-3.7-flash",
                 [ReasoningLevel.Minimal, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High]),
+            new AiModelInfo(
+                "Gemini 3.8 Flash",
+                "gemini-3.8-flash",
+                [ReasoningLevel.Minimal, ReasoningLevel.Low, ReasoningLevel.Medium, ReasoningLevel.High]),
         ];
 
         private readonly ConcurrentDictionary<string, Google.GenAI.Client> _clients = new();

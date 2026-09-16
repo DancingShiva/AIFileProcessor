@@ -75,6 +75,8 @@ public class GeminiServiceTests
         Assert.Contains("gemini-3.1-pro-preview", modelIds);
         Assert.Contains("gemini-3.5-flash", modelIds);
         Assert.Contains("gemini-3.6-flash", modelIds);
+        Assert.Contains("gemini-3.7-flash", modelIds);
+        Assert.Contains("gemini-3.8-flash", modelIds);
     }
     [Fact]
     public void GetSupportedModels_ContainsExpectedModelNames()
@@ -86,6 +88,8 @@ public class GeminiServiceTests
         Assert.Contains("Gemini 3.1 Pro", modelNames);
         Assert.Contains("Gemini 3.5 Flash", modelNames);
         Assert.Contains("Gemini 3.6 Flash", modelNames);
+        Assert.Contains("Gemini 3.7 Flash", modelNames);
+        Assert.Contains("Gemini 3.8 Flash", modelNames);
     }
     // ─── SupportsModel ────────────────────────────────────────────────
     [Fact]
